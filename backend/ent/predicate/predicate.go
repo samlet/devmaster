@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// Comment is the predicate function for comment builders.
+type Comment func(*sql.Selector)
+
 // IdempotencyKey is the predicate function for idempotencykey builders.
 type IdempotencyKey func(*sql.Selector)
 
@@ -17,3 +20,15 @@ type OutboxEvent func(*sql.Selector)
 
 // Product is the predicate function for product builders.
 type Product func(*sql.Selector)
+
+// ProductCounter is the predicate function for productcounter builders.
+type ProductCounter func(*sql.Selector)
+
+// WorkItem is the predicate function for workitem builders.
+type WorkItem func(*sql.Selector)
+
+// WorkItemEvent is the predicate function for workitemevent builders.
+type WorkItemEvent func(*sql.Selector)
+
+// WorkItemLink is the predicate function for workitemlink builders.
+type WorkItemLink func(*sql.Selector)

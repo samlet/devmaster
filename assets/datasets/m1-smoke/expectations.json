@@ -1,0 +1,14 @@
+{
+  "product_count": 2,
+  "work_item_count": 4,
+  "products": [
+    { "key": "HOSP", "status": "ACTIVE" },
+    { "key": "FI", "status": "ACTIVE" }
+  ],
+  "work_items": [
+    { "external_ref": "m1-1", "status": "DONE" },
+    { "external_ref": "m1-2", "status": "RESOLVED" },
+    { "external_ref": "m1-3", "status": "IN_PROGRESS" },
+    { "external_ref": "m1-4", "status": "BACKLOG" }
+  ]
+}

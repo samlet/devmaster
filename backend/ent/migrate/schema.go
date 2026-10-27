@@ -8,6 +8,29 @@ import (
 )
 
 var (
+	// CommentsColumns holds the columns for the "comments" table.
+	CommentsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "work_item_id", Type: field.TypeUUID},
+		{Name: "author_id", Type: field.TypeString, Size: 128},
+		{Name: "body_md", Type: field.TypeString},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "edited_at", Type: field.TypeTime, Nullable: true},
+	}
+	// CommentsTable holds the schema information for the "comments" table.
+	CommentsTable = &schema.Table{
+		Name:       "comments",
+		Columns:    CommentsColumns,
+		PrimaryKey: []*schema.Column{CommentsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "comment_work_item_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{CommentsColumns[2], CommentsColumns[5]},
+			},
+		},
+	}
 	// IdempotencyKeysColumns holds the columns for the "idempotency_keys" table.
 	IdempotencyKeysColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -112,12 +135,142 @@ var (
 			},
 		},
 	}
+	// ProductCountersColumns holds the columns for the "product_counters" table.
+	ProductCountersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "product_id", Type: field.TypeUUID, Unique: true},
+		{Name: "next_seq", Type: field.TypeInt64, Default: 1},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// ProductCountersTable holds the schema information for the "product_counters" table.
+	ProductCountersTable = &schema.Table{
+		Name:       "product_counters",
+		Columns:    ProductCountersColumns,
+		PrimaryKey: []*schema.Column{ProductCountersColumns[0]},
+	}
+	// WorkItemsColumns holds the columns for the "work_items" table.
+	WorkItemsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "key", Type: field.TypeString, Size: 32},
+		{Name: "product_id", Type: field.TypeUUID},
+		{Name: "type", Type: field.TypeString, Size: 16},
+		{Name: "status", Type: field.TypeString, Size: 16},
+		{Name: "resolution", Type: field.TypeString, Nullable: true, Size: 32},
+		{Name: "title", Type: field.TypeString, Size: 500},
+		{Name: "description_md", Type: field.TypeString, Default: ""},
+		{Name: "acceptance_criteria", Type: field.TypeString, Nullable: true},
+		{Name: "priority", Type: field.TypeInt16, Default: 3},
+		{Name: "severity", Type: field.TypeString, Nullable: true, Size: 16},
+		{Name: "environment", Type: field.TypeString, Nullable: true, Size: 16},
+		{Name: "reporter_id", Type: field.TypeString, Size: 128},
+		{Name: "assignee_id", Type: field.TypeString, Nullable: true, Size: 128},
+		{Name: "parent_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "rank", Type: field.TypeString, Size: 64},
+		{Name: "project_code", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "wbs_code", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "external_ref", Type: field.TypeString, Nullable: true, Size: 128},
+		{Name: "custom_fields", Type: field.TypeJSON, Nullable: true},
+		{Name: "blocked_reason", Type: field.TypeString, Nullable: true},
+		{Name: "reopened_count", Type: field.TypeInt16, Default: 0},
+		{Name: "version", Type: field.TypeInt, Default: 0},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "resolved_at", Type: field.TypeTime, Nullable: true},
+		{Name: "closed_at", Type: field.TypeTime, Nullable: true},
+	}
+	// WorkItemsTable holds the schema information for the "work_items" table.
+	WorkItemsTable = &schema.Table{
+		Name:       "work_items",
+		Columns:    WorkItemsColumns,
+		PrimaryKey: []*schema.Column{WorkItemsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "workitem_organization_id_key",
+				Unique:  true,
+				Columns: []*schema.Column{WorkItemsColumns[1], WorkItemsColumns[2]},
+			},
+			{
+				Name:    "workitem_product_id_rank",
+				Unique:  false,
+				Columns: []*schema.Column{WorkItemsColumns[3], WorkItemsColumns[16]},
+			},
+			{
+				Name:    "workitem_assignee_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{WorkItemsColumns[14], WorkItemsColumns[5]},
+			},
+		},
+	}
+	// WorkItemEventsColumns holds the columns for the "work_item_events" table.
+	WorkItemEventsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "work_item_id", Type: field.TypeUUID},
+		{Name: "event_type", Type: field.TypeString, Size: 32},
+		{Name: "from_status", Type: field.TypeString, Nullable: true, Size: 16},
+		{Name: "to_status", Type: field.TypeString, Nullable: true, Size: 16},
+		{Name: "actor_id", Type: field.TypeString, Nullable: true, Size: 128},
+		{Name: "payload", Type: field.TypeJSON, Nullable: true},
+		{Name: "occurred_at", Type: field.TypeTime},
+	}
+	// WorkItemEventsTable holds the schema information for the "work_item_events" table.
+	WorkItemEventsTable = &schema.Table{
+		Name:       "work_item_events",
+		Columns:    WorkItemEventsColumns,
+		PrimaryKey: []*schema.Column{WorkItemEventsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "workitemevent_work_item_id",
+				Unique:  false,
+				Columns: []*schema.Column{WorkItemEventsColumns[2]},
+			},
+			{
+				Name:    "workitemevent_organization_id_occurred_at",
+				Unique:  false,
+				Columns: []*schema.Column{WorkItemEventsColumns[1], WorkItemEventsColumns[8]},
+			},
+		},
+	}
+	// WorkItemLinksColumns holds the columns for the "work_item_links" table.
+	WorkItemLinksColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "from_id", Type: field.TypeUUID},
+		{Name: "to_id", Type: field.TypeUUID},
+		{Name: "link_type", Type: field.TypeString, Size: 16},
+		{Name: "created_by", Type: field.TypeString, Nullable: true, Size: 128},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// WorkItemLinksTable holds the schema information for the "work_item_links" table.
+	WorkItemLinksTable = &schema.Table{
+		Name:       "work_item_links",
+		Columns:    WorkItemLinksColumns,
+		PrimaryKey: []*schema.Column{WorkItemLinksColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "workitemlink_from_id_to_id_link_type",
+				Unique:  true,
+				Columns: []*schema.Column{WorkItemLinksColumns[2], WorkItemLinksColumns[3], WorkItemLinksColumns[4]},
+			},
+			{
+				Name:    "workitemlink_to_id",
+				Unique:  false,
+				Columns: []*schema.Column{WorkItemLinksColumns[3]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		CommentsTable,
 		IdempotencyKeysTable,
 		InboxEventsTable,
 		OutboxEventsTable,
 		ProductsTable,
+		ProductCountersTable,
+		WorkItemsTable,
+		WorkItemEventsTable,
+		WorkItemLinksTable,
 	}
 )
 

@@ -135,3 +135,70 @@ footer.page {
   display: flex;
   justify-content: space-between;
 }
+
+.filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.filters input,
+.filters select,
+.filters button {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.filters input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.filters button {
+  cursor: pointer;
+  background: var(--text);
+  color: #fff;
+  border-color: var(--text);
+}
+
+.pill.status-done,
+.pill.status-closed,
+.pill.status-verified {
+  background: var(--ok-bg);
+  color: var(--ok-text);
+}
+
+.pill.status-in_progress,
+.pill.status-in_review,
+.pill.status-resolved {
+  background: #eff8ff;
+  color: #175cd3;
+}
+
+.pill.status-backlog,
+.pill.status-todo,
+.pill.status-open,
+.pill.status-reopened {
+  background: #f2f4f7;
+  color: #344054;
+}
+
+.pill.status-wontfix,
+.pill.status-cancelled {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}

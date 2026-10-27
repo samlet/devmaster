@@ -37,7 +37,9 @@ export default async function Page() {
     <main>
       <header className="page">
         <h1>产品</h1>
-        <span className="hint">devmaster · 研发生产管理</span>
+        <span className="hint">
+          <a href="/work-items">工作项</a> · devmaster
+        </span>
       </header>
 
       {error ? (

@@ -23,6 +23,7 @@ func NewServer(
 	metrics *observability.Metrics,
 	logger *slog.Logger,
 	productService *ProductService,
+	workItemService *WorkItemService,
 	systemService *SystemService,
 ) *grpc.Server {
 	server := grpc.NewServer(
@@ -33,6 +34,7 @@ func NewServer(
 		),
 	)
 	devv1.RegisterProductServiceServer(server, productService)
+	devv1.RegisterWorkItemServiceServer(server, workItemService)
 	devv1.RegisterSystemServiceServer(server, systemService)
 	reflection.Register(server)
 	return server

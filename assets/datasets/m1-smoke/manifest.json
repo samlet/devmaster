@@ -1,0 +1,10 @@
+{
+  "name": "m1-smoke",
+  "version": 1,
+  "organization_id": "00000000-0000-0000-0000-000000000001",
+  "files": [
+    { "path": "00-master/products.csv", "kind": "products", "required": true },
+    { "path": "01-work/work_items.csv", "kind": "work_items", "required": true }
+  ],
+  "expectations": "expectations.json"
+}

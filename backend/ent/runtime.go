@@ -6,17 +6,54 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/xiaofeiwu/devmaster/backend/ent/comment"
 	"github.com/xiaofeiwu/devmaster/backend/ent/idempotencykey"
 	"github.com/xiaofeiwu/devmaster/backend/ent/inboxevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/outboxevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/product"
+	"github.com/xiaofeiwu/devmaster/backend/ent/productcounter"
 	"github.com/xiaofeiwu/devmaster/backend/ent/schema"
+	"github.com/xiaofeiwu/devmaster/backend/ent/workitem"
+	"github.com/xiaofeiwu/devmaster/backend/ent/workitemevent"
+	"github.com/xiaofeiwu/devmaster/backend/ent/workitemlink"
 )
 
 // The init function reads all schema descriptors with runtime code
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	commentFields := schema.Comment{}.Fields()
+	_ = commentFields
+	// commentDescAuthorID is the schema descriptor for author_id field.
+	commentDescAuthorID := commentFields[3].Descriptor()
+	// comment.AuthorIDValidator is a validator for the "author_id" field. It is called by the builders before save.
+	comment.AuthorIDValidator = func() func(string) error {
+		validators := commentDescAuthorID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(author_id string) error {
+			for _, fn := range fns {
+				if err := fn(author_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// commentDescBodyMd is the schema descriptor for body_md field.
+	commentDescBodyMd := commentFields[4].Descriptor()
+	// comment.BodyMdValidator is a validator for the "body_md" field. It is called by the builders before save.
+	comment.BodyMdValidator = commentDescBodyMd.Validators[0].(func(string) error)
+	// commentDescCreatedAt is the schema descriptor for created_at field.
+	commentDescCreatedAt := commentFields[5].Descriptor()
+	// comment.DefaultCreatedAt holds the default value on creation for the created_at field.
+	comment.DefaultCreatedAt = commentDescCreatedAt.Default.(func() time.Time)
+	// commentDescID is the schema descriptor for id field.
+	commentDescID := commentFields[0].Descriptor()
+	// comment.DefaultID holds the default value on creation for the id field.
+	comment.DefaultID = commentDescID.Default.(func() uuid.UUID)
 	idempotencykeyFields := schema.IdempotencyKey{}.Fields()
 	_ = idempotencykeyFields
 	// idempotencykeyDescKey is the schema descriptor for key field.
@@ -239,4 +276,252 @@ func init() {
 	productDescID := productFields[0].Descriptor()
 	// product.DefaultID holds the default value on creation for the id field.
 	product.DefaultID = productDescID.Default.(func() uuid.UUID)
+	productcounterFields := schema.ProductCounter{}.Fields()
+	_ = productcounterFields
+	// productcounterDescNextSeq is the schema descriptor for next_seq field.
+	productcounterDescNextSeq := productcounterFields[1].Descriptor()
+	// productcounter.DefaultNextSeq holds the default value on creation for the next_seq field.
+	productcounter.DefaultNextSeq = productcounterDescNextSeq.Default.(int64)
+	// productcounterDescUpdatedAt is the schema descriptor for updated_at field.
+	productcounterDescUpdatedAt := productcounterFields[2].Descriptor()
+	// productcounter.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	productcounter.DefaultUpdatedAt = productcounterDescUpdatedAt.Default.(func() time.Time)
+	// productcounter.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	productcounter.UpdateDefaultUpdatedAt = productcounterDescUpdatedAt.UpdateDefault.(func() time.Time)
+	workitemFields := schema.WorkItem{}.Fields()
+	_ = workitemFields
+	// workitemDescKey is the schema descriptor for key field.
+	workitemDescKey := workitemFields[2].Descriptor()
+	// workitem.KeyValidator is a validator for the "key" field. It is called by the builders before save.
+	workitem.KeyValidator = func() func(string) error {
+		validators := workitemDescKey.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(key string) error {
+			for _, fn := range fns {
+				if err := fn(key); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// workitemDescType is the schema descriptor for type field.
+	workitemDescType := workitemFields[4].Descriptor()
+	// workitem.TypeValidator is a validator for the "type" field. It is called by the builders before save.
+	workitem.TypeValidator = func() func(string) error {
+		validators := workitemDescType.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(_type string) error {
+			for _, fn := range fns {
+				if err := fn(_type); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// workitemDescStatus is the schema descriptor for status field.
+	workitemDescStatus := workitemFields[5].Descriptor()
+	// workitem.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	workitem.StatusValidator = func() func(string) error {
+		validators := workitemDescStatus.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(status string) error {
+			for _, fn := range fns {
+				if err := fn(status); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// workitemDescResolution is the schema descriptor for resolution field.
+	workitemDescResolution := workitemFields[6].Descriptor()
+	// workitem.ResolutionValidator is a validator for the "resolution" field. It is called by the builders before save.
+	workitem.ResolutionValidator = workitemDescResolution.Validators[0].(func(string) error)
+	// workitemDescTitle is the schema descriptor for title field.
+	workitemDescTitle := workitemFields[7].Descriptor()
+	// workitem.TitleValidator is a validator for the "title" field. It is called by the builders before save.
+	workitem.TitleValidator = func() func(string) error {
+		validators := workitemDescTitle.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(title string) error {
+			for _, fn := range fns {
+				if err := fn(title); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// workitemDescDescriptionMd is the schema descriptor for description_md field.
+	workitemDescDescriptionMd := workitemFields[8].Descriptor()
+	// workitem.DefaultDescriptionMd holds the default value on creation for the description_md field.
+	workitem.DefaultDescriptionMd = workitemDescDescriptionMd.Default.(string)
+	// workitemDescPriority is the schema descriptor for priority field.
+	workitemDescPriority := workitemFields[10].Descriptor()
+	// workitem.DefaultPriority holds the default value on creation for the priority field.
+	workitem.DefaultPriority = workitemDescPriority.Default.(int16)
+	// workitemDescSeverity is the schema descriptor for severity field.
+	workitemDescSeverity := workitemFields[11].Descriptor()
+	// workitem.SeverityValidator is a validator for the "severity" field. It is called by the builders before save.
+	workitem.SeverityValidator = workitemDescSeverity.Validators[0].(func(string) error)
+	// workitemDescEnvironment is the schema descriptor for environment field.
+	workitemDescEnvironment := workitemFields[12].Descriptor()
+	// workitem.EnvironmentValidator is a validator for the "environment" field. It is called by the builders before save.
+	workitem.EnvironmentValidator = workitemDescEnvironment.Validators[0].(func(string) error)
+	// workitemDescReporterID is the schema descriptor for reporter_id field.
+	workitemDescReporterID := workitemFields[13].Descriptor()
+	// workitem.ReporterIDValidator is a validator for the "reporter_id" field. It is called by the builders before save.
+	workitem.ReporterIDValidator = func() func(string) error {
+		validators := workitemDescReporterID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(reporter_id string) error {
+			for _, fn := range fns {
+				if err := fn(reporter_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// workitemDescAssigneeID is the schema descriptor for assignee_id field.
+	workitemDescAssigneeID := workitemFields[14].Descriptor()
+	// workitem.AssigneeIDValidator is a validator for the "assignee_id" field. It is called by the builders before save.
+	workitem.AssigneeIDValidator = workitemDescAssigneeID.Validators[0].(func(string) error)
+	// workitemDescRank is the schema descriptor for rank field.
+	workitemDescRank := workitemFields[16].Descriptor()
+	// workitem.RankValidator is a validator for the "rank" field. It is called by the builders before save.
+	workitem.RankValidator = func() func(string) error {
+		validators := workitemDescRank.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(rank string) error {
+			for _, fn := range fns {
+				if err := fn(rank); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// workitemDescProjectCode is the schema descriptor for project_code field.
+	workitemDescProjectCode := workitemFields[17].Descriptor()
+	// workitem.ProjectCodeValidator is a validator for the "project_code" field. It is called by the builders before save.
+	workitem.ProjectCodeValidator = workitemDescProjectCode.Validators[0].(func(string) error)
+	// workitemDescWbsCode is the schema descriptor for wbs_code field.
+	workitemDescWbsCode := workitemFields[18].Descriptor()
+	// workitem.WbsCodeValidator is a validator for the "wbs_code" field. It is called by the builders before save.
+	workitem.WbsCodeValidator = workitemDescWbsCode.Validators[0].(func(string) error)
+	// workitemDescExternalRef is the schema descriptor for external_ref field.
+	workitemDescExternalRef := workitemFields[19].Descriptor()
+	// workitem.ExternalRefValidator is a validator for the "external_ref" field. It is called by the builders before save.
+	workitem.ExternalRefValidator = workitemDescExternalRef.Validators[0].(func(string) error)
+	// workitemDescReopenedCount is the schema descriptor for reopened_count field.
+	workitemDescReopenedCount := workitemFields[22].Descriptor()
+	// workitem.DefaultReopenedCount holds the default value on creation for the reopened_count field.
+	workitem.DefaultReopenedCount = workitemDescReopenedCount.Default.(int16)
+	// workitemDescVersion is the schema descriptor for version field.
+	workitemDescVersion := workitemFields[23].Descriptor()
+	// workitem.DefaultVersion holds the default value on creation for the version field.
+	workitem.DefaultVersion = workitemDescVersion.Default.(int)
+	// workitemDescCreatedAt is the schema descriptor for created_at field.
+	workitemDescCreatedAt := workitemFields[24].Descriptor()
+	// workitem.DefaultCreatedAt holds the default value on creation for the created_at field.
+	workitem.DefaultCreatedAt = workitemDescCreatedAt.Default.(func() time.Time)
+	// workitemDescUpdatedAt is the schema descriptor for updated_at field.
+	workitemDescUpdatedAt := workitemFields[25].Descriptor()
+	// workitem.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	workitem.DefaultUpdatedAt = workitemDescUpdatedAt.Default.(func() time.Time)
+	// workitem.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	workitem.UpdateDefaultUpdatedAt = workitemDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// workitemDescID is the schema descriptor for id field.
+	workitemDescID := workitemFields[0].Descriptor()
+	// workitem.DefaultID holds the default value on creation for the id field.
+	workitem.DefaultID = workitemDescID.Default.(func() uuid.UUID)
+	workitemeventFields := schema.WorkItemEvent{}.Fields()
+	_ = workitemeventFields
+	// workitemeventDescEventType is the schema descriptor for event_type field.
+	workitemeventDescEventType := workitemeventFields[2].Descriptor()
+	// workitemevent.EventTypeValidator is a validator for the "event_type" field. It is called by the builders before save.
+	workitemevent.EventTypeValidator = func() func(string) error {
+		validators := workitemeventDescEventType.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(event_type string) error {
+			for _, fn := range fns {
+				if err := fn(event_type); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// workitemeventDescFromStatus is the schema descriptor for from_status field.
+	workitemeventDescFromStatus := workitemeventFields[3].Descriptor()
+	// workitemevent.FromStatusValidator is a validator for the "from_status" field. It is called by the builders before save.
+	workitemevent.FromStatusValidator = workitemeventDescFromStatus.Validators[0].(func(string) error)
+	// workitemeventDescToStatus is the schema descriptor for to_status field.
+	workitemeventDescToStatus := workitemeventFields[4].Descriptor()
+	// workitemevent.ToStatusValidator is a validator for the "to_status" field. It is called by the builders before save.
+	workitemevent.ToStatusValidator = workitemeventDescToStatus.Validators[0].(func(string) error)
+	// workitemeventDescActorID is the schema descriptor for actor_id field.
+	workitemeventDescActorID := workitemeventFields[5].Descriptor()
+	// workitemevent.ActorIDValidator is a validator for the "actor_id" field. It is called by the builders before save.
+	workitemevent.ActorIDValidator = workitemeventDescActorID.Validators[0].(func(string) error)
+	// workitemeventDescOccurredAt is the schema descriptor for occurred_at field.
+	workitemeventDescOccurredAt := workitemeventFields[7].Descriptor()
+	// workitemevent.DefaultOccurredAt holds the default value on creation for the occurred_at field.
+	workitemevent.DefaultOccurredAt = workitemeventDescOccurredAt.Default.(func() time.Time)
+	workitemlinkFields := schema.WorkItemLink{}.Fields()
+	_ = workitemlinkFields
+	// workitemlinkDescLinkType is the schema descriptor for link_type field.
+	workitemlinkDescLinkType := workitemlinkFields[4].Descriptor()
+	// workitemlink.LinkTypeValidator is a validator for the "link_type" field. It is called by the builders before save.
+	workitemlink.LinkTypeValidator = func() func(string) error {
+		validators := workitemlinkDescLinkType.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(link_type string) error {
+			for _, fn := range fns {
+				if err := fn(link_type); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// workitemlinkDescCreatedBy is the schema descriptor for created_by field.
+	workitemlinkDescCreatedBy := workitemlinkFields[5].Descriptor()
+	// workitemlink.CreatedByValidator is a validator for the "created_by" field. It is called by the builders before save.
+	workitemlink.CreatedByValidator = workitemlinkDescCreatedBy.Validators[0].(func(string) error)
+	// workitemlinkDescCreatedAt is the schema descriptor for created_at field.
+	workitemlinkDescCreatedAt := workitemlinkFields[6].Descriptor()
+	// workitemlink.DefaultCreatedAt holds the default value on creation for the created_at field.
+	workitemlink.DefaultCreatedAt = workitemlinkDescCreatedAt.Default.(func() time.Time)
+	// workitemlinkDescID is the schema descriptor for id field.
+	workitemlinkDescID := workitemlinkFields[0].Descriptor()
+	// workitemlink.DefaultID holds the default value on creation for the id field.
+	workitemlink.DefaultID = workitemlinkDescID.Default.(func() uuid.UUID)
 }

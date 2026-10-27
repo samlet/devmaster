@@ -14,7 +14,7 @@ HTTP_PORT ?= 8291
 
 .PHONY: help tools proto proto-check db-create migrate migrate-test migrate-status \
         run relay worker dev web-install web-dev web-build web-check \
-        test test-integration lint build check clean
+        seed-check seed-dataset reconcile test test-integration lint build check clean
 
 help:
 	@echo "make tools            检查 go / buf / atlas"
@@ -30,6 +30,9 @@ help:
 	@echo "make web-dev          控制台 :3031"
 	@echo "make web-build        控制台生产构建"
 	@echo "make web-check        tsc --noEmit"
+	@echo "make seed-check       校验数据包结构（不连库）"
+	@echo "make seed-dataset     导入数据包（幂等，默认 m1-smoke）"
+	@echo "make reconcile        事件折叠对账（需 ORGANIZATION_ID）"
 	@echo "make test             buf lint + go test"
 	@echo "make test-integration 真连 PG 的集成测试（-p 1）"
 	@echo "make lint             go vet + buf lint"
@@ -93,6 +96,18 @@ web-build:
 
 web-check:
 	pnpm --dir web typecheck
+
+DATASET ?= assets/datasets/m1-smoke
+ORGANIZATION_ID ?= 00000000-0000-0000-0000-000000000001
+
+seed-check:
+	cd backend && go run ./cmd/importer -dataset ../$(DATASET) -dry-run
+
+seed-dataset:
+	cd backend && go run ./cmd/importer -dataset ../$(DATASET) -config configs/local.example.yaml
+
+reconcile:
+	cd backend && go run ./cmd/reconcile -organization-id $(ORGANIZATION_ID) -config configs/local.example.yaml
 
 test: tools
 	buf lint

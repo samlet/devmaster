@@ -12,6 +12,8 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// Comment is the client for interacting with the Comment builders.
+	Comment *CommentClient
 	// IdempotencyKey is the client for interacting with the IdempotencyKey builders.
 	IdempotencyKey *IdempotencyKeyClient
 	// InboxEvent is the client for interacting with the InboxEvent builders.
@@ -20,6 +22,14 @@ type Tx struct {
 	OutboxEvent *OutboxEventClient
 	// Product is the client for interacting with the Product builders.
 	Product *ProductClient
+	// ProductCounter is the client for interacting with the ProductCounter builders.
+	ProductCounter *ProductCounterClient
+	// WorkItem is the client for interacting with the WorkItem builders.
+	WorkItem *WorkItemClient
+	// WorkItemEvent is the client for interacting with the WorkItemEvent builders.
+	WorkItemEvent *WorkItemEventClient
+	// WorkItemLink is the client for interacting with the WorkItemLink builders.
+	WorkItemLink *WorkItemLinkClient
 
 	// lazily loaded.
 	client     *Client
@@ -151,10 +161,15 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.Comment = NewCommentClient(tx.config)
 	tx.IdempotencyKey = NewIdempotencyKeyClient(tx.config)
 	tx.InboxEvent = NewInboxEventClient(tx.config)
 	tx.OutboxEvent = NewOutboxEventClient(tx.config)
 	tx.Product = NewProductClient(tx.config)
+	tx.ProductCounter = NewProductCounterClient(tx.config)
+	tx.WorkItem = NewWorkItemClient(tx.config)
+	tx.WorkItemEvent = NewWorkItemEventClient(tx.config)
+	tx.WorkItemLink = NewWorkItemLinkClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.
@@ -164,7 +179,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: IdempotencyKey.QueryXXX(), the query will be executed
+// applies a query, for example: Comment.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

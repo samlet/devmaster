@@ -62,3 +62,34 @@ assets/datasets/<name>/
 
 格式刻意与 PPM 的 `assets/datasets/` 保持一致（manifest + 分目录 CSV + expectations），
 这样跨仓走查时可以用同一套工具与同一套读法。差异只在实体名。
+
+## 实体：products
+
+```csv
+key,name,description
+HOSP,酒店 PMS,面向酒店的管理系统
+```
+
+按 `key` 幂等：已存在则跳过，不覆盖已有名称与描述（导入器不替人做改名决定）。
+
+## 实体：work_items
+
+```csv
+product_key,type,title,description,priority,severity,status,assignee_id,external_ref
+HOSP,TASK,接入 Keycloak 登录,用 OIDC 替换本地登录,P1,,DONE,user-1,m1-1
+HOSP,BUG,登录页崩溃,复现步骤见描述,P0,CRITICAL,RESOLVED,user-1,m1-2
+```
+
+| 列 | 必填 | 说明 |
+|---|---|---|
+| `product_key` | ✅ | 必须是已导入的产品 key |
+| `type` | ✅ | EPIC / STORY / TASK / BUG / SUBTASK |
+| `title` | ✅ | 非空 |
+| `external_ref` | ✅ | 导入幂等键；同一组织内唯一 |
+| `status` | ❌ | 目标状态。导入器按状态机找合法路径逐级迁移；不填则停在初始态 |
+| `priority` | ❌ | P0–P3，默认 P2 |
+| `severity` | ❌ | 仅 BUG：BLOCKER/CRITICAL/MAJOR/MINOR/TRIVIAL |
+| `assignee_id` | ❌ | 进入 IN_PROGRESS 前必须有值，否则迁移被守卫拒绝 |
+
+**状态必须可达**：例如 TASK 不能直接到 CLOSED（状态机里没有这条边）。
+导入器会报"无法从 X 迁移到 Y"，而不是硬改状态 —— 硬改会让事件日志与当前态分叉。

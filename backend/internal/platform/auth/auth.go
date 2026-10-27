@@ -59,6 +59,23 @@ var MethodRules = map[string]Rule{
 	"/dev.v1.ProductService/GetProduct":    {RequireOrganization: true},
 	"/dev.v1.ProductService/ListProducts":  {RequireOrganization: true},
 	"/dev.v1.ProductService/CreateProduct": {RequireOrganization: true, Roles: []string{"DEV_ADMIN"}},
+
+	// 工作项：读侧所有登录用户；写侧要求 DEV_MEMBER。
+	// 更细的守卫在领域层（取消需要 DEV_LEAD、验证缺陷需要报告人或 DEV_LEAD），
+	// 那些是业务规则，不该被压成角色矩阵。
+	"/dev.v1.WorkItemService/GetWorkItem":        {RequireOrganization: true},
+	"/dev.v1.WorkItemService/ListWorkItems":      {RequireOrganization: true},
+	"/dev.v1.WorkItemService/SearchWorkItems":    {RequireOrganization: true},
+	"/dev.v1.WorkItemService/ListComments":       {RequireOrganization: true},
+	"/dev.v1.WorkItemService/ListLinks":          {RequireOrganization: true},
+	"/dev.v1.WorkItemService/ListWorkItemEvents": {RequireOrganization: true},
+	"/dev.v1.WorkItemService/CreateWorkItem":     {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+	"/dev.v1.WorkItemService/UpdateWorkItem":     {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+	"/dev.v1.WorkItemService/TransitionWorkItem": {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+	"/dev.v1.WorkItemService/AssignWorkItem":     {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+	"/dev.v1.WorkItemService/AddComment":         {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+	"/dev.v1.WorkItemService/AddLink":            {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+	"/dev.v1.WorkItemService/RemoveLink":         {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
 }
 
 type Authenticator struct {

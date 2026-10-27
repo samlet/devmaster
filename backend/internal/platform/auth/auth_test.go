@@ -13,6 +13,7 @@ import (
 
 var serviceDescs = []grpc.ServiceDesc{
 	devv1.ProductService_ServiceDesc,
+	devv1.WorkItemService_ServiceDesc,
 	devv1.SystemService_ServiceDesc,
 }
 

@@ -1,0 +1,292 @@
+syntax = "proto3";
+
+package dev.v1;
+
+import "dev/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/xiaofeiwu/devmaster/backend/gen/go/dev/v1;devv1";
+
+enum WorkItemType {
+  WORK_ITEM_TYPE_UNSPECIFIED = 0;
+  WORK_ITEM_TYPE_EPIC = 1;
+  WORK_ITEM_TYPE_STORY = 2;
+  WORK_ITEM_TYPE_TASK = 3;
+  WORK_ITEM_TYPE_BUG = 4;
+  WORK_ITEM_TYPE_SUBTASK = 5;
+}
+
+enum WorkItemStatus {
+  WORK_ITEM_STATUS_UNSPECIFIED = 0;
+  WORK_ITEM_STATUS_BACKLOG = 1;
+  WORK_ITEM_STATUS_TODO = 2;
+  WORK_ITEM_STATUS_OPEN = 3;
+  WORK_ITEM_STATUS_IN_PROGRESS = 4;
+  WORK_ITEM_STATUS_IN_REVIEW = 5;
+  WORK_ITEM_STATUS_RESOLVED = 6;
+  WORK_ITEM_STATUS_VERIFIED = 7;
+  WORK_ITEM_STATUS_DONE = 8;
+  WORK_ITEM_STATUS_CLOSED = 9;
+  WORK_ITEM_STATUS_REOPENED = 10;
+  WORK_ITEM_STATUS_WONTFIX = 11;
+  WORK_ITEM_STATUS_CANCELLED = 12;
+}
+
+enum Resolution {
+  RESOLUTION_UNSPECIFIED = 0;
+  RESOLUTION_FIXED = 1;
+  RESOLUTION_WONTFIX = 2;
+  RESOLUTION_DUPLICATE = 3;
+  RESOLUTION_CANNOT_REPRODUCE = 4;
+  RESOLUTION_BY_DESIGN = 5;
+  RESOLUTION_OBSOLETE = 6;
+}
+
+enum Priority {
+  PRIORITY_UNSPECIFIED = 0;
+  PRIORITY_P0 = 1;
+  PRIORITY_P1 = 2;
+  PRIORITY_P2 = 3;
+  PRIORITY_P3 = 4;
+}
+
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  SEVERITY_BLOCKER = 1;
+  SEVERITY_CRITICAL = 2;
+  SEVERITY_MAJOR = 3;
+  SEVERITY_MINOR = 4;
+  SEVERITY_TRIVIAL = 5;
+}
+
+enum LinkType {
+  LINK_TYPE_UNSPECIFIED = 0;
+  LINK_TYPE_BLOCKS = 1;
+  LINK_TYPE_BLOCKED_BY = 2;
+  LINK_TYPE_RELATES = 3;
+  LINK_TYPE_DUPLICATES = 4;
+  LINK_TYPE_CAUSES = 5;
+}
+
+message WorkItem {
+  string id = 1;
+  string organization_id = 2;
+  string key = 3;
+  string product_id = 4;
+  WorkItemType type = 5;
+  WorkItemStatus status = 6;
+  Resolution resolution = 7;
+  string title = 8;
+  string description_md = 9;
+  string acceptance_criteria = 10;
+  Priority priority = 11;
+  Severity severity = 12;
+  string environment = 13;
+  string reporter_id = 14;
+  string assignee_id = 15;
+  string parent_id = 16;
+  string rank = 17;
+  string project_code = 18;
+  string wbs_code = 19;
+  string external_ref = 20;
+  int32 reopened_count = 21;
+  int32 version = 22;
+  google.protobuf.Timestamp created_at = 23;
+  google.protobuf.Timestamp updated_at = 24;
+  google.protobuf.Timestamp resolved_at = 25;
+  google.protobuf.Timestamp closed_at = 26;
+}
+
+message CreateWorkItemRequest {
+  WriteOptions options = 1;
+  string product_id = 2;
+  WorkItemType type = 3;
+  string title = 4;
+  string description_md = 5;
+  string acceptance_criteria = 6;
+  Priority priority = 7;
+  Severity severity = 8;
+  string environment = 9;
+  string assignee_id = 10;
+  string parent_id = 11;
+  string project_code = 12;
+  string wbs_code = 13;
+  string external_ref = 14;
+}
+
+message CreateWorkItemResponse {
+  WorkItem work_item = 1;
+}
+
+message GetWorkItemRequest {
+  string id = 1;
+  string key = 2;
+}
+
+message GetWorkItemResponse {
+  WorkItem work_item = 1;
+}
+
+message UpdateWorkItemRequest {
+  WriteOptions options = 1;
+  string id = 2;
+  optional string title = 3;
+  optional string description_md = 4;
+  optional string acceptance_criteria = 5;
+  optional Priority priority = 6;
+  optional Severity severity = 7;
+  optional string environment = 8;
+  optional string project_code = 9;
+  optional string wbs_code = 10;
+  optional string external_ref = 11;
+  optional string blocked_reason = 12;
+}
+
+message UpdateWorkItemResponse {
+  WorkItem work_item = 1;
+}
+
+message TransitionWorkItemRequest {
+  WriteOptions options = 1;
+  string id = 2;
+  WorkItemStatus to = 3;
+  Resolution resolution = 4;
+  string comment = 5;
+}
+
+message TransitionWorkItemResponse {
+  WorkItem work_item = 1;
+}
+
+message AssignWorkItemRequest {
+  WriteOptions options = 1;
+  string id = 2;
+  // 空字符串表示取消指派；用 optional 区分"没传"与"传空"。
+  optional string assignee_id = 3;
+}
+
+message AssignWorkItemResponse {
+  WorkItem work_item = 1;
+}
+
+message ListWorkItemsRequest {
+  string product_id = 1;
+  WorkItemType type = 2;
+  repeated WorkItemStatus statuses = 3;
+  string assignee_id = 4;
+  string query = 5;
+  PageRequest page = 6;
+}
+
+message ListWorkItemsResponse {
+  repeated WorkItem work_items = 1;
+  PageResponse page = 2;
+}
+
+message SearchWorkItemsRequest {
+  string product_id = 1;
+  string query = 2;
+  PageRequest page = 3;
+}
+
+message SearchWorkItemsResponse {
+  repeated WorkItem work_items = 1;
+  PageResponse page = 2;
+}
+
+message Comment {
+  string id = 1;
+  string work_item_id = 2;
+  string author_id = 3;
+  string body_md = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp edited_at = 6;
+}
+
+message AddCommentRequest {
+  WriteOptions options = 1;
+  string work_item_id = 2;
+  string body_md = 3;
+}
+
+message AddCommentResponse {
+  Comment comment = 1;
+}
+
+message ListCommentsRequest {
+  string work_item_id = 1;
+}
+
+message ListCommentsResponse {
+  repeated Comment comments = 1;
+}
+
+message Link {
+  string id = 1;
+  string from_id = 2;
+  string to_id = 3;
+  LinkType type = 4;
+  string created_by = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message AddLinkRequest {
+  WriteOptions options = 1;
+  string from_id = 2;
+  string to_id = 3;
+  LinkType type = 4;
+}
+
+message AddLinkResponse {
+  Link link = 1;
+}
+
+message RemoveLinkRequest {
+  WriteOptions options = 1;
+  string from_id = 2;
+  string to_id = 3;
+  LinkType type = 4;
+}
+
+message RemoveLinkResponse {}
+
+message ListLinksRequest {
+  string work_item_id = 1;
+}
+
+message ListLinksResponse {
+  repeated Link links = 1;
+}
+
+message WorkItemEvent {
+  string event_type = 1;
+  WorkItemStatus from_status = 2;
+  WorkItemStatus to_status = 3;
+  string actor_id = 4;
+  string payload_json = 5;
+  google.protobuf.Timestamp occurred_at = 6;
+}
+
+message ListWorkItemEventsRequest {
+  string work_item_id = 1;
+}
+
+message ListWorkItemEventsResponse {
+  repeated WorkItemEvent events = 1;
+}
+
+service WorkItemService {
+  rpc CreateWorkItem(CreateWorkItemRequest) returns (CreateWorkItemResponse);
+  rpc GetWorkItem(GetWorkItemRequest) returns (GetWorkItemResponse);
+  rpc UpdateWorkItem(UpdateWorkItemRequest) returns (UpdateWorkItemResponse);
+  rpc TransitionWorkItem(TransitionWorkItemRequest) returns (TransitionWorkItemResponse);
+  rpc AssignWorkItem(AssignWorkItemRequest) returns (AssignWorkItemResponse);
+  rpc ListWorkItems(ListWorkItemsRequest) returns (ListWorkItemsResponse);
+  rpc SearchWorkItems(SearchWorkItemsRequest) returns (SearchWorkItemsResponse);
+  rpc AddComment(AddCommentRequest) returns (AddCommentResponse);
+  rpc ListComments(ListCommentsRequest) returns (ListCommentsResponse);
+  rpc AddLink(AddLinkRequest) returns (AddLinkResponse);
+  rpc RemoveLink(RemoveLinkRequest) returns (RemoveLinkResponse);
+  rpc ListLinks(ListLinksRequest) returns (ListLinksResponse);
+  rpc ListWorkItemEvents(ListWorkItemEventsRequest) returns (ListWorkItemEventsResponse);
+}

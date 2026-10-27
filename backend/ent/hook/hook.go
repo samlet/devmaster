@@ -9,6 +9,18 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/ent"
 )
 
+// The CommentFunc type is an adapter to allow the use of ordinary
+// function as Comment mutator.
+type CommentFunc func(context.Context, *ent.CommentMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CommentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CommentMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CommentMutation", m)
+}
+
 // The IdempotencyKeyFunc type is an adapter to allow the use of ordinary
 // function as IdempotencyKey mutator.
 type IdempotencyKeyFunc func(context.Context, *ent.IdempotencyKeyMutation) (ent.Value, error)
@@ -55,6 +67,54 @@ func (f ProductFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ProductMutation", m)
+}
+
+// The ProductCounterFunc type is an adapter to allow the use of ordinary
+// function as ProductCounter mutator.
+type ProductCounterFunc func(context.Context, *ent.ProductCounterMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ProductCounterFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ProductCounterMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ProductCounterMutation", m)
+}
+
+// The WorkItemFunc type is an adapter to allow the use of ordinary
+// function as WorkItem mutator.
+type WorkItemFunc func(context.Context, *ent.WorkItemMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f WorkItemFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.WorkItemMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorkItemMutation", m)
+}
+
+// The WorkItemEventFunc type is an adapter to allow the use of ordinary
+// function as WorkItemEvent mutator.
+type WorkItemEventFunc func(context.Context, *ent.WorkItemEventMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f WorkItemEventFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.WorkItemEventMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorkItemEventMutation", m)
+}
+
+// The WorkItemLinkFunc type is an adapter to allow the use of ordinary
+// function as WorkItemLink mutator.
+type WorkItemLinkFunc func(context.Context, *ent.WorkItemLinkMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f WorkItemLinkFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.WorkItemLinkMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorkItemLinkMutation", m)
 }
 
 // Condition is a hook condition function.

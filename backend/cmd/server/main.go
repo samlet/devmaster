@@ -25,6 +25,8 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/internal/product/application"
 	grpctransport "github.com/xiaofeiwu/devmaster/backend/internal/transport/grpc"
 	httptransport "github.com/xiaofeiwu/devmaster/backend/internal/transport/http"
+	workitempostgres "github.com/xiaofeiwu/devmaster/backend/internal/workitem/adapter/postgres"
+	workitemapplication "github.com/xiaofeiwu/devmaster/backend/internal/workitem/application"
 )
 
 func main() {
@@ -64,10 +66,12 @@ func run() error {
 
 	metrics := observability.NewMetrics()
 	productService := application.NewService(productpostgres.NewRepository(db))
+	workItemService := workitemapplication.NewService(workitempostgres.NewRepository(db))
 
 	grpcServer := grpctransport.NewServer(
 		authenticator, metrics, logger,
 		grpctransport.NewProductService(productService, db, metrics, logger),
+		grpctransport.NewWorkItemService(workItemService, db, logger),
 		grpctransport.NewSystemService(),
 	)
 	grpcListener, err := net.Listen("tcp", cfg.Server.GRPCAddress)
@@ -89,7 +93,7 @@ func run() error {
 	}
 	httpServer := &http.Server{
 		Addr:    cfg.Server.HTTPAddress,
-		Handler: httptransport.NewServer(productService, metrics, health, logger, defaultOrganizationID).Handler(),
+		Handler: httptransport.NewServer(productService, workItemService, metrics, health, logger, defaultOrganizationID).Handler(),
 	}
 
 	errCh := make(chan error, 2)

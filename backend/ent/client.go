@@ -15,10 +15,15 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
+	"github.com/xiaofeiwu/devmaster/backend/ent/comment"
 	"github.com/xiaofeiwu/devmaster/backend/ent/idempotencykey"
 	"github.com/xiaofeiwu/devmaster/backend/ent/inboxevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/outboxevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/product"
+	"github.com/xiaofeiwu/devmaster/backend/ent/productcounter"
+	"github.com/xiaofeiwu/devmaster/backend/ent/workitem"
+	"github.com/xiaofeiwu/devmaster/backend/ent/workitemevent"
+	"github.com/xiaofeiwu/devmaster/backend/ent/workitemlink"
 )
 
 // Client is the client that holds all ent builders.
@@ -26,6 +31,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// Comment is the client for interacting with the Comment builders.
+	Comment *CommentClient
 	// IdempotencyKey is the client for interacting with the IdempotencyKey builders.
 	IdempotencyKey *IdempotencyKeyClient
 	// InboxEvent is the client for interacting with the InboxEvent builders.
@@ -34,6 +41,14 @@ type Client struct {
 	OutboxEvent *OutboxEventClient
 	// Product is the client for interacting with the Product builders.
 	Product *ProductClient
+	// ProductCounter is the client for interacting with the ProductCounter builders.
+	ProductCounter *ProductCounterClient
+	// WorkItem is the client for interacting with the WorkItem builders.
+	WorkItem *WorkItemClient
+	// WorkItemEvent is the client for interacting with the WorkItemEvent builders.
+	WorkItemEvent *WorkItemEventClient
+	// WorkItemLink is the client for interacting with the WorkItemLink builders.
+	WorkItemLink *WorkItemLinkClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -45,10 +60,15 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.Comment = NewCommentClient(c.config)
 	c.IdempotencyKey = NewIdempotencyKeyClient(c.config)
 	c.InboxEvent = NewInboxEventClient(c.config)
 	c.OutboxEvent = NewOutboxEventClient(c.config)
 	c.Product = NewProductClient(c.config)
+	c.ProductCounter = NewProductCounterClient(c.config)
+	c.WorkItem = NewWorkItemClient(c.config)
+	c.WorkItemEvent = NewWorkItemEventClient(c.config)
+	c.WorkItemLink = NewWorkItemLinkClient(c.config)
 }
 
 type (
@@ -141,10 +161,15 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	return &Tx{
 		ctx:            ctx,
 		config:         cfg,
+		Comment:        NewCommentClient(cfg),
 		IdempotencyKey: NewIdempotencyKeyClient(cfg),
 		InboxEvent:     NewInboxEventClient(cfg),
 		OutboxEvent:    NewOutboxEventClient(cfg),
 		Product:        NewProductClient(cfg),
+		ProductCounter: NewProductCounterClient(cfg),
+		WorkItem:       NewWorkItemClient(cfg),
+		WorkItemEvent:  NewWorkItemEventClient(cfg),
+		WorkItemLink:   NewWorkItemLinkClient(cfg),
 	}, nil
 }
 
@@ -164,17 +189,22 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	return &Tx{
 		ctx:            ctx,
 		config:         cfg,
+		Comment:        NewCommentClient(cfg),
 		IdempotencyKey: NewIdempotencyKeyClient(cfg),
 		InboxEvent:     NewInboxEventClient(cfg),
 		OutboxEvent:    NewOutboxEventClient(cfg),
 		Product:        NewProductClient(cfg),
+		ProductCounter: NewProductCounterClient(cfg),
+		WorkItem:       NewWorkItemClient(cfg),
+		WorkItemEvent:  NewWorkItemEventClient(cfg),
+		WorkItemLink:   NewWorkItemLinkClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		IdempotencyKey.
+//		Comment.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -196,24 +226,30 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.IdempotencyKey.Use(hooks...)
-	c.InboxEvent.Use(hooks...)
-	c.OutboxEvent.Use(hooks...)
-	c.Product.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.Comment, c.IdempotencyKey, c.InboxEvent, c.OutboxEvent, c.Product,
+		c.ProductCounter, c.WorkItem, c.WorkItemEvent, c.WorkItemLink,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.IdempotencyKey.Intercept(interceptors...)
-	c.InboxEvent.Intercept(interceptors...)
-	c.OutboxEvent.Intercept(interceptors...)
-	c.Product.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.Comment, c.IdempotencyKey, c.InboxEvent, c.OutboxEvent, c.Product,
+		c.ProductCounter, c.WorkItem, c.WorkItemEvent, c.WorkItemLink,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *CommentMutation:
+		return c.Comment.mutate(ctx, m)
 	case *IdempotencyKeyMutation:
 		return c.IdempotencyKey.mutate(ctx, m)
 	case *InboxEventMutation:
@@ -222,8 +258,149 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.OutboxEvent.mutate(ctx, m)
 	case *ProductMutation:
 		return c.Product.mutate(ctx, m)
+	case *ProductCounterMutation:
+		return c.ProductCounter.mutate(ctx, m)
+	case *WorkItemMutation:
+		return c.WorkItem.mutate(ctx, m)
+	case *WorkItemEventMutation:
+		return c.WorkItemEvent.mutate(ctx, m)
+	case *WorkItemLinkMutation:
+		return c.WorkItemLink.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// CommentClient is a client for the Comment schema.
+type CommentClient struct {
+	config
+}
+
+// NewCommentClient returns a client for the Comment from the given config.
+func NewCommentClient(c config) *CommentClient {
+	return &CommentClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `comment.Hooks(f(g(h())))`.
+func (c *CommentClient) Use(hooks ...Hook) {
+	c.hooks.Comment = append(c.hooks.Comment, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `comment.Intercept(f(g(h())))`.
+func (c *CommentClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Comment = append(c.inters.Comment, interceptors...)
+}
+
+// Create returns a builder for creating a Comment entity.
+func (c *CommentClient) Create() *CommentCreate {
+	mutation := newCommentMutation(c.config, OpCreate)
+	return &CommentCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Comment entities.
+func (c *CommentClient) CreateBulk(builders ...*CommentCreate) *CommentCreateBulk {
+	return &CommentCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CommentClient) MapCreateBulk(slice any, setFunc func(*CommentCreate, int)) *CommentCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CommentCreateBulk{err: fmt.Errorf("calling to CommentClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CommentCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CommentCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Comment.
+func (c *CommentClient) Update() *CommentUpdate {
+	mutation := newCommentMutation(c.config, OpUpdate)
+	return &CommentUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CommentClient) UpdateOne(_m *Comment) *CommentUpdateOne {
+	mutation := newCommentMutation(c.config, OpUpdateOne, withComment(_m))
+	return &CommentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CommentClient) UpdateOneID(id uuid.UUID) *CommentUpdateOne {
+	mutation := newCommentMutation(c.config, OpUpdateOne, withCommentID(id))
+	return &CommentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Comment.
+func (c *CommentClient) Delete() *CommentDelete {
+	mutation := newCommentMutation(c.config, OpDelete)
+	return &CommentDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CommentClient) DeleteOne(_m *Comment) *CommentDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CommentClient) DeleteOneID(id uuid.UUID) *CommentDeleteOne {
+	builder := c.Delete().Where(comment.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CommentDeleteOne{builder}
+}
+
+// Query returns a query builder for Comment.
+func (c *CommentClient) Query() *CommentQuery {
+	return &CommentQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeComment},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Comment entity by its id.
+func (c *CommentClient) Get(ctx context.Context, id uuid.UUID) (*Comment, error) {
+	return c.Query().Where(comment.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CommentClient) GetX(ctx context.Context, id uuid.UUID) *Comment {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CommentClient) Hooks() []Hook {
+	return c.hooks.Comment
+}
+
+// Interceptors returns the client interceptors.
+func (c *CommentClient) Interceptors() []Interceptor {
+	return c.inters.Comment
+}
+
+func (c *CommentClient) mutate(ctx context.Context, m *CommentMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CommentCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CommentUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CommentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CommentDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Comment mutation op: %q", m.Op())
 	}
 }
 
@@ -759,12 +936,546 @@ func (c *ProductClient) mutate(ctx context.Context, m *ProductMutation) (Value, 
 	}
 }
 
+// ProductCounterClient is a client for the ProductCounter schema.
+type ProductCounterClient struct {
+	config
+}
+
+// NewProductCounterClient returns a client for the ProductCounter from the given config.
+func NewProductCounterClient(c config) *ProductCounterClient {
+	return &ProductCounterClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `productcounter.Hooks(f(g(h())))`.
+func (c *ProductCounterClient) Use(hooks ...Hook) {
+	c.hooks.ProductCounter = append(c.hooks.ProductCounter, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `productcounter.Intercept(f(g(h())))`.
+func (c *ProductCounterClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ProductCounter = append(c.inters.ProductCounter, interceptors...)
+}
+
+// Create returns a builder for creating a ProductCounter entity.
+func (c *ProductCounterClient) Create() *ProductCounterCreate {
+	mutation := newProductCounterMutation(c.config, OpCreate)
+	return &ProductCounterCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ProductCounter entities.
+func (c *ProductCounterClient) CreateBulk(builders ...*ProductCounterCreate) *ProductCounterCreateBulk {
+	return &ProductCounterCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ProductCounterClient) MapCreateBulk(slice any, setFunc func(*ProductCounterCreate, int)) *ProductCounterCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ProductCounterCreateBulk{err: fmt.Errorf("calling to ProductCounterClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ProductCounterCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ProductCounterCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ProductCounter.
+func (c *ProductCounterClient) Update() *ProductCounterUpdate {
+	mutation := newProductCounterMutation(c.config, OpUpdate)
+	return &ProductCounterUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ProductCounterClient) UpdateOne(_m *ProductCounter) *ProductCounterUpdateOne {
+	mutation := newProductCounterMutation(c.config, OpUpdateOne, withProductCounter(_m))
+	return &ProductCounterUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ProductCounterClient) UpdateOneID(id int) *ProductCounterUpdateOne {
+	mutation := newProductCounterMutation(c.config, OpUpdateOne, withProductCounterID(id))
+	return &ProductCounterUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ProductCounter.
+func (c *ProductCounterClient) Delete() *ProductCounterDelete {
+	mutation := newProductCounterMutation(c.config, OpDelete)
+	return &ProductCounterDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ProductCounterClient) DeleteOne(_m *ProductCounter) *ProductCounterDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ProductCounterClient) DeleteOneID(id int) *ProductCounterDeleteOne {
+	builder := c.Delete().Where(productcounter.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ProductCounterDeleteOne{builder}
+}
+
+// Query returns a query builder for ProductCounter.
+func (c *ProductCounterClient) Query() *ProductCounterQuery {
+	return &ProductCounterQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeProductCounter},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ProductCounter entity by its id.
+func (c *ProductCounterClient) Get(ctx context.Context, id int) (*ProductCounter, error) {
+	return c.Query().Where(productcounter.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ProductCounterClient) GetX(ctx context.Context, id int) *ProductCounter {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ProductCounterClient) Hooks() []Hook {
+	return c.hooks.ProductCounter
+}
+
+// Interceptors returns the client interceptors.
+func (c *ProductCounterClient) Interceptors() []Interceptor {
+	return c.inters.ProductCounter
+}
+
+func (c *ProductCounterClient) mutate(ctx context.Context, m *ProductCounterMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ProductCounterCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ProductCounterUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ProductCounterUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ProductCounterDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ProductCounter mutation op: %q", m.Op())
+	}
+}
+
+// WorkItemClient is a client for the WorkItem schema.
+type WorkItemClient struct {
+	config
+}
+
+// NewWorkItemClient returns a client for the WorkItem from the given config.
+func NewWorkItemClient(c config) *WorkItemClient {
+	return &WorkItemClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `workitem.Hooks(f(g(h())))`.
+func (c *WorkItemClient) Use(hooks ...Hook) {
+	c.hooks.WorkItem = append(c.hooks.WorkItem, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `workitem.Intercept(f(g(h())))`.
+func (c *WorkItemClient) Intercept(interceptors ...Interceptor) {
+	c.inters.WorkItem = append(c.inters.WorkItem, interceptors...)
+}
+
+// Create returns a builder for creating a WorkItem entity.
+func (c *WorkItemClient) Create() *WorkItemCreate {
+	mutation := newWorkItemMutation(c.config, OpCreate)
+	return &WorkItemCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of WorkItem entities.
+func (c *WorkItemClient) CreateBulk(builders ...*WorkItemCreate) *WorkItemCreateBulk {
+	return &WorkItemCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *WorkItemClient) MapCreateBulk(slice any, setFunc func(*WorkItemCreate, int)) *WorkItemCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &WorkItemCreateBulk{err: fmt.Errorf("calling to WorkItemClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*WorkItemCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &WorkItemCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for WorkItem.
+func (c *WorkItemClient) Update() *WorkItemUpdate {
+	mutation := newWorkItemMutation(c.config, OpUpdate)
+	return &WorkItemUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *WorkItemClient) UpdateOne(_m *WorkItem) *WorkItemUpdateOne {
+	mutation := newWorkItemMutation(c.config, OpUpdateOne, withWorkItem(_m))
+	return &WorkItemUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *WorkItemClient) UpdateOneID(id uuid.UUID) *WorkItemUpdateOne {
+	mutation := newWorkItemMutation(c.config, OpUpdateOne, withWorkItemID(id))
+	return &WorkItemUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for WorkItem.
+func (c *WorkItemClient) Delete() *WorkItemDelete {
+	mutation := newWorkItemMutation(c.config, OpDelete)
+	return &WorkItemDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *WorkItemClient) DeleteOne(_m *WorkItem) *WorkItemDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *WorkItemClient) DeleteOneID(id uuid.UUID) *WorkItemDeleteOne {
+	builder := c.Delete().Where(workitem.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &WorkItemDeleteOne{builder}
+}
+
+// Query returns a query builder for WorkItem.
+func (c *WorkItemClient) Query() *WorkItemQuery {
+	return &WorkItemQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeWorkItem},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a WorkItem entity by its id.
+func (c *WorkItemClient) Get(ctx context.Context, id uuid.UUID) (*WorkItem, error) {
+	return c.Query().Where(workitem.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *WorkItemClient) GetX(ctx context.Context, id uuid.UUID) *WorkItem {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *WorkItemClient) Hooks() []Hook {
+	return c.hooks.WorkItem
+}
+
+// Interceptors returns the client interceptors.
+func (c *WorkItemClient) Interceptors() []Interceptor {
+	return c.inters.WorkItem
+}
+
+func (c *WorkItemClient) mutate(ctx context.Context, m *WorkItemMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&WorkItemCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&WorkItemUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&WorkItemUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&WorkItemDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown WorkItem mutation op: %q", m.Op())
+	}
+}
+
+// WorkItemEventClient is a client for the WorkItemEvent schema.
+type WorkItemEventClient struct {
+	config
+}
+
+// NewWorkItemEventClient returns a client for the WorkItemEvent from the given config.
+func NewWorkItemEventClient(c config) *WorkItemEventClient {
+	return &WorkItemEventClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `workitemevent.Hooks(f(g(h())))`.
+func (c *WorkItemEventClient) Use(hooks ...Hook) {
+	c.hooks.WorkItemEvent = append(c.hooks.WorkItemEvent, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `workitemevent.Intercept(f(g(h())))`.
+func (c *WorkItemEventClient) Intercept(interceptors ...Interceptor) {
+	c.inters.WorkItemEvent = append(c.inters.WorkItemEvent, interceptors...)
+}
+
+// Create returns a builder for creating a WorkItemEvent entity.
+func (c *WorkItemEventClient) Create() *WorkItemEventCreate {
+	mutation := newWorkItemEventMutation(c.config, OpCreate)
+	return &WorkItemEventCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of WorkItemEvent entities.
+func (c *WorkItemEventClient) CreateBulk(builders ...*WorkItemEventCreate) *WorkItemEventCreateBulk {
+	return &WorkItemEventCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *WorkItemEventClient) MapCreateBulk(slice any, setFunc func(*WorkItemEventCreate, int)) *WorkItemEventCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &WorkItemEventCreateBulk{err: fmt.Errorf("calling to WorkItemEventClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*WorkItemEventCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &WorkItemEventCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for WorkItemEvent.
+func (c *WorkItemEventClient) Update() *WorkItemEventUpdate {
+	mutation := newWorkItemEventMutation(c.config, OpUpdate)
+	return &WorkItemEventUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *WorkItemEventClient) UpdateOne(_m *WorkItemEvent) *WorkItemEventUpdateOne {
+	mutation := newWorkItemEventMutation(c.config, OpUpdateOne, withWorkItemEvent(_m))
+	return &WorkItemEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *WorkItemEventClient) UpdateOneID(id int) *WorkItemEventUpdateOne {
+	mutation := newWorkItemEventMutation(c.config, OpUpdateOne, withWorkItemEventID(id))
+	return &WorkItemEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for WorkItemEvent.
+func (c *WorkItemEventClient) Delete() *WorkItemEventDelete {
+	mutation := newWorkItemEventMutation(c.config, OpDelete)
+	return &WorkItemEventDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *WorkItemEventClient) DeleteOne(_m *WorkItemEvent) *WorkItemEventDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *WorkItemEventClient) DeleteOneID(id int) *WorkItemEventDeleteOne {
+	builder := c.Delete().Where(workitemevent.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &WorkItemEventDeleteOne{builder}
+}
+
+// Query returns a query builder for WorkItemEvent.
+func (c *WorkItemEventClient) Query() *WorkItemEventQuery {
+	return &WorkItemEventQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeWorkItemEvent},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a WorkItemEvent entity by its id.
+func (c *WorkItemEventClient) Get(ctx context.Context, id int) (*WorkItemEvent, error) {
+	return c.Query().Where(workitemevent.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *WorkItemEventClient) GetX(ctx context.Context, id int) *WorkItemEvent {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *WorkItemEventClient) Hooks() []Hook {
+	return c.hooks.WorkItemEvent
+}
+
+// Interceptors returns the client interceptors.
+func (c *WorkItemEventClient) Interceptors() []Interceptor {
+	return c.inters.WorkItemEvent
+}
+
+func (c *WorkItemEventClient) mutate(ctx context.Context, m *WorkItemEventMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&WorkItemEventCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&WorkItemEventUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&WorkItemEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&WorkItemEventDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown WorkItemEvent mutation op: %q", m.Op())
+	}
+}
+
+// WorkItemLinkClient is a client for the WorkItemLink schema.
+type WorkItemLinkClient struct {
+	config
+}
+
+// NewWorkItemLinkClient returns a client for the WorkItemLink from the given config.
+func NewWorkItemLinkClient(c config) *WorkItemLinkClient {
+	return &WorkItemLinkClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `workitemlink.Hooks(f(g(h())))`.
+func (c *WorkItemLinkClient) Use(hooks ...Hook) {
+	c.hooks.WorkItemLink = append(c.hooks.WorkItemLink, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `workitemlink.Intercept(f(g(h())))`.
+func (c *WorkItemLinkClient) Intercept(interceptors ...Interceptor) {
+	c.inters.WorkItemLink = append(c.inters.WorkItemLink, interceptors...)
+}
+
+// Create returns a builder for creating a WorkItemLink entity.
+func (c *WorkItemLinkClient) Create() *WorkItemLinkCreate {
+	mutation := newWorkItemLinkMutation(c.config, OpCreate)
+	return &WorkItemLinkCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of WorkItemLink entities.
+func (c *WorkItemLinkClient) CreateBulk(builders ...*WorkItemLinkCreate) *WorkItemLinkCreateBulk {
+	return &WorkItemLinkCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *WorkItemLinkClient) MapCreateBulk(slice any, setFunc func(*WorkItemLinkCreate, int)) *WorkItemLinkCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &WorkItemLinkCreateBulk{err: fmt.Errorf("calling to WorkItemLinkClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*WorkItemLinkCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &WorkItemLinkCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for WorkItemLink.
+func (c *WorkItemLinkClient) Update() *WorkItemLinkUpdate {
+	mutation := newWorkItemLinkMutation(c.config, OpUpdate)
+	return &WorkItemLinkUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *WorkItemLinkClient) UpdateOne(_m *WorkItemLink) *WorkItemLinkUpdateOne {
+	mutation := newWorkItemLinkMutation(c.config, OpUpdateOne, withWorkItemLink(_m))
+	return &WorkItemLinkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *WorkItemLinkClient) UpdateOneID(id uuid.UUID) *WorkItemLinkUpdateOne {
+	mutation := newWorkItemLinkMutation(c.config, OpUpdateOne, withWorkItemLinkID(id))
+	return &WorkItemLinkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for WorkItemLink.
+func (c *WorkItemLinkClient) Delete() *WorkItemLinkDelete {
+	mutation := newWorkItemLinkMutation(c.config, OpDelete)
+	return &WorkItemLinkDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *WorkItemLinkClient) DeleteOne(_m *WorkItemLink) *WorkItemLinkDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *WorkItemLinkClient) DeleteOneID(id uuid.UUID) *WorkItemLinkDeleteOne {
+	builder := c.Delete().Where(workitemlink.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &WorkItemLinkDeleteOne{builder}
+}
+
+// Query returns a query builder for WorkItemLink.
+func (c *WorkItemLinkClient) Query() *WorkItemLinkQuery {
+	return &WorkItemLinkQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeWorkItemLink},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a WorkItemLink entity by its id.
+func (c *WorkItemLinkClient) Get(ctx context.Context, id uuid.UUID) (*WorkItemLink, error) {
+	return c.Query().Where(workitemlink.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *WorkItemLinkClient) GetX(ctx context.Context, id uuid.UUID) *WorkItemLink {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *WorkItemLinkClient) Hooks() []Hook {
+	return c.hooks.WorkItemLink
+}
+
+// Interceptors returns the client interceptors.
+func (c *WorkItemLinkClient) Interceptors() []Interceptor {
+	return c.inters.WorkItemLink
+}
+
+func (c *WorkItemLinkClient) mutate(ctx context.Context, m *WorkItemLinkMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&WorkItemLinkCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&WorkItemLinkUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&WorkItemLinkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&WorkItemLinkDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown WorkItemLink mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		IdempotencyKey, InboxEvent, OutboxEvent, Product []ent.Hook
+		Comment, IdempotencyKey, InboxEvent, OutboxEvent, Product, ProductCounter,
+		WorkItem, WorkItemEvent, WorkItemLink []ent.Hook
 	}
 	inters struct {
-		IdempotencyKey, InboxEvent, OutboxEvent, Product []ent.Interceptor
+		Comment, IdempotencyKey, InboxEvent, OutboxEvent, Product, ProductCounter,
+		WorkItem, WorkItemEvent, WorkItemLink []ent.Interceptor
 	}
 )
