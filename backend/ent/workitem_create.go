@@ -178,6 +178,48 @@ func (_c *WorkItemCreate) SetNillableParentID(v *uuid.UUID) *WorkItemCreate {
 	return _c
 }
 
+// SetSprintID sets the "sprint_id" field.
+func (_c *WorkItemCreate) SetSprintID(v uuid.UUID) *WorkItemCreate {
+	_c.mutation.SetSprintID(v)
+	return _c
+}
+
+// SetNillableSprintID sets the "sprint_id" field if the given value is not nil.
+func (_c *WorkItemCreate) SetNillableSprintID(v *uuid.UUID) *WorkItemCreate {
+	if v != nil {
+		_c.SetSprintID(*v)
+	}
+	return _c
+}
+
+// SetStoryPoints sets the "story_points" field.
+func (_c *WorkItemCreate) SetStoryPoints(v int16) *WorkItemCreate {
+	_c.mutation.SetStoryPoints(v)
+	return _c
+}
+
+// SetNillableStoryPoints sets the "story_points" field if the given value is not nil.
+func (_c *WorkItemCreate) SetNillableStoryPoints(v *int16) *WorkItemCreate {
+	if v != nil {
+		_c.SetStoryPoints(*v)
+	}
+	return _c
+}
+
+// SetEstimateMinutes sets the "estimate_minutes" field.
+func (_c *WorkItemCreate) SetEstimateMinutes(v int) *WorkItemCreate {
+	_c.mutation.SetEstimateMinutes(v)
+	return _c
+}
+
+// SetNillableEstimateMinutes sets the "estimate_minutes" field if the given value is not nil.
+func (_c *WorkItemCreate) SetNillableEstimateMinutes(v *int) *WorkItemCreate {
+	if v != nil {
+		_c.SetEstimateMinutes(*v)
+	}
+	return _c
+}
+
 // SetRank sets the "rank" field.
 func (_c *WorkItemCreate) SetRank(v string) *WorkItemCreate {
 	_c.mutation.SetRank(v)
@@ -614,6 +656,18 @@ func (_c *WorkItemCreate) createSpec() (*WorkItem, *sqlgraph.CreateSpec) {
 		_spec.SetField(workitem.FieldParentID, field.TypeUUID, value)
 		_node.ParentID = &value
 	}
+	if value, ok := _c.mutation.SprintID(); ok {
+		_spec.SetField(workitem.FieldSprintID, field.TypeUUID, value)
+		_node.SprintID = &value
+	}
+	if value, ok := _c.mutation.StoryPoints(); ok {
+		_spec.SetField(workitem.FieldStoryPoints, field.TypeInt16, value)
+		_node.StoryPoints = &value
+	}
+	if value, ok := _c.mutation.EstimateMinutes(); ok {
+		_spec.SetField(workitem.FieldEstimateMinutes, field.TypeInt, value)
+		_node.EstimateMinutes = &value
+	}
 	if value, ok := _c.mutation.Rank(); ok {
 		_spec.SetField(workitem.FieldRank, field.TypeString, value)
 		_node.Rank = value
@@ -933,6 +987,72 @@ func (u *WorkItemUpsert) UpdateParentID() *WorkItemUpsert {
 // ClearParentID clears the value of the "parent_id" field.
 func (u *WorkItemUpsert) ClearParentID() *WorkItemUpsert {
 	u.SetNull(workitem.FieldParentID)
+	return u
+}
+
+// SetSprintID sets the "sprint_id" field.
+func (u *WorkItemUpsert) SetSprintID(v uuid.UUID) *WorkItemUpsert {
+	u.Set(workitem.FieldSprintID, v)
+	return u
+}
+
+// UpdateSprintID sets the "sprint_id" field to the value that was provided on create.
+func (u *WorkItemUpsert) UpdateSprintID() *WorkItemUpsert {
+	u.SetExcluded(workitem.FieldSprintID)
+	return u
+}
+
+// ClearSprintID clears the value of the "sprint_id" field.
+func (u *WorkItemUpsert) ClearSprintID() *WorkItemUpsert {
+	u.SetNull(workitem.FieldSprintID)
+	return u
+}
+
+// SetStoryPoints sets the "story_points" field.
+func (u *WorkItemUpsert) SetStoryPoints(v int16) *WorkItemUpsert {
+	u.Set(workitem.FieldStoryPoints, v)
+	return u
+}
+
+// UpdateStoryPoints sets the "story_points" field to the value that was provided on create.
+func (u *WorkItemUpsert) UpdateStoryPoints() *WorkItemUpsert {
+	u.SetExcluded(workitem.FieldStoryPoints)
+	return u
+}
+
+// AddStoryPoints adds v to the "story_points" field.
+func (u *WorkItemUpsert) AddStoryPoints(v int16) *WorkItemUpsert {
+	u.Add(workitem.FieldStoryPoints, v)
+	return u
+}
+
+// ClearStoryPoints clears the value of the "story_points" field.
+func (u *WorkItemUpsert) ClearStoryPoints() *WorkItemUpsert {
+	u.SetNull(workitem.FieldStoryPoints)
+	return u
+}
+
+// SetEstimateMinutes sets the "estimate_minutes" field.
+func (u *WorkItemUpsert) SetEstimateMinutes(v int) *WorkItemUpsert {
+	u.Set(workitem.FieldEstimateMinutes, v)
+	return u
+}
+
+// UpdateEstimateMinutes sets the "estimate_minutes" field to the value that was provided on create.
+func (u *WorkItemUpsert) UpdateEstimateMinutes() *WorkItemUpsert {
+	u.SetExcluded(workitem.FieldEstimateMinutes)
+	return u
+}
+
+// AddEstimateMinutes adds v to the "estimate_minutes" field.
+func (u *WorkItemUpsert) AddEstimateMinutes(v int) *WorkItemUpsert {
+	u.Add(workitem.FieldEstimateMinutes, v)
+	return u
+}
+
+// ClearEstimateMinutes clears the value of the "estimate_minutes" field.
+func (u *WorkItemUpsert) ClearEstimateMinutes() *WorkItemUpsert {
+	u.SetNull(workitem.FieldEstimateMinutes)
 	return u
 }
 
@@ -1429,6 +1549,83 @@ func (u *WorkItemUpsertOne) UpdateParentID() *WorkItemUpsertOne {
 func (u *WorkItemUpsertOne) ClearParentID() *WorkItemUpsertOne {
 	return u.Update(func(s *WorkItemUpsert) {
 		s.ClearParentID()
+	})
+}
+
+// SetSprintID sets the "sprint_id" field.
+func (u *WorkItemUpsertOne) SetSprintID(v uuid.UUID) *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetSprintID(v)
+	})
+}
+
+// UpdateSprintID sets the "sprint_id" field to the value that was provided on create.
+func (u *WorkItemUpsertOne) UpdateSprintID() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateSprintID()
+	})
+}
+
+// ClearSprintID clears the value of the "sprint_id" field.
+func (u *WorkItemUpsertOne) ClearSprintID() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearSprintID()
+	})
+}
+
+// SetStoryPoints sets the "story_points" field.
+func (u *WorkItemUpsertOne) SetStoryPoints(v int16) *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetStoryPoints(v)
+	})
+}
+
+// AddStoryPoints adds v to the "story_points" field.
+func (u *WorkItemUpsertOne) AddStoryPoints(v int16) *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.AddStoryPoints(v)
+	})
+}
+
+// UpdateStoryPoints sets the "story_points" field to the value that was provided on create.
+func (u *WorkItemUpsertOne) UpdateStoryPoints() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateStoryPoints()
+	})
+}
+
+// ClearStoryPoints clears the value of the "story_points" field.
+func (u *WorkItemUpsertOne) ClearStoryPoints() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearStoryPoints()
+	})
+}
+
+// SetEstimateMinutes sets the "estimate_minutes" field.
+func (u *WorkItemUpsertOne) SetEstimateMinutes(v int) *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetEstimateMinutes(v)
+	})
+}
+
+// AddEstimateMinutes adds v to the "estimate_minutes" field.
+func (u *WorkItemUpsertOne) AddEstimateMinutes(v int) *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.AddEstimateMinutes(v)
+	})
+}
+
+// UpdateEstimateMinutes sets the "estimate_minutes" field to the value that was provided on create.
+func (u *WorkItemUpsertOne) UpdateEstimateMinutes() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateEstimateMinutes()
+	})
+}
+
+// ClearEstimateMinutes clears the value of the "estimate_minutes" field.
+func (u *WorkItemUpsertOne) ClearEstimateMinutes() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearEstimateMinutes()
 	})
 }
 
@@ -2123,6 +2320,83 @@ func (u *WorkItemUpsertBulk) UpdateParentID() *WorkItemUpsertBulk {
 func (u *WorkItemUpsertBulk) ClearParentID() *WorkItemUpsertBulk {
 	return u.Update(func(s *WorkItemUpsert) {
 		s.ClearParentID()
+	})
+}
+
+// SetSprintID sets the "sprint_id" field.
+func (u *WorkItemUpsertBulk) SetSprintID(v uuid.UUID) *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetSprintID(v)
+	})
+}
+
+// UpdateSprintID sets the "sprint_id" field to the value that was provided on create.
+func (u *WorkItemUpsertBulk) UpdateSprintID() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateSprintID()
+	})
+}
+
+// ClearSprintID clears the value of the "sprint_id" field.
+func (u *WorkItemUpsertBulk) ClearSprintID() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearSprintID()
+	})
+}
+
+// SetStoryPoints sets the "story_points" field.
+func (u *WorkItemUpsertBulk) SetStoryPoints(v int16) *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetStoryPoints(v)
+	})
+}
+
+// AddStoryPoints adds v to the "story_points" field.
+func (u *WorkItemUpsertBulk) AddStoryPoints(v int16) *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.AddStoryPoints(v)
+	})
+}
+
+// UpdateStoryPoints sets the "story_points" field to the value that was provided on create.
+func (u *WorkItemUpsertBulk) UpdateStoryPoints() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateStoryPoints()
+	})
+}
+
+// ClearStoryPoints clears the value of the "story_points" field.
+func (u *WorkItemUpsertBulk) ClearStoryPoints() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearStoryPoints()
+	})
+}
+
+// SetEstimateMinutes sets the "estimate_minutes" field.
+func (u *WorkItemUpsertBulk) SetEstimateMinutes(v int) *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetEstimateMinutes(v)
+	})
+}
+
+// AddEstimateMinutes adds v to the "estimate_minutes" field.
+func (u *WorkItemUpsertBulk) AddEstimateMinutes(v int) *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.AddEstimateMinutes(v)
+	})
+}
+
+// UpdateEstimateMinutes sets the "estimate_minutes" field to the value that was provided on create.
+func (u *WorkItemUpsertBulk) UpdateEstimateMinutes() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateEstimateMinutes()
+	})
+}
+
+// ClearEstimateMinutes clears the value of the "estimate_minutes" field.
+func (u *WorkItemUpsertBulk) ClearEstimateMinutes() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearEstimateMinutes()
 	})
 }
 

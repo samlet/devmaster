@@ -29,7 +29,7 @@ const workItemColumns = `id, organization_id, key, product_id, type, status, res
 	title, description_md, acceptance_criteria, priority, severity, environment,
 	reporter_id, assignee_id, parent_id, rank, project_code, wbs_code, external_ref,
 	custom_fields, blocked_reason, reopened_count, version, created_at, updated_at,
-	resolved_at, closed_at`
+	resolved_at, closed_at, sprint_id, story_points, estimate_minutes`
 
 type Repository struct {
 	db     *database.DB
@@ -122,14 +122,15 @@ func insertWorkItem(ctx context.Context, tx *sql.Tx, item domain.WorkItem) error
 			title, description_md, acceptance_criteria, priority, severity, environment,
 			reporter_id, assignee_id, parent_id, rank, project_code, wbs_code, external_ref,
 			custom_fields, blocked_reason, reopened_count, version, created_at, updated_at,
-			resolved_at, closed_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`,
+			resolved_at, closed_at, sprint_id, story_points, estimate_minutes
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
 		item.ID, item.OrganizationID, item.Key, item.ProductID, string(item.Type), string(item.Status),
 		derefResolution(item.Resolution), item.Title, item.DescriptionMD, item.AcceptanceCriteria,
 		int16(item.Priority), derefSeverity(item.Severity), item.Environment, item.ReporterID,
 		item.AssigneeID, item.ParentID, item.Rank, item.ProjectCode, item.WBSCode, item.ExternalRef,
 		customFields, item.BlockedReason, item.ReopenedCount, item.Version, item.CreatedAt,
-		item.UpdatedAt, item.ResolvedAt, item.ClosedAt)
+		item.UpdatedAt, item.ResolvedAt, item.ClosedAt,
+		item.SprintID, item.StoryPoints, item.EstimateMinutes)
 	if err != nil {
 		return fmt.Errorf("insert work item: %w", err)
 	}
@@ -218,6 +219,10 @@ func (r *Repository) List(ctx context.Context, organizationID uuid.UUID, filter 
 			args = append(args, strings.TrimSpace(*filter.AssigneeID))
 			where += fmt.Sprintf(" AND assignee_id = $%d", len(args))
 		}
+		if filter.SprintID != nil {
+			args = append(args, *filter.SprintID)
+			where += fmt.Sprintf(" AND sprint_id = $%d", len(args))
+		}
 		if query := strings.TrimSpace(filter.Query); query != "" {
 			args = append(args, "%"+query+"%")
 			where += fmt.Sprintf(" AND (title ILIKE $%d OR description_md ILIKE $%d)", len(args), len(args))
@@ -257,34 +262,8 @@ func (r *Repository) List(ctx context.Context, organizationID uuid.UUID, filter 
 
 func (r *Repository) Update(ctx context.Context, item domain.WorkItem, expectedVersion int, events []application.EventRecord, outboxEvents []outbox.Event) (domain.WorkItem, error) {
 	err := r.db.InOrgTx(ctx, item.OrganizationID, func(tx *sql.Tx) error {
-		customFields, err := json.Marshal(item.CustomFields)
-		if err != nil {
-			return fmt.Errorf("marshal custom fields: %w", err)
-		}
-		result, err := tx.ExecContext(ctx, `
-			UPDATE work_items SET
-				status = $1, resolution = $2, title = $3, description_md = $4,
-				acceptance_criteria = $5, priority = $6, severity = $7, environment = $8,
-				assignee_id = $9, rank = $10, project_code = $11, wbs_code = $12,
-				external_ref = $13, custom_fields = $14, blocked_reason = $15,
-				reopened_count = $16, version = $17, updated_at = $18,
-				resolved_at = $19, closed_at = $20
-			WHERE organization_id = $21 AND id = $22 AND version = $23`,
-			string(item.Status), derefResolution(item.Resolution), item.Title, item.DescriptionMD,
-			item.AcceptanceCriteria, int16(item.Priority), derefSeverity(item.Severity), item.Environment,
-			item.AssigneeID, item.Rank, item.ProjectCode, item.WBSCode, item.ExternalRef,
-			customFields, item.BlockedReason, item.ReopenedCount, item.Version, item.UpdatedAt,
-			item.ResolvedAt, item.ClosedAt, item.OrganizationID, item.ID, expectedVersion)
-		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolation {
-				return apperr.NotFound("work item not found")
-			}
-			return fmt.Errorf("update work item: %w", err)
-		}
-		affected, _ := result.RowsAffected()
-		if affected == 0 {
-			return apperr.Conflict("version", "work item was modified by someone else; reload and retry")
+		if err := updateWorkItem(ctx, tx, item, expectedVersion); err != nil {
+			return err
 		}
 		for _, event := range events {
 			if err := insertEvent(ctx, tx, item.OrganizationID, event); err != nil {
@@ -302,6 +281,163 @@ func (r *Repository) Update(ctx context.Context, item domain.WorkItem, expectedV
 		return domain.WorkItem{}, err
 	}
 	return item, nil
+}
+
+func updateWorkItem(ctx context.Context, tx *sql.Tx, item domain.WorkItem, expectedVersion int) error {
+	customFields, err := json.Marshal(item.CustomFields)
+	if err != nil {
+		return fmt.Errorf("marshal custom fields: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `
+		UPDATE work_items SET
+			status = $1, resolution = $2, title = $3, description_md = $4,
+			acceptance_criteria = $5, priority = $6, severity = $7, environment = $8,
+			assignee_id = $9, rank = $10, project_code = $11, wbs_code = $12,
+			external_ref = $13, custom_fields = $14, blocked_reason = $15,
+			reopened_count = $16, version = $17, updated_at = $18,
+			resolved_at = $19, closed_at = $20,
+			sprint_id = $21, story_points = $22, estimate_minutes = $23
+		WHERE organization_id = $24 AND id = $25 AND version = $26`,
+		string(item.Status), derefResolution(item.Resolution), item.Title, item.DescriptionMD,
+		item.AcceptanceCriteria, int16(item.Priority), derefSeverity(item.Severity), item.Environment,
+		item.AssigneeID, item.Rank, item.ProjectCode, item.WBSCode, item.ExternalRef,
+		customFields, item.BlockedReason, item.ReopenedCount, item.Version, item.UpdatedAt,
+		item.ResolvedAt, item.ClosedAt, item.SprintID, item.StoryPoints, item.EstimateMinutes,
+		item.OrganizationID, item.ID, expectedVersion)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolation {
+			return apperr.NotFound("work item not found")
+		}
+		return fmt.Errorf("update work item: %w", err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return apperr.Conflict("version", "work item was modified by someone else; reload and retry")
+	}
+	return nil
+}
+
+// Move 在行锁内计算 rank，保证并发拖拽不会得到相同的排序值。
+//
+// 锁的粒度是"产品"而不是"列"：rank 在产品内全局有序，按列加锁会让
+// 跨列的相对顺序在重平衡后错乱。
+func (r *Repository) Move(ctx context.Context, item domain.WorkItem, expectedVersion int, prevID, nextID *uuid.UUID, event application.EventRecord, outboxEvents []outbox.Event) (domain.WorkItem, error) {
+	err := r.db.InOrgTx(ctx, item.OrganizationID, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`,
+			item.ProductID.String()); err != nil {
+			return fmt.Errorf("lock product for board move: %w", err)
+		}
+		rank, err := placeRank(ctx, tx, item, prevID, nextID)
+		if err != nil {
+			return err
+		}
+		item.Rank = rank
+		if err := updateWorkItem(ctx, tx, item, expectedVersion); err != nil {
+			return err
+		}
+		if err := insertEvent(ctx, tx, item.OrganizationID, event); err != nil {
+			return err
+		}
+		for _, outboxEvent := range outboxEvents {
+			if err := r.outbox.Insert(ctx, tx, outboxEvent); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return domain.WorkItem{}, err
+	}
+	return item, nil
+}
+
+func placeRank(ctx context.Context, tx *sql.Tx, item domain.WorkItem, prevID, nextID *uuid.UUID) (string, error) {
+	prevRank, err := neighborRank(ctx, tx, item, prevID)
+	if err != nil {
+		return "", err
+	}
+	nextRank, err := neighborRank(ctx, tx, item, nextID)
+	if err != nil {
+		return "", err
+	}
+	if prevID == nil && nextID == nil {
+		var maxRank string
+		err := tx.QueryRowContext(ctx, `
+			SELECT coalesce(max(rank), '') FROM work_items
+			 WHERE organization_id = $1 AND product_id = $2 AND id <> $3`,
+			item.OrganizationID, item.ProductID, item.ID).Scan(&maxRank)
+		if err != nil {
+			return "", fmt.Errorf("load max rank: %w", err)
+		}
+		return domain.RankAfter(maxRank)
+	}
+	rank, err := domain.RankBetween(prevRank, nextRank)
+	if !errors.Is(err, domain.ErrRankExhausted) {
+		return rank, err
+	}
+	// 空间耗尽：重排整个产品后再算一次。重排保持相对顺序，不会把卡片弹到别处。
+	if err := rebalanceProduct(ctx, tx, item.OrganizationID, item.ProductID); err != nil {
+		return "", err
+	}
+	if prevRank, err = neighborRank(ctx, tx, item, prevID); err != nil {
+		return "", err
+	}
+	if nextRank, err = neighborRank(ctx, tx, item, nextID); err != nil {
+		return "", err
+	}
+	return domain.RankBetween(prevRank, nextRank)
+}
+
+func neighborRank(ctx context.Context, tx *sql.Tx, item domain.WorkItem, id *uuid.UUID) (string, error) {
+	if id == nil {
+		return "", nil
+	}
+	var rank string
+	err := tx.QueryRowContext(ctx, `
+		SELECT rank FROM work_items
+		 WHERE organization_id = $1 AND product_id = $2 AND id = $3`,
+		item.OrganizationID, item.ProductID, *id).Scan(&rank)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", apperr.Invalid("neighbor_id", "neighbour work item not found in this product")
+	}
+	if err != nil {
+		return "", fmt.Errorf("load neighbour rank: %w", err)
+	}
+	return rank, nil
+}
+
+func rebalanceProduct(ctx context.Context, tx *sql.Tx, organizationID, productID uuid.UUID) error {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id FROM work_items
+		 WHERE organization_id = $1 AND product_id = $2
+		 ORDER BY rank, key`, organizationID, productID)
+	if err != nil {
+		return fmt.Errorf("list items for rebalance: %w", err)
+	}
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan rebalance id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for index, id := range ids {
+		rank, err := domain.RankForSequence(int64(index + 1))
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE work_items SET rank = $2 WHERE id = $1`, id, rank); err != nil {
+			return fmt.Errorf("rebalance rank: %w", err)
+		}
+	}
+	return nil
 }
 
 func (r *Repository) AddComment(ctx context.Context, comment domain.Comment, event application.EventRecord) (domain.Comment, error) {
@@ -508,6 +644,9 @@ func scanWorkItem(row rowScanner) (domain.WorkItem, error) {
 		environment   *string
 		assignee      *string
 		parentID      *uuid.UUID
+		sprintID      *uuid.UUID
+		storyPoints   *int16
+		estimateMin   *int32
 		projectCode   *string
 		wbsCode       *string
 		externalRef   *string
@@ -521,6 +660,7 @@ func scanWorkItem(row rowScanner) (domain.WorkItem, error) {
 		&environment, &item.ReporterID, &assignee, &parentID, &item.Rank, &projectCode,
 		&wbsCode, &externalRef, &customFields, &blockedReason, &reopenedCount,
 		&item.Version, &item.CreatedAt, &item.UpdatedAt, &item.ResolvedAt, &item.ClosedAt,
+		&sprintID, &storyPoints, &estimateMin,
 	); err != nil {
 		return domain.WorkItem{}, err
 	}
@@ -539,6 +679,9 @@ func scanWorkItem(row rowScanner) (domain.WorkItem, error) {
 	item.Environment = environment
 	item.AssigneeID = assignee
 	item.ParentID = parentID
+	item.SprintID = sprintID
+	item.StoryPoints = storyPoints
+	item.EstimateMinutes = estimateMin
 	item.ProjectCode = projectCode
 	item.WBSCode = wbsCode
 	item.ExternalRef = externalRef

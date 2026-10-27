@@ -76,6 +76,21 @@ var MethodRules = map[string]Rule{
 	"/dev.v1.WorkItemService/AddComment":         {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
 	"/dev.v1.WorkItemService/AddLink":            {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
 	"/dev.v1.WorkItemService/RemoveLink":         {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+
+	"/dev.v1.SprintService/GetSprint":         {RequireOrganization: true},
+	"/dev.v1.SprintService/ListSprints":       {RequireOrganization: true},
+	"/dev.v1.SprintService/GetSprintStats":    {RequireOrganization: true},
+	"/dev.v1.SprintService/GetBurndown":       {RequireOrganization: true},
+	"/dev.v1.SprintService/CreateSprint":      {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+	"/dev.v1.SprintService/UpdateSprint":      {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+	"/dev.v1.SprintService/StartSprint":       {RequireOrganization: true, Roles: []string{"DEV_LEAD"}},
+	"/dev.v1.SprintService/CloseSprint":       {RequireOrganization: true, Roles: []string{"DEV_LEAD"}},
+	"/dev.v1.SprintService/AddSprintItems":    {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+	"/dev.v1.SprintService/RemoveSprintItems": {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+	"/dev.v1.SprintService/SnapshotSprint":    {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+
+	"/dev.v1.BoardService/GetBoard":     {RequireOrganization: true},
+	"/dev.v1.BoardService/MoveWorkItem": {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
 }
 
 type Authenticator struct {

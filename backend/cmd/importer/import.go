@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -129,6 +130,15 @@ func (i *Importer) importWorkItem(ctx context.Context, row WorkItemRow) error {
 		value := row.ExternalRef
 		externalRef = &value
 	}
+	var storyPoints *int16
+	if row.StoryPoints != "" {
+		parsed, parseErr := strconv.Atoi(row.StoryPoints)
+		if parseErr != nil || parsed < 0 || parsed > 100 {
+			return fmt.Errorf("工作项 %s: story_points 必须是 0-100 的整数", row.ExternalRef)
+		}
+		value := int16(parsed)
+		storyPoints = &value
+	}
 
 	item, err := i.workSvc.Create(ctx, i.workActor, workitemapplication.CreateCommand{
 		ProductID:     product.ID,
@@ -139,6 +149,7 @@ func (i *Importer) importWorkItem(ctx context.Context, row WorkItemRow) error {
 		Severity:      severity,
 		AssigneeID:    assignee,
 		ExternalRef:   externalRef,
+		StoryPoints:   storyPoints,
 	})
 	if err != nil {
 		return fmt.Errorf("创建工作项 %s: %w", row.ExternalRef, err)

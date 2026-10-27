@@ -40,6 +40,7 @@ type Repository interface {
 	GetByKey(ctx context.Context, organizationID uuid.UUID, key string) (domain.WorkItem, error)
 	List(ctx context.Context, organizationID uuid.UUID, filter ListFilter) ([]domain.WorkItem, int, error)
 	Update(ctx context.Context, item domain.WorkItem, expectedVersion int, events []EventRecord, outboxEvents []outbox.Event) (domain.WorkItem, error)
+	Move(ctx context.Context, item domain.WorkItem, expectedVersion int, prevID, nextID *uuid.UUID, event EventRecord, outboxEvents []outbox.Event) (domain.WorkItem, error)
 	AddComment(ctx context.Context, comment domain.Comment, event EventRecord) (domain.Comment, error)
 	ListComments(ctx context.Context, organizationID, workItemID uuid.UUID) ([]domain.Comment, error)
 	AddLink(ctx context.Context, link domain.Link, event EventRecord) (domain.Link, error)
@@ -53,6 +54,7 @@ type ListFilter struct {
 	Type       domain.Type
 	Statuses   []domain.Status
 	AssigneeID *string
+	SprintID   *uuid.UUID
 	Query      string
 	Limit      int
 	Offset     int
@@ -69,6 +71,9 @@ type CreateCommand struct {
 	Environment        *string
 	AssigneeID         *string
 	ParentID           *uuid.UUID
+	SprintID           *uuid.UUID
+	StoryPoints        *int16
+	EstimateMinutes    *int32
 	ProjectCode        *string
 	WBSCode            *string
 	ExternalRef        *string
@@ -86,6 +91,15 @@ type TransitionCommand struct {
 	Resolution      *domain.Resolution
 	Comment         string
 	ExpectedVersion int
+}
+
+type MoveCommand struct {
+	WorkItemID      uuid.UUID
+	To              domain.Status
+	PrevID          *uuid.UUID
+	NextID          *uuid.UUID
+	ExpectedVersion int
+	Comment         string
 }
 
 type AssignCommand struct {
@@ -125,6 +139,9 @@ func (s *Service) Create(ctx context.Context, actor Actor, cmd CreateCommand) (d
 		ReporterID:         actor.Subject,
 		AssigneeID:         cmd.AssigneeID,
 		ParentID:           cmd.ParentID,
+		SprintID:           cmd.SprintID,
+		StoryPoints:        cmd.StoryPoints,
+		EstimateMinutes:    cmd.EstimateMinutes,
 		Rank:               rank,
 		ProjectCode:        cmd.ProjectCode,
 		WBSCode:            cmd.WBSCode,
@@ -247,6 +264,63 @@ func (s *Service) Transition(ctx context.Context, actor Actor, cmd TransitionCom
 	return s.repo.Update(ctx, item, cmd.ExpectedVersion, []EventRecord{event}, []outbox.Event{outboxEvent})
 }
 
+// Move 是看板拖拽的唯一入口：状态迁移走同一套守卫，rank 由仓储在行锁内计算。
+func (s *Service) Move(ctx context.Context, actor Actor, cmd MoveCommand) (domain.WorkItem, error) {
+	item, err := s.repo.GetByID(ctx, actor.OrganizationID, cmd.WorkItemID)
+	if err != nil {
+		return domain.WorkItem{}, err
+	}
+	from := item.Status
+	var outboxEvents []outbox.Event
+	if cmd.To != "" && cmd.To != item.Status {
+		from, err = item.Transition(cmd.To, domain.TransitionContext{
+			Actor:      actor.Subject,
+			Roles:      actor.Roles,
+			ReporterID: item.ReporterID,
+			AssigneeID: item.AssigneeID,
+			Comment:    cmd.Comment,
+		})
+		if err != nil {
+			return domain.WorkItem{}, err
+		}
+		outboxEvent, err := outbox.NewEvent(outbox.NewEventParams{
+			OrganizationID:   actor.OrganizationID,
+			Producer:         s.producer,
+			AggregateType:    "work_item",
+			AggregateID:      item.ID,
+			AggregateVersion: int64(item.Version),
+			EventType:        "dev.v1.workitem.transitioned",
+			Payload: map[string]any{
+				"work_item_id": item.ID.String(),
+				"key":          item.Key,
+				"from":         string(from),
+				"to":           string(item.Status),
+				"actor_id":     actor.Subject,
+				"via":          "board",
+			},
+		})
+		if err != nil {
+			return domain.WorkItem{}, err
+		}
+		outboxEvents = append(outboxEvents, outboxEvent)
+	} else {
+		item.MarkMoved()
+	}
+	event := EventRecord{
+		WorkItemID: item.ID,
+		EventType:  "moved",
+		FromStatus: &from,
+		ToStatus:   &item.Status,
+		ActorID:    actor.Subject,
+		Payload: map[string]any{
+			"prev_id": derefUUID(cmd.PrevID),
+			"next_id": derefUUID(cmd.NextID),
+		},
+		OccurredAt: item.UpdatedAt,
+	}
+	return s.repo.Move(ctx, item, cmd.ExpectedVersion, cmd.PrevID, cmd.NextID, event, outboxEvents)
+}
+
 func (s *Service) Assign(ctx context.Context, actor Actor, cmd AssignCommand) (domain.WorkItem, error) {
 	item, err := s.repo.GetByID(ctx, actor.OrganizationID, cmd.WorkItemID)
 	if err != nil {
@@ -351,6 +425,13 @@ func (s *Service) ListLinks(ctx context.Context, actor Actor, workItemID uuid.UU
 
 func (s *Service) ListEvents(ctx context.Context, actor Actor, workItemID uuid.UUID) ([]EventRecord, error) {
 	return s.repo.ListEvents(ctx, actor.OrganizationID, workItemID)
+}
+
+func derefUUID(value *uuid.UUID) string {
+	if value == nil {
+		return ""
+	}
+	return value.String()
 }
 
 func derefString(value *string) string {

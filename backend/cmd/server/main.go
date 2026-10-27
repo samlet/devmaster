@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 
+	boardapplication "github.com/xiaofeiwu/devmaster/backend/internal/board/application"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/auth"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/config"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/database"
@@ -23,6 +24,8 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/observability"
 	productpostgres "github.com/xiaofeiwu/devmaster/backend/internal/product/adapter/postgres"
 	"github.com/xiaofeiwu/devmaster/backend/internal/product/application"
+	sprintpostgres "github.com/xiaofeiwu/devmaster/backend/internal/sprint/adapter/postgres"
+	sprintapplication "github.com/xiaofeiwu/devmaster/backend/internal/sprint/application"
 	grpctransport "github.com/xiaofeiwu/devmaster/backend/internal/transport/grpc"
 	httptransport "github.com/xiaofeiwu/devmaster/backend/internal/transport/http"
 	workitempostgres "github.com/xiaofeiwu/devmaster/backend/internal/workitem/adapter/postgres"
@@ -67,11 +70,15 @@ func run() error {
 	metrics := observability.NewMetrics()
 	productService := application.NewService(productpostgres.NewRepository(db))
 	workItemService := workitemapplication.NewService(workitempostgres.NewRepository(db))
+	sprintService := sprintapplication.NewService(sprintpostgres.NewRepository(db))
+	boardService := boardapplication.NewService(workItemService, sprintService)
 
 	grpcServer := grpctransport.NewServer(
 		authenticator, metrics, logger,
 		grpctransport.NewProductService(productService, db, metrics, logger),
 		grpctransport.NewWorkItemService(workItemService, db, logger),
+		grpctransport.NewSprintService(sprintService, db, logger),
+		grpctransport.NewBoardService(boardService, db, logger),
 		grpctransport.NewSystemService(),
 	)
 	grpcListener, err := net.Listen("tcp", cfg.Server.GRPCAddress)
@@ -93,7 +100,7 @@ func run() error {
 	}
 	httpServer := &http.Server{
 		Addr:    cfg.Server.HTTPAddress,
-		Handler: httptransport.NewServer(productService, workItemService, metrics, health, logger, defaultOrganizationID).Handler(),
+		Handler: httptransport.NewServer(productService, workItemService, sprintService, boardService, metrics, health, logger, defaultOrganizationID).Handler(),
 	}
 
 	errCh := make(chan error, 2)

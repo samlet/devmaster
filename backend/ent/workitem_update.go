@@ -282,6 +282,80 @@ func (_u *WorkItemUpdate) ClearParentID() *WorkItemUpdate {
 	return _u
 }
 
+// SetSprintID sets the "sprint_id" field.
+func (_u *WorkItemUpdate) SetSprintID(v uuid.UUID) *WorkItemUpdate {
+	_u.mutation.SetSprintID(v)
+	return _u
+}
+
+// SetNillableSprintID sets the "sprint_id" field if the given value is not nil.
+func (_u *WorkItemUpdate) SetNillableSprintID(v *uuid.UUID) *WorkItemUpdate {
+	if v != nil {
+		_u.SetSprintID(*v)
+	}
+	return _u
+}
+
+// ClearSprintID clears the value of the "sprint_id" field.
+func (_u *WorkItemUpdate) ClearSprintID() *WorkItemUpdate {
+	_u.mutation.ClearSprintID()
+	return _u
+}
+
+// SetStoryPoints sets the "story_points" field.
+func (_u *WorkItemUpdate) SetStoryPoints(v int16) *WorkItemUpdate {
+	_u.mutation.ResetStoryPoints()
+	_u.mutation.SetStoryPoints(v)
+	return _u
+}
+
+// SetNillableStoryPoints sets the "story_points" field if the given value is not nil.
+func (_u *WorkItemUpdate) SetNillableStoryPoints(v *int16) *WorkItemUpdate {
+	if v != nil {
+		_u.SetStoryPoints(*v)
+	}
+	return _u
+}
+
+// AddStoryPoints adds value to the "story_points" field.
+func (_u *WorkItemUpdate) AddStoryPoints(v int16) *WorkItemUpdate {
+	_u.mutation.AddStoryPoints(v)
+	return _u
+}
+
+// ClearStoryPoints clears the value of the "story_points" field.
+func (_u *WorkItemUpdate) ClearStoryPoints() *WorkItemUpdate {
+	_u.mutation.ClearStoryPoints()
+	return _u
+}
+
+// SetEstimateMinutes sets the "estimate_minutes" field.
+func (_u *WorkItemUpdate) SetEstimateMinutes(v int) *WorkItemUpdate {
+	_u.mutation.ResetEstimateMinutes()
+	_u.mutation.SetEstimateMinutes(v)
+	return _u
+}
+
+// SetNillableEstimateMinutes sets the "estimate_minutes" field if the given value is not nil.
+func (_u *WorkItemUpdate) SetNillableEstimateMinutes(v *int) *WorkItemUpdate {
+	if v != nil {
+		_u.SetEstimateMinutes(*v)
+	}
+	return _u
+}
+
+// AddEstimateMinutes adds value to the "estimate_minutes" field.
+func (_u *WorkItemUpdate) AddEstimateMinutes(v int) *WorkItemUpdate {
+	_u.mutation.AddEstimateMinutes(v)
+	return _u
+}
+
+// ClearEstimateMinutes clears the value of the "estimate_minutes" field.
+func (_u *WorkItemUpdate) ClearEstimateMinutes() *WorkItemUpdate {
+	_u.mutation.ClearEstimateMinutes()
+	return _u
+}
+
 // SetRank sets the "rank" field.
 func (_u *WorkItemUpdate) SetRank(v string) *WorkItemUpdate {
 	_u.mutation.SetRank(v)
@@ -665,6 +739,30 @@ func (_u *WorkItemUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.ParentIDCleared() {
 		_spec.ClearField(workitem.FieldParentID, field.TypeUUID)
 	}
+	if value, ok := _u.mutation.SprintID(); ok {
+		_spec.SetField(workitem.FieldSprintID, field.TypeUUID, value)
+	}
+	if _u.mutation.SprintIDCleared() {
+		_spec.ClearField(workitem.FieldSprintID, field.TypeUUID)
+	}
+	if value, ok := _u.mutation.StoryPoints(); ok {
+		_spec.SetField(workitem.FieldStoryPoints, field.TypeInt16, value)
+	}
+	if value, ok := _u.mutation.AddedStoryPoints(); ok {
+		_spec.AddField(workitem.FieldStoryPoints, field.TypeInt16, value)
+	}
+	if _u.mutation.StoryPointsCleared() {
+		_spec.ClearField(workitem.FieldStoryPoints, field.TypeInt16)
+	}
+	if value, ok := _u.mutation.EstimateMinutes(); ok {
+		_spec.SetField(workitem.FieldEstimateMinutes, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedEstimateMinutes(); ok {
+		_spec.AddField(workitem.FieldEstimateMinutes, field.TypeInt, value)
+	}
+	if _u.mutation.EstimateMinutesCleared() {
+		_spec.ClearField(workitem.FieldEstimateMinutes, field.TypeInt)
+	}
 	if value, ok := _u.mutation.Rank(); ok {
 		_spec.SetField(workitem.FieldRank, field.TypeString, value)
 	}
@@ -995,6 +1093,80 @@ func (_u *WorkItemUpdateOne) SetNillableParentID(v *uuid.UUID) *WorkItemUpdateOn
 // ClearParentID clears the value of the "parent_id" field.
 func (_u *WorkItemUpdateOne) ClearParentID() *WorkItemUpdateOne {
 	_u.mutation.ClearParentID()
+	return _u
+}
+
+// SetSprintID sets the "sprint_id" field.
+func (_u *WorkItemUpdateOne) SetSprintID(v uuid.UUID) *WorkItemUpdateOne {
+	_u.mutation.SetSprintID(v)
+	return _u
+}
+
+// SetNillableSprintID sets the "sprint_id" field if the given value is not nil.
+func (_u *WorkItemUpdateOne) SetNillableSprintID(v *uuid.UUID) *WorkItemUpdateOne {
+	if v != nil {
+		_u.SetSprintID(*v)
+	}
+	return _u
+}
+
+// ClearSprintID clears the value of the "sprint_id" field.
+func (_u *WorkItemUpdateOne) ClearSprintID() *WorkItemUpdateOne {
+	_u.mutation.ClearSprintID()
+	return _u
+}
+
+// SetStoryPoints sets the "story_points" field.
+func (_u *WorkItemUpdateOne) SetStoryPoints(v int16) *WorkItemUpdateOne {
+	_u.mutation.ResetStoryPoints()
+	_u.mutation.SetStoryPoints(v)
+	return _u
+}
+
+// SetNillableStoryPoints sets the "story_points" field if the given value is not nil.
+func (_u *WorkItemUpdateOne) SetNillableStoryPoints(v *int16) *WorkItemUpdateOne {
+	if v != nil {
+		_u.SetStoryPoints(*v)
+	}
+	return _u
+}
+
+// AddStoryPoints adds value to the "story_points" field.
+func (_u *WorkItemUpdateOne) AddStoryPoints(v int16) *WorkItemUpdateOne {
+	_u.mutation.AddStoryPoints(v)
+	return _u
+}
+
+// ClearStoryPoints clears the value of the "story_points" field.
+func (_u *WorkItemUpdateOne) ClearStoryPoints() *WorkItemUpdateOne {
+	_u.mutation.ClearStoryPoints()
+	return _u
+}
+
+// SetEstimateMinutes sets the "estimate_minutes" field.
+func (_u *WorkItemUpdateOne) SetEstimateMinutes(v int) *WorkItemUpdateOne {
+	_u.mutation.ResetEstimateMinutes()
+	_u.mutation.SetEstimateMinutes(v)
+	return _u
+}
+
+// SetNillableEstimateMinutes sets the "estimate_minutes" field if the given value is not nil.
+func (_u *WorkItemUpdateOne) SetNillableEstimateMinutes(v *int) *WorkItemUpdateOne {
+	if v != nil {
+		_u.SetEstimateMinutes(*v)
+	}
+	return _u
+}
+
+// AddEstimateMinutes adds value to the "estimate_minutes" field.
+func (_u *WorkItemUpdateOne) AddEstimateMinutes(v int) *WorkItemUpdateOne {
+	_u.mutation.AddEstimateMinutes(v)
+	return _u
+}
+
+// ClearEstimateMinutes clears the value of the "estimate_minutes" field.
+func (_u *WorkItemUpdateOne) ClearEstimateMinutes() *WorkItemUpdateOne {
+	_u.mutation.ClearEstimateMinutes()
 	return _u
 }
 
@@ -1410,6 +1582,30 @@ func (_u *WorkItemUpdateOne) sqlSave(ctx context.Context) (_node *WorkItem, err 
 	}
 	if _u.mutation.ParentIDCleared() {
 		_spec.ClearField(workitem.FieldParentID, field.TypeUUID)
+	}
+	if value, ok := _u.mutation.SprintID(); ok {
+		_spec.SetField(workitem.FieldSprintID, field.TypeUUID, value)
+	}
+	if _u.mutation.SprintIDCleared() {
+		_spec.ClearField(workitem.FieldSprintID, field.TypeUUID)
+	}
+	if value, ok := _u.mutation.StoryPoints(); ok {
+		_spec.SetField(workitem.FieldStoryPoints, field.TypeInt16, value)
+	}
+	if value, ok := _u.mutation.AddedStoryPoints(); ok {
+		_spec.AddField(workitem.FieldStoryPoints, field.TypeInt16, value)
+	}
+	if _u.mutation.StoryPointsCleared() {
+		_spec.ClearField(workitem.FieldStoryPoints, field.TypeInt16)
+	}
+	if value, ok := _u.mutation.EstimateMinutes(); ok {
+		_spec.SetField(workitem.FieldEstimateMinutes, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedEstimateMinutes(); ok {
+		_spec.AddField(workitem.FieldEstimateMinutes, field.TypeInt, value)
+	}
+	if _u.mutation.EstimateMinutesCleared() {
+		_spec.ClearField(workitem.FieldEstimateMinutes, field.TypeInt)
 	}
 	if value, ok := _u.mutation.Rank(); ok {
 		_spec.SetField(workitem.FieldRank, field.TypeString, value)

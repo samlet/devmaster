@@ -16,9 +16,12 @@ import (
 
 	"github.com/google/uuid"
 
+	boardapp "github.com/xiaofeiwu/devmaster/backend/internal/board/application"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/observability"
 	"github.com/xiaofeiwu/devmaster/backend/internal/product/application"
 	"github.com/xiaofeiwu/devmaster/backend/internal/product/domain"
+	sprintapp "github.com/xiaofeiwu/devmaster/backend/internal/sprint/application"
+	sprintdomain "github.com/xiaofeiwu/devmaster/backend/internal/sprint/domain"
 	workitemapplication "github.com/xiaofeiwu/devmaster/backend/internal/workitem/application"
 	workitemdomain "github.com/xiaofeiwu/devmaster/backend/internal/workitem/domain"
 )
@@ -31,9 +34,19 @@ type WorkItemReader interface {
 	List(ctx context.Context, actor workitemapplication.Actor, filter workitemapplication.ListFilter) ([]workitemdomain.WorkItem, int, error)
 }
 
+type SprintReader interface {
+	List(ctx context.Context, actor sprintapp.Actor, productID uuid.UUID) ([]sprintdomain.Sprint, error)
+}
+
+type BoardReader interface {
+	Get(ctx context.Context, actor boardapp.Actor, productID uuid.UUID, sprintID *uuid.UUID) (boardapp.BoardView, error)
+}
+
 type Server struct {
 	products  ProductReader
 	workItems WorkItemReader
+	sprints   SprintReader
+	board     BoardReader
 	metrics   *observability.Metrics
 	health    observability.Health
 	logger    *slog.Logger
@@ -42,10 +55,12 @@ type Server struct {
 	defaultOrganizationID uuid.UUID
 }
 
-func NewServer(products ProductReader, workItems WorkItemReader, metrics *observability.Metrics, health observability.Health, logger *slog.Logger, defaultOrganizationID uuid.UUID) *Server {
+func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintReader, board BoardReader, metrics *observability.Metrics, health observability.Health, logger *slog.Logger, defaultOrganizationID uuid.UUID) *Server {
 	return &Server{
 		products:              products,
 		workItems:             workItems,
+		sprints:               sprints,
+		board:                 board,
 		metrics:               metrics,
 		health:                health,
 		logger:                logger,
@@ -59,6 +74,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/metrics", s.metrics.Handler())
 	mux.HandleFunc("/api/products", s.handleProducts)
 	mux.HandleFunc("/api/work-items", s.handleWorkItems)
+	mux.HandleFunc("/api/sprints", s.handleSprints)
+	mux.HandleFunc("/api/board", s.handleBoard)
 	return cors(mux)
 }
 
@@ -260,4 +277,160 @@ func stringOrEmpty(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+type sprintView struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Goal            string `json:"goal"`
+	State           string `json:"state"`
+	StartAt         string `json:"start_at"`
+	EndAt           string `json:"end_at"`
+	CommittedPoints int32  `json:"committed_points"`
+	Version         int32  `json:"version"`
+}
+
+func (s *Server) handleSprints(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	productID, err := uuid.Parse(strings.TrimSpace(r.URL.Query().Get("product_id")))
+	if err != nil {
+		http.Error(w, "product_id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	sprints, err := s.sprints.List(r.Context(), sprintapp.Actor{
+		Subject:        "http-readonly",
+		OrganizationID: organizationID,
+	}, productID)
+	if err != nil {
+		s.logger.Error("list sprints failed", slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	out := make([]sprintView, 0, len(sprints))
+	for _, sprint := range sprints {
+		out = append(out, sprintView{
+			ID:              sprint.ID.String(),
+			Name:            sprint.Name,
+			Goal:            sprint.Goal,
+			State:           string(sprint.State),
+			StartAt:         formatTime(sprint.StartAt),
+			EndAt:           formatTime(sprint.EndAt),
+			CommittedPoints: int32(sprint.CommittedPoints),
+			Version:         int32(sprint.Version),
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"items": out})
+}
+
+type boardItemView struct {
+	ID          string `json:"id"`
+	Key         string `json:"key"`
+	Title       string `json:"title"`
+	Type        string `json:"type"`
+	Status      string `json:"status"`
+	Priority    string `json:"priority"`
+	AssigneeID  string `json:"assignee_id"`
+	StoryPoints int32  `json:"story_points"`
+	Rank        string `json:"rank"`
+	Version     int32  `json:"version"`
+}
+
+type boardColumnView struct {
+	Column    string          `json:"column"`
+	Statuses  []string        `json:"statuses"`
+	WorkItems []boardItemView `json:"work_items"`
+}
+
+func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	productID, err := uuid.Parse(strings.TrimSpace(r.URL.Query().Get("product_id")))
+	if err != nil {
+		http.Error(w, "product_id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	var sprintID *uuid.UUID
+	if raw := strings.TrimSpace(r.URL.Query().Get("sprint_id")); raw != "" {
+		parsed, parseErr := uuid.Parse(raw)
+		if parseErr != nil {
+			http.Error(w, "sprint_id must be a valid UUID", http.StatusBadRequest)
+			return
+		}
+		sprintID = &parsed
+	}
+	view, err := s.board.Get(r.Context(), boardapp.Actor{
+		Subject:        "http-readonly",
+		OrganizationID: organizationID,
+	}, productID, sprintID)
+	if err != nil {
+		s.logger.Error("get board failed", slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	response := map[string]any{"columns": []boardColumnView{}}
+	if view.Sprint != nil {
+		response["sprint"] = sprintView{
+			ID:              view.Sprint.ID.String(),
+			Name:            view.Sprint.Name,
+			Goal:            view.Sprint.Goal,
+			State:           string(view.Sprint.State),
+			StartAt:         formatTime(view.Sprint.StartAt),
+			EndAt:           formatTime(view.Sprint.EndAt),
+			CommittedPoints: int32(view.Sprint.CommittedPoints),
+			Version:         int32(view.Sprint.Version),
+		}
+	}
+	columns := make([]boardColumnView, 0, len(view.Columns))
+	for _, column := range view.Columns {
+		items := make([]boardItemView, 0, len(column.Items))
+		for _, item := range column.Items {
+			points := int32(0)
+			if item.StoryPoints != nil {
+				points = int32(*item.StoryPoints)
+			}
+			items = append(items, boardItemView{
+				ID:          item.ID.String(),
+				Key:         item.Key,
+				Title:       item.Title,
+				Type:        string(item.Type),
+				Status:      string(item.Status),
+				Priority:    priorityLabel(item.Priority),
+				AssigneeID:  stringOrEmpty(item.AssigneeID),
+				StoryPoints: points,
+				Rank:        item.Rank,
+				Version:     int32(item.Version),
+			})
+		}
+		columns = append(columns, boardColumnView{
+			Column:    string(column.Column),
+			Statuses:  column.Statuses,
+			WorkItems: items,
+		})
+	}
+	response["columns"] = columns
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+func formatTime(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return value.Format(time.RFC3339)
 }

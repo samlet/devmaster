@@ -24,6 +24,8 @@ func NewServer(
 	logger *slog.Logger,
 	productService *ProductService,
 	workItemService *WorkItemService,
+	sprintService *SprintService,
+	boardService *BoardService,
 	systemService *SystemService,
 ) *grpc.Server {
 	server := grpc.NewServer(
@@ -35,6 +37,8 @@ func NewServer(
 	)
 	devv1.RegisterProductServiceServer(server, productService)
 	devv1.RegisterWorkItemServiceServer(server, workItemService)
+	devv1.RegisterSprintServiceServer(server, sprintService)
+	devv1.RegisterBoardServiceServer(server, boardService)
 	devv1.RegisterSystemServiceServer(server, systemService)
 	reflection.Register(server)
 	return server

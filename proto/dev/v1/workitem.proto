@@ -95,6 +95,9 @@ message WorkItem {
   google.protobuf.Timestamp updated_at = 24;
   google.protobuf.Timestamp resolved_at = 25;
   google.protobuf.Timestamp closed_at = 26;
+  string sprint_id = 27;
+  int32 story_points = 28;
+  int32 estimate_minutes = 29;
 }
 
 message CreateWorkItemRequest {
@@ -112,6 +115,8 @@ message CreateWorkItemRequest {
   string project_code = 12;
   string wbs_code = 13;
   string external_ref = 14;
+  optional int32 story_points = 15;
+  optional int32 estimate_minutes = 16;
 }
 
 message CreateWorkItemResponse {
@@ -140,6 +145,8 @@ message UpdateWorkItemRequest {
   optional string wbs_code = 10;
   optional string external_ref = 11;
   optional string blocked_reason = 12;
+  optional int32 story_points = 13;
+  optional int32 estimate_minutes = 14;
 }
 
 message UpdateWorkItemResponse {

@@ -130,6 +130,21 @@ func ParentID(v uuid.UUID) predicate.WorkItem {
 	return predicate.WorkItem(sql.FieldEQ(FieldParentID, v))
 }
 
+// SprintID applies equality check predicate on the "sprint_id" field. It's identical to SprintIDEQ.
+func SprintID(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldSprintID, v))
+}
+
+// StoryPoints applies equality check predicate on the "story_points" field. It's identical to StoryPointsEQ.
+func StoryPoints(v int16) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldStoryPoints, v))
+}
+
+// EstimateMinutes applies equality check predicate on the "estimate_minutes" field. It's identical to EstimateMinutesEQ.
+func EstimateMinutes(v int) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldEstimateMinutes, v))
+}
+
 // Rank applies equality check predicate on the "rank" field. It's identical to RankEQ.
 func Rank(v string) predicate.WorkItem {
 	return predicate.WorkItem(sql.FieldEQ(FieldRank, v))
@@ -1118,6 +1133,156 @@ func ParentIDIsNil() predicate.WorkItem {
 // ParentIDNotNil applies the NotNil predicate on the "parent_id" field.
 func ParentIDNotNil() predicate.WorkItem {
 	return predicate.WorkItem(sql.FieldNotNull(FieldParentID))
+}
+
+// SprintIDEQ applies the EQ predicate on the "sprint_id" field.
+func SprintIDEQ(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldSprintID, v))
+}
+
+// SprintIDNEQ applies the NEQ predicate on the "sprint_id" field.
+func SprintIDNEQ(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNEQ(FieldSprintID, v))
+}
+
+// SprintIDIn applies the In predicate on the "sprint_id" field.
+func SprintIDIn(vs ...uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIn(FieldSprintID, vs...))
+}
+
+// SprintIDNotIn applies the NotIn predicate on the "sprint_id" field.
+func SprintIDNotIn(vs ...uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotIn(FieldSprintID, vs...))
+}
+
+// SprintIDGT applies the GT predicate on the "sprint_id" field.
+func SprintIDGT(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGT(FieldSprintID, v))
+}
+
+// SprintIDGTE applies the GTE predicate on the "sprint_id" field.
+func SprintIDGTE(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGTE(FieldSprintID, v))
+}
+
+// SprintIDLT applies the LT predicate on the "sprint_id" field.
+func SprintIDLT(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLT(FieldSprintID, v))
+}
+
+// SprintIDLTE applies the LTE predicate on the "sprint_id" field.
+func SprintIDLTE(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLTE(FieldSprintID, v))
+}
+
+// SprintIDIsNil applies the IsNil predicate on the "sprint_id" field.
+func SprintIDIsNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIsNull(FieldSprintID))
+}
+
+// SprintIDNotNil applies the NotNil predicate on the "sprint_id" field.
+func SprintIDNotNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotNull(FieldSprintID))
+}
+
+// StoryPointsEQ applies the EQ predicate on the "story_points" field.
+func StoryPointsEQ(v int16) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldStoryPoints, v))
+}
+
+// StoryPointsNEQ applies the NEQ predicate on the "story_points" field.
+func StoryPointsNEQ(v int16) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNEQ(FieldStoryPoints, v))
+}
+
+// StoryPointsIn applies the In predicate on the "story_points" field.
+func StoryPointsIn(vs ...int16) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIn(FieldStoryPoints, vs...))
+}
+
+// StoryPointsNotIn applies the NotIn predicate on the "story_points" field.
+func StoryPointsNotIn(vs ...int16) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotIn(FieldStoryPoints, vs...))
+}
+
+// StoryPointsGT applies the GT predicate on the "story_points" field.
+func StoryPointsGT(v int16) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGT(FieldStoryPoints, v))
+}
+
+// StoryPointsGTE applies the GTE predicate on the "story_points" field.
+func StoryPointsGTE(v int16) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGTE(FieldStoryPoints, v))
+}
+
+// StoryPointsLT applies the LT predicate on the "story_points" field.
+func StoryPointsLT(v int16) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLT(FieldStoryPoints, v))
+}
+
+// StoryPointsLTE applies the LTE predicate on the "story_points" field.
+func StoryPointsLTE(v int16) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLTE(FieldStoryPoints, v))
+}
+
+// StoryPointsIsNil applies the IsNil predicate on the "story_points" field.
+func StoryPointsIsNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIsNull(FieldStoryPoints))
+}
+
+// StoryPointsNotNil applies the NotNil predicate on the "story_points" field.
+func StoryPointsNotNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotNull(FieldStoryPoints))
+}
+
+// EstimateMinutesEQ applies the EQ predicate on the "estimate_minutes" field.
+func EstimateMinutesEQ(v int) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldEstimateMinutes, v))
+}
+
+// EstimateMinutesNEQ applies the NEQ predicate on the "estimate_minutes" field.
+func EstimateMinutesNEQ(v int) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNEQ(FieldEstimateMinutes, v))
+}
+
+// EstimateMinutesIn applies the In predicate on the "estimate_minutes" field.
+func EstimateMinutesIn(vs ...int) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIn(FieldEstimateMinutes, vs...))
+}
+
+// EstimateMinutesNotIn applies the NotIn predicate on the "estimate_minutes" field.
+func EstimateMinutesNotIn(vs ...int) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotIn(FieldEstimateMinutes, vs...))
+}
+
+// EstimateMinutesGT applies the GT predicate on the "estimate_minutes" field.
+func EstimateMinutesGT(v int) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGT(FieldEstimateMinutes, v))
+}
+
+// EstimateMinutesGTE applies the GTE predicate on the "estimate_minutes" field.
+func EstimateMinutesGTE(v int) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGTE(FieldEstimateMinutes, v))
+}
+
+// EstimateMinutesLT applies the LT predicate on the "estimate_minutes" field.
+func EstimateMinutesLT(v int) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLT(FieldEstimateMinutes, v))
+}
+
+// EstimateMinutesLTE applies the LTE predicate on the "estimate_minutes" field.
+func EstimateMinutesLTE(v int) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLTE(FieldEstimateMinutes, v))
+}
+
+// EstimateMinutesIsNil applies the IsNil predicate on the "estimate_minutes" field.
+func EstimateMinutesIsNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIsNull(FieldEstimateMinutes))
+}
+
+// EstimateMinutesNotNil applies the NotNil predicate on the "estimate_minutes" field.
+func EstimateMinutesNotNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotNull(FieldEstimateMinutes))
 }
 
 // RankEQ applies the EQ predicate on the "rank" field.

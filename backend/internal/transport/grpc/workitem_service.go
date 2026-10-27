@@ -182,6 +182,15 @@ func workItemToProto(item workitemdomain.WorkItem) *devv1.WorkItem {
 	if item.ClosedAt != nil {
 		out.ClosedAt = timestamppb.New(*item.ClosedAt)
 	}
+	if item.SprintID != nil {
+		out.SprintId = item.SprintID.String()
+	}
+	if item.StoryPoints != nil {
+		out.StoryPoints = int32(*item.StoryPoints)
+	}
+	if item.EstimateMinutes != nil {
+		out.EstimateMinutes = *item.EstimateMinutes
+	}
 	return out
 }
 
@@ -273,6 +282,8 @@ func (s *WorkItemService) CreateWorkItem(ctx context.Context, req *devv1.CreateW
 				ProjectCode:        stringPtr(req.GetProjectCode()),
 				WBSCode:            stringPtr(req.GetWbsCode()),
 				ExternalRef:        stringPtr(req.GetExternalRef()),
+				StoryPoints:        int16Ptr(req.StoryPoints),
+				EstimateMinutes:    req.EstimateMinutes,
 			})
 			if err != nil {
 				return nil, appError(s.logger, err)
@@ -327,6 +338,8 @@ func (s *WorkItemService) UpdateWorkItem(ctx context.Context, req *devv1.UpdateW
 		WBSCode:            req.WbsCode,
 		ExternalRef:        req.ExternalRef,
 		BlockedReason:      req.BlockedReason,
+		StoryPoints:        int16Ptr(req.StoryPoints),
+		EstimateMinutes:    req.EstimateMinutes,
 	}
 	if req.Priority != nil {
 		priority, parseErr := priorityFromProto(*req.Priority)
@@ -712,6 +725,14 @@ func linkToProto(link workitemdomain.Link) *devv1.Link {
 		CreatedBy: link.CreatedBy,
 		CreatedAt: timestamppb.New(link.CreatedAt),
 	}
+}
+
+func int16Ptr(value *int32) *int16 {
+	if value == nil {
+		return nil
+	}
+	converted := int16(*value)
+	return &converted
 }
 
 func stringPtr(value string) *string {

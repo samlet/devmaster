@@ -49,6 +49,12 @@ type WorkItem struct {
 	AssigneeID *string `json:"assignee_id,omitempty"`
 	// ParentID holds the value of the "parent_id" field.
 	ParentID *uuid.UUID `json:"parent_id,omitempty"`
+	// SprintID holds the value of the "sprint_id" field.
+	SprintID *uuid.UUID `json:"sprint_id,omitempty"`
+	// StoryPoints holds the value of the "story_points" field.
+	StoryPoints *int16 `json:"story_points,omitempty"`
+	// EstimateMinutes holds the value of the "estimate_minutes" field.
+	EstimateMinutes *int `json:"estimate_minutes,omitempty"`
 	// Rank holds the value of the "rank" field.
 	Rank string `json:"rank,omitempty"`
 	// ProjectCode holds the value of the "project_code" field.
@@ -81,11 +87,11 @@ func (*WorkItem) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case workitem.FieldParentID:
+		case workitem.FieldParentID, workitem.FieldSprintID:
 			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
 		case workitem.FieldCustomFields:
 			values[i] = new([]byte)
-		case workitem.FieldPriority, workitem.FieldReopenedCount, workitem.FieldVersion:
+		case workitem.FieldPriority, workitem.FieldStoryPoints, workitem.FieldEstimateMinutes, workitem.FieldReopenedCount, workitem.FieldVersion:
 			values[i] = new(sql.NullInt64)
 		case workitem.FieldKey, workitem.FieldType, workitem.FieldStatus, workitem.FieldResolution, workitem.FieldTitle, workitem.FieldDescriptionMd, workitem.FieldAcceptanceCriteria, workitem.FieldSeverity, workitem.FieldEnvironment, workitem.FieldReporterID, workitem.FieldAssigneeID, workitem.FieldRank, workitem.FieldProjectCode, workitem.FieldWbsCode, workitem.FieldExternalRef, workitem.FieldBlockedReason:
 			values[i] = new(sql.NullString)
@@ -209,6 +215,27 @@ func (_m *WorkItem) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ParentID = new(uuid.UUID)
 				*_m.ParentID = *value.S.(*uuid.UUID)
+			}
+		case workitem.FieldSprintID:
+			if value, ok := values[i].(*sql.NullScanner); !ok {
+				return fmt.Errorf("unexpected type %T for field sprint_id", values[i])
+			} else if value.Valid {
+				_m.SprintID = new(uuid.UUID)
+				*_m.SprintID = *value.S.(*uuid.UUID)
+			}
+		case workitem.FieldStoryPoints:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field story_points", values[i])
+			} else if value.Valid {
+				_m.StoryPoints = new(int16)
+				*_m.StoryPoints = int16(value.Int64)
+			}
+		case workitem.FieldEstimateMinutes:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field estimate_minutes", values[i])
+			} else if value.Valid {
+				_m.EstimateMinutes = new(int)
+				*_m.EstimateMinutes = int(value.Int64)
 			}
 		case workitem.FieldRank:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -380,6 +407,21 @@ func (_m *WorkItem) String() string {
 	builder.WriteString(", ")
 	if v := _m.ParentID; v != nil {
 		builder.WriteString("parent_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.SprintID; v != nil {
+		builder.WriteString("sprint_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.StoryPoints; v != nil {
+		builder.WriteString("story_points=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.EstimateMinutes; v != nil {
+		builder.WriteString("estimate_minutes=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")

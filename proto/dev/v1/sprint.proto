@@ -1,0 +1,212 @@
+syntax = "proto3";
+
+package dev.v1;
+
+import "dev/v1/common.proto";
+import "dev/v1/workitem.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/xiaofeiwu/devmaster/backend/gen/go/dev/v1;devv1";
+
+enum SprintState {
+  SPRINT_STATE_UNSPECIFIED = 0;
+  SPRINT_STATE_PLANNED = 1;
+  SPRINT_STATE_ACTIVE = 2;
+  SPRINT_STATE_CLOSED = 3;
+}
+
+message Sprint {
+  string id = 1;
+  string organization_id = 2;
+  string board_id = 3;
+  string name = 4;
+  string goal = 5;
+  SprintState state = 6;
+  google.protobuf.Timestamp start_at = 7;
+  google.protobuf.Timestamp end_at = 8;
+  int32 capacity_points = 9;
+  int32 committed_points = 10;
+  int32 version = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+  google.protobuf.Timestamp closed_at = 14;
+}
+
+message CreateSprintRequest {
+  WriteOptions options = 1;
+  string product_id = 2;
+  string name = 3;
+  string goal = 4;
+  google.protobuf.Timestamp start_at = 5;
+  google.protobuf.Timestamp end_at = 6;
+  int32 capacity_points = 7;
+}
+
+message CreateSprintResponse {
+  Sprint sprint = 1;
+}
+
+message UpdateSprintRequest {
+  WriteOptions options = 1;
+  string id = 2;
+  optional string name = 3;
+  optional string goal = 4;
+  optional google.protobuf.Timestamp start_at = 5;
+  optional google.protobuf.Timestamp end_at = 6;
+  optional int32 capacity_points = 7;
+}
+
+message UpdateSprintResponse {
+  Sprint sprint = 1;
+}
+
+message StartSprintRequest {
+  WriteOptions options = 1;
+  string id = 2;
+}
+
+message StartSprintResponse {
+  Sprint sprint = 1;
+  int32 committed_points = 2;
+}
+
+message CloseSprintRequest {
+  WriteOptions options = 1;
+  string id = 2;
+  // 未完成项的去处；为空表示回 backlog。
+  string move_to_sprint_id = 3;
+}
+
+message CloseSprintResponse {
+  Sprint sprint = 1;
+}
+
+message GetSprintRequest {
+  string id = 1;
+}
+
+message GetSprintResponse {
+  Sprint sprint = 1;
+}
+
+message ListSprintsRequest {
+  string product_id = 1;
+}
+
+message ListSprintsResponse {
+  repeated Sprint sprints = 1;
+}
+
+message AddSprintItemsRequest {
+  WriteOptions options = 1;
+  string sprint_id = 2;
+  repeated string work_item_ids = 3;
+}
+
+message AddSprintItemsResponse {
+  int32 affected = 1;
+}
+
+message RemoveSprintItemsRequest {
+  WriteOptions options = 1;
+  string sprint_id = 2;
+  repeated string work_item_ids = 3;
+}
+
+message RemoveSprintItemsResponse {
+  int32 affected = 1;
+}
+
+message SprintStats {
+  string sprint_id = 1;
+  int32 committed_points = 2;
+  int32 added_points = 3;
+  int32 removed_points = 4;
+  int32 completed_points = 5;
+  int32 scope_points = 6;
+  int32 remaining_points = 7;
+  // 范围蔓延率 = (added - removed) / committed；committed 为 0 时为 0。
+  double creep_rate = 8;
+}
+
+message GetSprintStatsRequest {
+  string sprint_id = 1;
+}
+
+message GetSprintStatsResponse {
+  SprintStats stats = 1;
+}
+
+message BurndownPoint {
+  string date = 1; // YYYY-MM-DD
+  int32 scope_points = 2;
+  int32 completed_points = 3;
+  int32 remaining_points = 4;
+}
+
+message GetBurndownRequest {
+  string sprint_id = 1;
+}
+
+message GetBurndownResponse {
+  repeated BurndownPoint points = 1;
+}
+
+message SnapshotSprintRequest {
+  WriteOptions options = 1;
+  string sprint_id = 2;
+}
+
+message SnapshotSprintResponse {
+  BurndownPoint point = 1;
+}
+
+service SprintService {
+  rpc CreateSprint(CreateSprintRequest) returns (CreateSprintResponse);
+  rpc UpdateSprint(UpdateSprintRequest) returns (UpdateSprintResponse);
+  rpc StartSprint(StartSprintRequest) returns (StartSprintResponse);
+  rpc CloseSprint(CloseSprintRequest) returns (CloseSprintResponse);
+  rpc GetSprint(GetSprintRequest) returns (GetSprintResponse);
+  rpc ListSprints(ListSprintsRequest) returns (ListSprintsResponse);
+  rpc AddSprintItems(AddSprintItemsRequest) returns (AddSprintItemsResponse);
+  rpc RemoveSprintItems(RemoveSprintItemsRequest) returns (RemoveSprintItemsResponse);
+  rpc GetSprintStats(GetSprintStatsRequest) returns (GetSprintStatsResponse);
+  rpc GetBurndown(GetBurndownRequest) returns (GetBurndownResponse);
+  rpc SnapshotSprint(SnapshotSprintRequest) returns (SnapshotSprintResponse);
+}
+
+message BoardColumn {
+  // TODO / IN_PROGRESS / IN_REVIEW / DONE
+  string column = 1;
+  repeated string statuses = 2;
+  repeated WorkItem work_items = 3;
+}
+
+message GetBoardRequest {
+  string product_id = 1;
+  // 为空时取该产品的 ACTIVE 冲刺；没有 ACTIVE 冲刺时返回空列。
+  string sprint_id = 2;
+}
+
+message GetBoardResponse {
+  Sprint sprint = 1;
+  repeated BoardColumn columns = 2;
+}
+
+message MoveWorkItemRequest {
+  WriteOptions options = 1;
+  string work_item_id = 2;
+  WorkItemStatus to_status = 3;
+  // 放到这张卡之前；为空表示追加到目标列末尾。
+  string before_id = 4;
+  string comment = 5;
+}
+
+message MoveWorkItemResponse {
+  WorkItem work_item = 1;
+}
+
+service BoardService {
+  rpc GetBoard(GetBoardRequest) returns (GetBoardResponse);
+  rpc MoveWorkItem(MoveWorkItemRequest) returns (MoveWorkItemResponse);
+}

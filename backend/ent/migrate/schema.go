@@ -8,6 +8,28 @@ import (
 )
 
 var (
+	// BoardsColumns holds the columns for the "boards" table.
+	BoardsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "product_id", Type: field.TypeUUID},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "wip_limits", Type: field.TypeJSON, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// BoardsTable holds the schema information for the "boards" table.
+	BoardsTable = &schema.Table{
+		Name:       "boards",
+		Columns:    BoardsColumns,
+		PrimaryKey: []*schema.Column{BoardsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "board_product_id_name",
+				Unique:  true,
+				Columns: []*schema.Column{BoardsColumns[2], BoardsColumns[3]},
+			},
+		},
+	}
 	// CommentsColumns holds the columns for the "comments" table.
 	CommentsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -148,6 +170,78 @@ var (
 		Columns:    ProductCountersColumns,
 		PrimaryKey: []*schema.Column{ProductCountersColumns[0]},
 	}
+	// SprintsColumns holds the columns for the "sprints" table.
+	SprintsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "board_id", Type: field.TypeUUID},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "goal", Type: field.TypeString, Default: ""},
+		{Name: "state", Type: field.TypeString, Size: 16, Default: "PLANNED"},
+		{Name: "start_at", Type: field.TypeTime, Nullable: true},
+		{Name: "end_at", Type: field.TypeTime, Nullable: true},
+		{Name: "capacity_points", Type: field.TypeInt16, Nullable: true},
+		{Name: "committed_points", Type: field.TypeInt16, Default: 0},
+		{Name: "version", Type: field.TypeInt, Default: 0},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "closed_at", Type: field.TypeTime, Nullable: true},
+	}
+	// SprintsTable holds the schema information for the "sprints" table.
+	SprintsTable = &schema.Table{
+		Name:       "sprints",
+		Columns:    SprintsColumns,
+		PrimaryKey: []*schema.Column{SprintsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "sprint_board_id_name",
+				Unique:  true,
+				Columns: []*schema.Column{SprintsColumns[2], SprintsColumns[3]},
+			},
+		},
+	}
+	// SprintScopeEventsColumns holds the columns for the "sprint_scope_events" table.
+	SprintScopeEventsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "sprint_id", Type: field.TypeUUID},
+		{Name: "work_item_id", Type: field.TypeUUID},
+		{Name: "action", Type: field.TypeString, Size: 16},
+		{Name: "points_at_event", Type: field.TypeInt16, Nullable: true},
+		{Name: "actor_id", Type: field.TypeString, Nullable: true, Size: 128},
+		{Name: "note", Type: field.TypeString, Nullable: true},
+		{Name: "occurred_at", Type: field.TypeTime},
+	}
+	// SprintScopeEventsTable holds the schema information for the "sprint_scope_events" table.
+	SprintScopeEventsTable = &schema.Table{
+		Name:       "sprint_scope_events",
+		Columns:    SprintScopeEventsColumns,
+		PrimaryKey: []*schema.Column{SprintScopeEventsColumns[0]},
+	}
+	// SprintSnapshotsColumns holds the columns for the "sprint_snapshots" table.
+	SprintSnapshotsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "sprint_id", Type: field.TypeUUID},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "snapshot_date", Type: field.TypeTime},
+		{Name: "scope_points", Type: field.TypeInt},
+		{Name: "completed_points", Type: field.TypeInt},
+		{Name: "remaining_points", Type: field.TypeInt},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// SprintSnapshotsTable holds the schema information for the "sprint_snapshots" table.
+	SprintSnapshotsTable = &schema.Table{
+		Name:       "sprint_snapshots",
+		Columns:    SprintSnapshotsColumns,
+		PrimaryKey: []*schema.Column{SprintSnapshotsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "sprintsnapshot_sprint_id_snapshot_date",
+				Unique:  true,
+				Columns: []*schema.Column{SprintSnapshotsColumns[1], SprintSnapshotsColumns[3]},
+			},
+		},
+	}
 	// WorkItemsColumns holds the columns for the "work_items" table.
 	WorkItemsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -166,6 +260,9 @@ var (
 		{Name: "reporter_id", Type: field.TypeString, Size: 128},
 		{Name: "assignee_id", Type: field.TypeString, Nullable: true, Size: 128},
 		{Name: "parent_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "sprint_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "story_points", Type: field.TypeInt16, Nullable: true},
+		{Name: "estimate_minutes", Type: field.TypeInt, Nullable: true},
 		{Name: "rank", Type: field.TypeString, Size: 64},
 		{Name: "project_code", Type: field.TypeString, Nullable: true, Size: 64},
 		{Name: "wbs_code", Type: field.TypeString, Nullable: true, Size: 64},
@@ -193,7 +290,7 @@ var (
 			{
 				Name:    "workitem_product_id_rank",
 				Unique:  false,
-				Columns: []*schema.Column{WorkItemsColumns[3], WorkItemsColumns[16]},
+				Columns: []*schema.Column{WorkItemsColumns[3], WorkItemsColumns[19]},
 			},
 			{
 				Name:    "workitem_assignee_id_status",
@@ -262,12 +359,16 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		BoardsTable,
 		CommentsTable,
 		IdempotencyKeysTable,
 		InboxEventsTable,
 		OutboxEventsTable,
 		ProductsTable,
 		ProductCountersTable,
+		SprintsTable,
+		SprintScopeEventsTable,
+		SprintSnapshotsTable,
 		WorkItemsTable,
 		WorkItemEventsTable,
 		WorkItemLinksTable,

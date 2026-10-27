@@ -9,6 +9,18 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/ent"
 )
 
+// The BoardFunc type is an adapter to allow the use of ordinary
+// function as Board mutator.
+type BoardFunc func(context.Context, *ent.BoardMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f BoardFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.BoardMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.BoardMutation", m)
+}
+
 // The CommentFunc type is an adapter to allow the use of ordinary
 // function as Comment mutator.
 type CommentFunc func(context.Context, *ent.CommentMutation) (ent.Value, error)
@@ -79,6 +91,42 @@ func (f ProductCounterFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Val
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ProductCounterMutation", m)
+}
+
+// The SprintFunc type is an adapter to allow the use of ordinary
+// function as Sprint mutator.
+type SprintFunc func(context.Context, *ent.SprintMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SprintFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SprintMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SprintMutation", m)
+}
+
+// The SprintScopeEventFunc type is an adapter to allow the use of ordinary
+// function as SprintScopeEvent mutator.
+type SprintScopeEventFunc func(context.Context, *ent.SprintScopeEventMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SprintScopeEventFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SprintScopeEventMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SprintScopeEventMutation", m)
+}
+
+// The SprintSnapshotFunc type is an adapter to allow the use of ordinary
+// function as SprintSnapshot mutator.
+type SprintSnapshotFunc func(context.Context, *ent.SprintSnapshotMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SprintSnapshotFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SprintSnapshotMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SprintSnapshotMutation", m)
 }
 
 // The WorkItemFunc type is an adapter to allow the use of ordinary

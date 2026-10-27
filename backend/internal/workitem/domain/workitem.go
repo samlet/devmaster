@@ -26,6 +26,9 @@ type WorkItem struct {
 	ReporterID         string
 	AssigneeID         *string
 	ParentID           *uuid.UUID
+	SprintID           *uuid.UUID
+	StoryPoints        *int16
+	EstimateMinutes    *int32
 	Rank               string
 	ProjectCode        *string
 	WBSCode            *string
@@ -54,6 +57,9 @@ type NewWorkItemInput struct {
 	ReporterID         string
 	AssigneeID         *string
 	ParentID           *uuid.UUID
+	SprintID           *uuid.UUID
+	StoryPoints        *int16
+	EstimateMinutes    *int32
 	Rank               string
 	ProjectCode        *string
 	WBSCode            *string
@@ -95,6 +101,12 @@ func NewWorkItem(input NewWorkItemInput) (WorkItem, error) {
 	if strings.TrimSpace(input.Rank) == "" {
 		return WorkItem{}, apperr.Invalid("rank", "must not be empty")
 	}
+	if input.StoryPoints != nil && (*input.StoryPoints < 0 || *input.StoryPoints > 100) {
+		return WorkItem{}, apperr.Invalid("story_points", "must be between 0 and 100")
+	}
+	if input.EstimateMinutes != nil && *input.EstimateMinutes < 0 {
+		return WorkItem{}, apperr.Invalid("estimate_minutes", "must not be negative")
+	}
 	now := time.Now().UTC()
 	return WorkItem{
 		ID:                 uuid.New(),
@@ -112,6 +124,9 @@ func NewWorkItem(input NewWorkItemInput) (WorkItem, error) {
 		ReporterID:         strings.TrimSpace(input.ReporterID),
 		AssigneeID:         trimPtr(input.AssigneeID),
 		ParentID:           input.ParentID,
+		SprintID:           input.SprintID,
+		StoryPoints:        input.StoryPoints,
+		EstimateMinutes:    input.EstimateMinutes,
 		Rank:               strings.TrimSpace(input.Rank),
 		ProjectCode:        trimPtr(input.ProjectCode),
 		WBSCode:            trimPtr(input.WBSCode),
@@ -159,6 +174,12 @@ func (w *WorkItem) Transition(to Status, ctx TransitionContext) (Status, error) 
 	return from, nil
 }
 
+// MarkMoved 是同列内重排：状态不变，只更新排序与版本。
+func (w *WorkItem) MarkMoved() {
+	w.UpdatedAt = time.Now().UTC()
+	w.Version++
+}
+
 // Assign 变更经办人。终态不允许再指派：那只会制造"已完成但有人在改"的错觉。
 func (w *WorkItem) Assign(assigneeID *string) error {
 	if w.Status.Terminal() {
@@ -181,6 +202,8 @@ type UpdateFields struct {
 	WBSCode            *string
 	ExternalRef        *string
 	BlockedReason      *string
+	StoryPoints        *int16
+	EstimateMinutes    *int32
 }
 
 // ApplyUpdate 只应用显式给出的字段，返回真正变化的字段名。
@@ -251,6 +274,26 @@ func (w *WorkItem) ApplyUpdate(fields UpdateFields) ([]string, error) {
 	if fields.BlockedReason != nil && !samePtr(w.BlockedReason, fields.BlockedReason) {
 		w.BlockedReason = trimPtr(fields.BlockedReason)
 		changed = append(changed, "blocked_reason")
+	}
+	if fields.StoryPoints != nil {
+		if *fields.StoryPoints < 0 || *fields.StoryPoints > 100 {
+			return nil, apperr.Invalid("story_points", "must be between 0 and 100")
+		}
+		if w.StoryPoints == nil || *fields.StoryPoints != *w.StoryPoints {
+			value := *fields.StoryPoints
+			w.StoryPoints = &value
+			changed = append(changed, "story_points")
+		}
+	}
+	if fields.EstimateMinutes != nil {
+		if *fields.EstimateMinutes < 0 {
+			return nil, apperr.Invalid("estimate_minutes", "must not be negative")
+		}
+		if w.EstimateMinutes == nil || *fields.EstimateMinutes != *w.EstimateMinutes {
+			value := *fields.EstimateMinutes
+			w.EstimateMinutes = &value
+			changed = append(changed, "estimate_minutes")
+		}
 	}
 	if len(changed) == 0 {
 		return nil, nil

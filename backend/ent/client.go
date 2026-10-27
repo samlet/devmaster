@@ -15,12 +15,16 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
+	"github.com/xiaofeiwu/devmaster/backend/ent/board"
 	"github.com/xiaofeiwu/devmaster/backend/ent/comment"
 	"github.com/xiaofeiwu/devmaster/backend/ent/idempotencykey"
 	"github.com/xiaofeiwu/devmaster/backend/ent/inboxevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/outboxevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/product"
 	"github.com/xiaofeiwu/devmaster/backend/ent/productcounter"
+	"github.com/xiaofeiwu/devmaster/backend/ent/sprint"
+	"github.com/xiaofeiwu/devmaster/backend/ent/sprintscopeevent"
+	"github.com/xiaofeiwu/devmaster/backend/ent/sprintsnapshot"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitem"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemlink"
@@ -31,6 +35,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// Board is the client for interacting with the Board builders.
+	Board *BoardClient
 	// Comment is the client for interacting with the Comment builders.
 	Comment *CommentClient
 	// IdempotencyKey is the client for interacting with the IdempotencyKey builders.
@@ -43,6 +49,12 @@ type Client struct {
 	Product *ProductClient
 	// ProductCounter is the client for interacting with the ProductCounter builders.
 	ProductCounter *ProductCounterClient
+	// Sprint is the client for interacting with the Sprint builders.
+	Sprint *SprintClient
+	// SprintScopeEvent is the client for interacting with the SprintScopeEvent builders.
+	SprintScopeEvent *SprintScopeEventClient
+	// SprintSnapshot is the client for interacting with the SprintSnapshot builders.
+	SprintSnapshot *SprintSnapshotClient
 	// WorkItem is the client for interacting with the WorkItem builders.
 	WorkItem *WorkItemClient
 	// WorkItemEvent is the client for interacting with the WorkItemEvent builders.
@@ -60,12 +72,16 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.Board = NewBoardClient(c.config)
 	c.Comment = NewCommentClient(c.config)
 	c.IdempotencyKey = NewIdempotencyKeyClient(c.config)
 	c.InboxEvent = NewInboxEventClient(c.config)
 	c.OutboxEvent = NewOutboxEventClient(c.config)
 	c.Product = NewProductClient(c.config)
 	c.ProductCounter = NewProductCounterClient(c.config)
+	c.Sprint = NewSprintClient(c.config)
+	c.SprintScopeEvent = NewSprintScopeEventClient(c.config)
+	c.SprintSnapshot = NewSprintSnapshotClient(c.config)
 	c.WorkItem = NewWorkItemClient(c.config)
 	c.WorkItemEvent = NewWorkItemEventClient(c.config)
 	c.WorkItemLink = NewWorkItemLinkClient(c.config)
@@ -159,17 +175,21 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:            ctx,
-		config:         cfg,
-		Comment:        NewCommentClient(cfg),
-		IdempotencyKey: NewIdempotencyKeyClient(cfg),
-		InboxEvent:     NewInboxEventClient(cfg),
-		OutboxEvent:    NewOutboxEventClient(cfg),
-		Product:        NewProductClient(cfg),
-		ProductCounter: NewProductCounterClient(cfg),
-		WorkItem:       NewWorkItemClient(cfg),
-		WorkItemEvent:  NewWorkItemEventClient(cfg),
-		WorkItemLink:   NewWorkItemLinkClient(cfg),
+		ctx:              ctx,
+		config:           cfg,
+		Board:            NewBoardClient(cfg),
+		Comment:          NewCommentClient(cfg),
+		IdempotencyKey:   NewIdempotencyKeyClient(cfg),
+		InboxEvent:       NewInboxEventClient(cfg),
+		OutboxEvent:      NewOutboxEventClient(cfg),
+		Product:          NewProductClient(cfg),
+		ProductCounter:   NewProductCounterClient(cfg),
+		Sprint:           NewSprintClient(cfg),
+		SprintScopeEvent: NewSprintScopeEventClient(cfg),
+		SprintSnapshot:   NewSprintSnapshotClient(cfg),
+		WorkItem:         NewWorkItemClient(cfg),
+		WorkItemEvent:    NewWorkItemEventClient(cfg),
+		WorkItemLink:     NewWorkItemLinkClient(cfg),
 	}, nil
 }
 
@@ -187,24 +207,28 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:            ctx,
-		config:         cfg,
-		Comment:        NewCommentClient(cfg),
-		IdempotencyKey: NewIdempotencyKeyClient(cfg),
-		InboxEvent:     NewInboxEventClient(cfg),
-		OutboxEvent:    NewOutboxEventClient(cfg),
-		Product:        NewProductClient(cfg),
-		ProductCounter: NewProductCounterClient(cfg),
-		WorkItem:       NewWorkItemClient(cfg),
-		WorkItemEvent:  NewWorkItemEventClient(cfg),
-		WorkItemLink:   NewWorkItemLinkClient(cfg),
+		ctx:              ctx,
+		config:           cfg,
+		Board:            NewBoardClient(cfg),
+		Comment:          NewCommentClient(cfg),
+		IdempotencyKey:   NewIdempotencyKeyClient(cfg),
+		InboxEvent:       NewInboxEventClient(cfg),
+		OutboxEvent:      NewOutboxEventClient(cfg),
+		Product:          NewProductClient(cfg),
+		ProductCounter:   NewProductCounterClient(cfg),
+		Sprint:           NewSprintClient(cfg),
+		SprintScopeEvent: NewSprintScopeEventClient(cfg),
+		SprintSnapshot:   NewSprintSnapshotClient(cfg),
+		WorkItem:         NewWorkItemClient(cfg),
+		WorkItemEvent:    NewWorkItemEventClient(cfg),
+		WorkItemLink:     NewWorkItemLinkClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Comment.
+//		Board.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -227,8 +251,9 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.Comment, c.IdempotencyKey, c.InboxEvent, c.OutboxEvent, c.Product,
-		c.ProductCounter, c.WorkItem, c.WorkItemEvent, c.WorkItemLink,
+		c.Board, c.Comment, c.IdempotencyKey, c.InboxEvent, c.OutboxEvent, c.Product,
+		c.ProductCounter, c.Sprint, c.SprintScopeEvent, c.SprintSnapshot, c.WorkItem,
+		c.WorkItemEvent, c.WorkItemLink,
 	} {
 		n.Use(hooks...)
 	}
@@ -238,8 +263,9 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.Comment, c.IdempotencyKey, c.InboxEvent, c.OutboxEvent, c.Product,
-		c.ProductCounter, c.WorkItem, c.WorkItemEvent, c.WorkItemLink,
+		c.Board, c.Comment, c.IdempotencyKey, c.InboxEvent, c.OutboxEvent, c.Product,
+		c.ProductCounter, c.Sprint, c.SprintScopeEvent, c.SprintSnapshot, c.WorkItem,
+		c.WorkItemEvent, c.WorkItemLink,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -248,6 +274,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *BoardMutation:
+		return c.Board.mutate(ctx, m)
 	case *CommentMutation:
 		return c.Comment.mutate(ctx, m)
 	case *IdempotencyKeyMutation:
@@ -260,6 +288,12 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Product.mutate(ctx, m)
 	case *ProductCounterMutation:
 		return c.ProductCounter.mutate(ctx, m)
+	case *SprintMutation:
+		return c.Sprint.mutate(ctx, m)
+	case *SprintScopeEventMutation:
+		return c.SprintScopeEvent.mutate(ctx, m)
+	case *SprintSnapshotMutation:
+		return c.SprintSnapshot.mutate(ctx, m)
 	case *WorkItemMutation:
 		return c.WorkItem.mutate(ctx, m)
 	case *WorkItemEventMutation:
@@ -268,6 +302,139 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.WorkItemLink.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// BoardClient is a client for the Board schema.
+type BoardClient struct {
+	config
+}
+
+// NewBoardClient returns a client for the Board from the given config.
+func NewBoardClient(c config) *BoardClient {
+	return &BoardClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `board.Hooks(f(g(h())))`.
+func (c *BoardClient) Use(hooks ...Hook) {
+	c.hooks.Board = append(c.hooks.Board, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `board.Intercept(f(g(h())))`.
+func (c *BoardClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Board = append(c.inters.Board, interceptors...)
+}
+
+// Create returns a builder for creating a Board entity.
+func (c *BoardClient) Create() *BoardCreate {
+	mutation := newBoardMutation(c.config, OpCreate)
+	return &BoardCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Board entities.
+func (c *BoardClient) CreateBulk(builders ...*BoardCreate) *BoardCreateBulk {
+	return &BoardCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *BoardClient) MapCreateBulk(slice any, setFunc func(*BoardCreate, int)) *BoardCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &BoardCreateBulk{err: fmt.Errorf("calling to BoardClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*BoardCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &BoardCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Board.
+func (c *BoardClient) Update() *BoardUpdate {
+	mutation := newBoardMutation(c.config, OpUpdate)
+	return &BoardUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *BoardClient) UpdateOne(_m *Board) *BoardUpdateOne {
+	mutation := newBoardMutation(c.config, OpUpdateOne, withBoard(_m))
+	return &BoardUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *BoardClient) UpdateOneID(id uuid.UUID) *BoardUpdateOne {
+	mutation := newBoardMutation(c.config, OpUpdateOne, withBoardID(id))
+	return &BoardUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Board.
+func (c *BoardClient) Delete() *BoardDelete {
+	mutation := newBoardMutation(c.config, OpDelete)
+	return &BoardDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *BoardClient) DeleteOne(_m *Board) *BoardDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *BoardClient) DeleteOneID(id uuid.UUID) *BoardDeleteOne {
+	builder := c.Delete().Where(board.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &BoardDeleteOne{builder}
+}
+
+// Query returns a query builder for Board.
+func (c *BoardClient) Query() *BoardQuery {
+	return &BoardQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeBoard},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Board entity by its id.
+func (c *BoardClient) Get(ctx context.Context, id uuid.UUID) (*Board, error) {
+	return c.Query().Where(board.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *BoardClient) GetX(ctx context.Context, id uuid.UUID) *Board {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *BoardClient) Hooks() []Hook {
+	return c.hooks.Board
+}
+
+// Interceptors returns the client interceptors.
+func (c *BoardClient) Interceptors() []Interceptor {
+	return c.inters.Board
+}
+
+func (c *BoardClient) mutate(ctx context.Context, m *BoardMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&BoardCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&BoardUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&BoardUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&BoardDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Board mutation op: %q", m.Op())
 	}
 }
 
@@ -1069,6 +1236,405 @@ func (c *ProductCounterClient) mutate(ctx context.Context, m *ProductCounterMuta
 	}
 }
 
+// SprintClient is a client for the Sprint schema.
+type SprintClient struct {
+	config
+}
+
+// NewSprintClient returns a client for the Sprint from the given config.
+func NewSprintClient(c config) *SprintClient {
+	return &SprintClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `sprint.Hooks(f(g(h())))`.
+func (c *SprintClient) Use(hooks ...Hook) {
+	c.hooks.Sprint = append(c.hooks.Sprint, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `sprint.Intercept(f(g(h())))`.
+func (c *SprintClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Sprint = append(c.inters.Sprint, interceptors...)
+}
+
+// Create returns a builder for creating a Sprint entity.
+func (c *SprintClient) Create() *SprintCreate {
+	mutation := newSprintMutation(c.config, OpCreate)
+	return &SprintCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Sprint entities.
+func (c *SprintClient) CreateBulk(builders ...*SprintCreate) *SprintCreateBulk {
+	return &SprintCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SprintClient) MapCreateBulk(slice any, setFunc func(*SprintCreate, int)) *SprintCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SprintCreateBulk{err: fmt.Errorf("calling to SprintClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SprintCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SprintCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Sprint.
+func (c *SprintClient) Update() *SprintUpdate {
+	mutation := newSprintMutation(c.config, OpUpdate)
+	return &SprintUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SprintClient) UpdateOne(_m *Sprint) *SprintUpdateOne {
+	mutation := newSprintMutation(c.config, OpUpdateOne, withSprint(_m))
+	return &SprintUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SprintClient) UpdateOneID(id uuid.UUID) *SprintUpdateOne {
+	mutation := newSprintMutation(c.config, OpUpdateOne, withSprintID(id))
+	return &SprintUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Sprint.
+func (c *SprintClient) Delete() *SprintDelete {
+	mutation := newSprintMutation(c.config, OpDelete)
+	return &SprintDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SprintClient) DeleteOne(_m *Sprint) *SprintDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SprintClient) DeleteOneID(id uuid.UUID) *SprintDeleteOne {
+	builder := c.Delete().Where(sprint.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SprintDeleteOne{builder}
+}
+
+// Query returns a query builder for Sprint.
+func (c *SprintClient) Query() *SprintQuery {
+	return &SprintQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSprint},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Sprint entity by its id.
+func (c *SprintClient) Get(ctx context.Context, id uuid.UUID) (*Sprint, error) {
+	return c.Query().Where(sprint.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SprintClient) GetX(ctx context.Context, id uuid.UUID) *Sprint {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *SprintClient) Hooks() []Hook {
+	return c.hooks.Sprint
+}
+
+// Interceptors returns the client interceptors.
+func (c *SprintClient) Interceptors() []Interceptor {
+	return c.inters.Sprint
+}
+
+func (c *SprintClient) mutate(ctx context.Context, m *SprintMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SprintCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SprintUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SprintUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SprintDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Sprint mutation op: %q", m.Op())
+	}
+}
+
+// SprintScopeEventClient is a client for the SprintScopeEvent schema.
+type SprintScopeEventClient struct {
+	config
+}
+
+// NewSprintScopeEventClient returns a client for the SprintScopeEvent from the given config.
+func NewSprintScopeEventClient(c config) *SprintScopeEventClient {
+	return &SprintScopeEventClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `sprintscopeevent.Hooks(f(g(h())))`.
+func (c *SprintScopeEventClient) Use(hooks ...Hook) {
+	c.hooks.SprintScopeEvent = append(c.hooks.SprintScopeEvent, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `sprintscopeevent.Intercept(f(g(h())))`.
+func (c *SprintScopeEventClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SprintScopeEvent = append(c.inters.SprintScopeEvent, interceptors...)
+}
+
+// Create returns a builder for creating a SprintScopeEvent entity.
+func (c *SprintScopeEventClient) Create() *SprintScopeEventCreate {
+	mutation := newSprintScopeEventMutation(c.config, OpCreate)
+	return &SprintScopeEventCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SprintScopeEvent entities.
+func (c *SprintScopeEventClient) CreateBulk(builders ...*SprintScopeEventCreate) *SprintScopeEventCreateBulk {
+	return &SprintScopeEventCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SprintScopeEventClient) MapCreateBulk(slice any, setFunc func(*SprintScopeEventCreate, int)) *SprintScopeEventCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SprintScopeEventCreateBulk{err: fmt.Errorf("calling to SprintScopeEventClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SprintScopeEventCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SprintScopeEventCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SprintScopeEvent.
+func (c *SprintScopeEventClient) Update() *SprintScopeEventUpdate {
+	mutation := newSprintScopeEventMutation(c.config, OpUpdate)
+	return &SprintScopeEventUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SprintScopeEventClient) UpdateOne(_m *SprintScopeEvent) *SprintScopeEventUpdateOne {
+	mutation := newSprintScopeEventMutation(c.config, OpUpdateOne, withSprintScopeEvent(_m))
+	return &SprintScopeEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SprintScopeEventClient) UpdateOneID(id int) *SprintScopeEventUpdateOne {
+	mutation := newSprintScopeEventMutation(c.config, OpUpdateOne, withSprintScopeEventID(id))
+	return &SprintScopeEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SprintScopeEvent.
+func (c *SprintScopeEventClient) Delete() *SprintScopeEventDelete {
+	mutation := newSprintScopeEventMutation(c.config, OpDelete)
+	return &SprintScopeEventDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SprintScopeEventClient) DeleteOne(_m *SprintScopeEvent) *SprintScopeEventDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SprintScopeEventClient) DeleteOneID(id int) *SprintScopeEventDeleteOne {
+	builder := c.Delete().Where(sprintscopeevent.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SprintScopeEventDeleteOne{builder}
+}
+
+// Query returns a query builder for SprintScopeEvent.
+func (c *SprintScopeEventClient) Query() *SprintScopeEventQuery {
+	return &SprintScopeEventQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSprintScopeEvent},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SprintScopeEvent entity by its id.
+func (c *SprintScopeEventClient) Get(ctx context.Context, id int) (*SprintScopeEvent, error) {
+	return c.Query().Where(sprintscopeevent.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SprintScopeEventClient) GetX(ctx context.Context, id int) *SprintScopeEvent {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *SprintScopeEventClient) Hooks() []Hook {
+	return c.hooks.SprintScopeEvent
+}
+
+// Interceptors returns the client interceptors.
+func (c *SprintScopeEventClient) Interceptors() []Interceptor {
+	return c.inters.SprintScopeEvent
+}
+
+func (c *SprintScopeEventClient) mutate(ctx context.Context, m *SprintScopeEventMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SprintScopeEventCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SprintScopeEventUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SprintScopeEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SprintScopeEventDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SprintScopeEvent mutation op: %q", m.Op())
+	}
+}
+
+// SprintSnapshotClient is a client for the SprintSnapshot schema.
+type SprintSnapshotClient struct {
+	config
+}
+
+// NewSprintSnapshotClient returns a client for the SprintSnapshot from the given config.
+func NewSprintSnapshotClient(c config) *SprintSnapshotClient {
+	return &SprintSnapshotClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `sprintsnapshot.Hooks(f(g(h())))`.
+func (c *SprintSnapshotClient) Use(hooks ...Hook) {
+	c.hooks.SprintSnapshot = append(c.hooks.SprintSnapshot, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `sprintsnapshot.Intercept(f(g(h())))`.
+func (c *SprintSnapshotClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SprintSnapshot = append(c.inters.SprintSnapshot, interceptors...)
+}
+
+// Create returns a builder for creating a SprintSnapshot entity.
+func (c *SprintSnapshotClient) Create() *SprintSnapshotCreate {
+	mutation := newSprintSnapshotMutation(c.config, OpCreate)
+	return &SprintSnapshotCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SprintSnapshot entities.
+func (c *SprintSnapshotClient) CreateBulk(builders ...*SprintSnapshotCreate) *SprintSnapshotCreateBulk {
+	return &SprintSnapshotCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SprintSnapshotClient) MapCreateBulk(slice any, setFunc func(*SprintSnapshotCreate, int)) *SprintSnapshotCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SprintSnapshotCreateBulk{err: fmt.Errorf("calling to SprintSnapshotClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SprintSnapshotCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SprintSnapshotCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SprintSnapshot.
+func (c *SprintSnapshotClient) Update() *SprintSnapshotUpdate {
+	mutation := newSprintSnapshotMutation(c.config, OpUpdate)
+	return &SprintSnapshotUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SprintSnapshotClient) UpdateOne(_m *SprintSnapshot) *SprintSnapshotUpdateOne {
+	mutation := newSprintSnapshotMutation(c.config, OpUpdateOne, withSprintSnapshot(_m))
+	return &SprintSnapshotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SprintSnapshotClient) UpdateOneID(id int) *SprintSnapshotUpdateOne {
+	mutation := newSprintSnapshotMutation(c.config, OpUpdateOne, withSprintSnapshotID(id))
+	return &SprintSnapshotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SprintSnapshot.
+func (c *SprintSnapshotClient) Delete() *SprintSnapshotDelete {
+	mutation := newSprintSnapshotMutation(c.config, OpDelete)
+	return &SprintSnapshotDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SprintSnapshotClient) DeleteOne(_m *SprintSnapshot) *SprintSnapshotDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SprintSnapshotClient) DeleteOneID(id int) *SprintSnapshotDeleteOne {
+	builder := c.Delete().Where(sprintsnapshot.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SprintSnapshotDeleteOne{builder}
+}
+
+// Query returns a query builder for SprintSnapshot.
+func (c *SprintSnapshotClient) Query() *SprintSnapshotQuery {
+	return &SprintSnapshotQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSprintSnapshot},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SprintSnapshot entity by its id.
+func (c *SprintSnapshotClient) Get(ctx context.Context, id int) (*SprintSnapshot, error) {
+	return c.Query().Where(sprintsnapshot.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SprintSnapshotClient) GetX(ctx context.Context, id int) *SprintSnapshot {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *SprintSnapshotClient) Hooks() []Hook {
+	return c.hooks.SprintSnapshot
+}
+
+// Interceptors returns the client interceptors.
+func (c *SprintSnapshotClient) Interceptors() []Interceptor {
+	return c.inters.SprintSnapshot
+}
+
+func (c *SprintSnapshotClient) mutate(ctx context.Context, m *SprintSnapshotMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SprintSnapshotCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SprintSnapshotUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SprintSnapshotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SprintSnapshotDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SprintSnapshot mutation op: %q", m.Op())
+	}
+}
+
 // WorkItemClient is a client for the WorkItem schema.
 type WorkItemClient struct {
 	config
@@ -1471,11 +2037,13 @@ func (c *WorkItemLinkClient) mutate(ctx context.Context, m *WorkItemLinkMutation
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Comment, IdempotencyKey, InboxEvent, OutboxEvent, Product, ProductCounter,
-		WorkItem, WorkItemEvent, WorkItemLink []ent.Hook
+		Board, Comment, IdempotencyKey, InboxEvent, OutboxEvent, Product,
+		ProductCounter, Sprint, SprintScopeEvent, SprintSnapshot, WorkItem,
+		WorkItemEvent, WorkItemLink []ent.Hook
 	}
 	inters struct {
-		Comment, IdempotencyKey, InboxEvent, OutboxEvent, Product, ProductCounter,
-		WorkItem, WorkItemEvent, WorkItemLink []ent.Interceptor
+		Board, Comment, IdempotencyKey, InboxEvent, OutboxEvent, Product,
+		ProductCounter, Sprint, SprintScopeEvent, SprintSnapshot, WorkItem,
+		WorkItemEvent, WorkItemLink []ent.Interceptor
 	}
 )

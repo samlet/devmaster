@@ -12,12 +12,16 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/xiaofeiwu/devmaster/backend/ent/board"
 	"github.com/xiaofeiwu/devmaster/backend/ent/comment"
 	"github.com/xiaofeiwu/devmaster/backend/ent/idempotencykey"
 	"github.com/xiaofeiwu/devmaster/backend/ent/inboxevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/outboxevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/product"
 	"github.com/xiaofeiwu/devmaster/backend/ent/productcounter"
+	"github.com/xiaofeiwu/devmaster/backend/ent/sprint"
+	"github.com/xiaofeiwu/devmaster/backend/ent/sprintscopeevent"
+	"github.com/xiaofeiwu/devmaster/backend/ent/sprintsnapshot"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitem"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemlink"
@@ -81,15 +85,19 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			comment.Table:        comment.ValidColumn,
-			idempotencykey.Table: idempotencykey.ValidColumn,
-			inboxevent.Table:     inboxevent.ValidColumn,
-			outboxevent.Table:    outboxevent.ValidColumn,
-			product.Table:        product.ValidColumn,
-			productcounter.Table: productcounter.ValidColumn,
-			workitem.Table:       workitem.ValidColumn,
-			workitemevent.Table:  workitemevent.ValidColumn,
-			workitemlink.Table:   workitemlink.ValidColumn,
+			board.Table:            board.ValidColumn,
+			comment.Table:          comment.ValidColumn,
+			idempotencykey.Table:   idempotencykey.ValidColumn,
+			inboxevent.Table:       inboxevent.ValidColumn,
+			outboxevent.Table:      outboxevent.ValidColumn,
+			product.Table:          product.ValidColumn,
+			productcounter.Table:   productcounter.ValidColumn,
+			sprint.Table:           sprint.ValidColumn,
+			sprintscopeevent.Table: sprintscopeevent.ValidColumn,
+			sprintsnapshot.Table:   sprintsnapshot.ValidColumn,
+			workitem.Table:         workitem.ValidColumn,
+			workitemevent.Table:    workitemevent.ValidColumn,
+			workitemlink.Table:     workitemlink.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

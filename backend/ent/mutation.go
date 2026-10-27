@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
+	"github.com/xiaofeiwu/devmaster/backend/ent/board"
 	"github.com/xiaofeiwu/devmaster/backend/ent/comment"
 	"github.com/xiaofeiwu/devmaster/backend/ent/idempotencykey"
 	"github.com/xiaofeiwu/devmaster/backend/ent/inboxevent"
@@ -19,6 +20,9 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/ent/predicate"
 	"github.com/xiaofeiwu/devmaster/backend/ent/product"
 	"github.com/xiaofeiwu/devmaster/backend/ent/productcounter"
+	"github.com/xiaofeiwu/devmaster/backend/ent/sprint"
+	"github.com/xiaofeiwu/devmaster/backend/ent/sprintscopeevent"
+	"github.com/xiaofeiwu/devmaster/backend/ent/sprintsnapshot"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitem"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemlink"
@@ -33,16 +37,590 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeComment        = "Comment"
-	TypeIdempotencyKey = "IdempotencyKey"
-	TypeInboxEvent     = "InboxEvent"
-	TypeOutboxEvent    = "OutboxEvent"
-	TypeProduct        = "Product"
-	TypeProductCounter = "ProductCounter"
-	TypeWorkItem       = "WorkItem"
-	TypeWorkItemEvent  = "WorkItemEvent"
-	TypeWorkItemLink   = "WorkItemLink"
+	TypeBoard            = "Board"
+	TypeComment          = "Comment"
+	TypeIdempotencyKey   = "IdempotencyKey"
+	TypeInboxEvent       = "InboxEvent"
+	TypeOutboxEvent      = "OutboxEvent"
+	TypeProduct          = "Product"
+	TypeProductCounter   = "ProductCounter"
+	TypeSprint           = "Sprint"
+	TypeSprintScopeEvent = "SprintScopeEvent"
+	TypeSprintSnapshot   = "SprintSnapshot"
+	TypeWorkItem         = "WorkItem"
+	TypeWorkItemEvent    = "WorkItemEvent"
+	TypeWorkItemLink     = "WorkItemLink"
 )
+
+// BoardMutation represents an operation that mutates the Board nodes in the graph.
+type BoardMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *uuid.UUID
+	organization_id *uuid.UUID
+	product_id      *uuid.UUID
+	name            *string
+	wip_limits      *map[string]int
+	created_at      *time.Time
+	clearedFields   map[string]struct{}
+	done            bool
+	oldValue        func(context.Context) (*Board, error)
+	predicates      []predicate.Board
+}
+
+var _ ent.Mutation = (*BoardMutation)(nil)
+
+// boardOption allows management of the mutation configuration using functional options.
+type boardOption func(*BoardMutation)
+
+// newBoardMutation creates new mutation for the Board entity.
+func newBoardMutation(c config, op Op, opts ...boardOption) *BoardMutation {
+	m := &BoardMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeBoard,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withBoardID sets the ID field of the mutation.
+func withBoardID(id uuid.UUID) boardOption {
+	return func(m *BoardMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Board
+		)
+		m.oldValue = func(ctx context.Context) (*Board, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Board.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withBoard sets the old Board of the mutation.
+func withBoard(node *Board) boardOption {
+	return func(m *BoardMutation) {
+		m.oldValue = func(context.Context) (*Board, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m BoardMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m BoardMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Board entities.
+func (m *BoardMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *BoardMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *BoardMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Board.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetOrganizationID sets the "organization_id" field.
+func (m *BoardMutation) SetOrganizationID(u uuid.UUID) {
+	m.organization_id = &u
+}
+
+// OrganizationID returns the value of the "organization_id" field in the mutation.
+func (m *BoardMutation) OrganizationID() (r uuid.UUID, exists bool) {
+	v := m.organization_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOrganizationID returns the old "organization_id" field's value of the Board entity.
+// If the Board object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BoardMutation) OldOrganizationID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOrganizationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOrganizationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOrganizationID: %w", err)
+	}
+	return oldValue.OrganizationID, nil
+}
+
+// ResetOrganizationID resets all changes to the "organization_id" field.
+func (m *BoardMutation) ResetOrganizationID() {
+	m.organization_id = nil
+}
+
+// SetProductID sets the "product_id" field.
+func (m *BoardMutation) SetProductID(u uuid.UUID) {
+	m.product_id = &u
+}
+
+// ProductID returns the value of the "product_id" field in the mutation.
+func (m *BoardMutation) ProductID() (r uuid.UUID, exists bool) {
+	v := m.product_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProductID returns the old "product_id" field's value of the Board entity.
+// If the Board object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BoardMutation) OldProductID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProductID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProductID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProductID: %w", err)
+	}
+	return oldValue.ProductID, nil
+}
+
+// ResetProductID resets all changes to the "product_id" field.
+func (m *BoardMutation) ResetProductID() {
+	m.product_id = nil
+}
+
+// SetName sets the "name" field.
+func (m *BoardMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *BoardMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Board entity.
+// If the Board object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BoardMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *BoardMutation) ResetName() {
+	m.name = nil
+}
+
+// SetWipLimits sets the "wip_limits" field.
+func (m *BoardMutation) SetWipLimits(value map[string]int) {
+	m.wip_limits = &value
+}
+
+// WipLimits returns the value of the "wip_limits" field in the mutation.
+func (m *BoardMutation) WipLimits() (r map[string]int, exists bool) {
+	v := m.wip_limits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWipLimits returns the old "wip_limits" field's value of the Board entity.
+// If the Board object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BoardMutation) OldWipLimits(ctx context.Context) (v map[string]int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWipLimits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWipLimits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWipLimits: %w", err)
+	}
+	return oldValue.WipLimits, nil
+}
+
+// ClearWipLimits clears the value of the "wip_limits" field.
+func (m *BoardMutation) ClearWipLimits() {
+	m.wip_limits = nil
+	m.clearedFields[board.FieldWipLimits] = struct{}{}
+}
+
+// WipLimitsCleared returns if the "wip_limits" field was cleared in this mutation.
+func (m *BoardMutation) WipLimitsCleared() bool {
+	_, ok := m.clearedFields[board.FieldWipLimits]
+	return ok
+}
+
+// ResetWipLimits resets all changes to the "wip_limits" field.
+func (m *BoardMutation) ResetWipLimits() {
+	m.wip_limits = nil
+	delete(m.clearedFields, board.FieldWipLimits)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *BoardMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *BoardMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Board entity.
+// If the Board object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BoardMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *BoardMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the BoardMutation builder.
+func (m *BoardMutation) Where(ps ...predicate.Board) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the BoardMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *BoardMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Board, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *BoardMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *BoardMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Board).
+func (m *BoardMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *BoardMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.organization_id != nil {
+		fields = append(fields, board.FieldOrganizationID)
+	}
+	if m.product_id != nil {
+		fields = append(fields, board.FieldProductID)
+	}
+	if m.name != nil {
+		fields = append(fields, board.FieldName)
+	}
+	if m.wip_limits != nil {
+		fields = append(fields, board.FieldWipLimits)
+	}
+	if m.created_at != nil {
+		fields = append(fields, board.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *BoardMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case board.FieldOrganizationID:
+		return m.OrganizationID()
+	case board.FieldProductID:
+		return m.ProductID()
+	case board.FieldName:
+		return m.Name()
+	case board.FieldWipLimits:
+		return m.WipLimits()
+	case board.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *BoardMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case board.FieldOrganizationID:
+		return m.OldOrganizationID(ctx)
+	case board.FieldProductID:
+		return m.OldProductID(ctx)
+	case board.FieldName:
+		return m.OldName(ctx)
+	case board.FieldWipLimits:
+		return m.OldWipLimits(ctx)
+	case board.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Board field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *BoardMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case board.FieldOrganizationID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOrganizationID(v)
+		return nil
+	case board.FieldProductID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProductID(v)
+		return nil
+	case board.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case board.FieldWipLimits:
+		v, ok := value.(map[string]int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWipLimits(v)
+		return nil
+	case board.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Board field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *BoardMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *BoardMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *BoardMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Board numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *BoardMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(board.FieldWipLimits) {
+		fields = append(fields, board.FieldWipLimits)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *BoardMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *BoardMutation) ClearField(name string) error {
+	switch name {
+	case board.FieldWipLimits:
+		m.ClearWipLimits()
+		return nil
+	}
+	return fmt.Errorf("unknown Board nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *BoardMutation) ResetField(name string) error {
+	switch name {
+	case board.FieldOrganizationID:
+		m.ResetOrganizationID()
+		return nil
+	case board.FieldProductID:
+		m.ResetProductID()
+		return nil
+	case board.FieldName:
+		m.ResetName()
+		return nil
+	case board.FieldWipLimits:
+		m.ResetWipLimits()
+		return nil
+	case board.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Board field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *BoardMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *BoardMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *BoardMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *BoardMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *BoardMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *BoardMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *BoardMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown Board unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *BoardMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown Board edge %s", name)
+}
 
 // CommentMutation represents an operation that mutates the Comment nodes in the graph.
 type CommentMutation struct {
@@ -4523,6 +5101,2721 @@ func (m *ProductCounterMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown ProductCounter edge %s", name)
 }
 
+// SprintMutation represents an operation that mutates the Sprint nodes in the graph.
+type SprintMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *uuid.UUID
+	organization_id     *uuid.UUID
+	board_id            *uuid.UUID
+	name                *string
+	goal                *string
+	state               *string
+	start_at            *time.Time
+	end_at              *time.Time
+	capacity_points     *int16
+	addcapacity_points  *int16
+	committed_points    *int16
+	addcommitted_points *int16
+	version             *int
+	addversion          *int
+	created_at          *time.Time
+	updated_at          *time.Time
+	closed_at           *time.Time
+	clearedFields       map[string]struct{}
+	done                bool
+	oldValue            func(context.Context) (*Sprint, error)
+	predicates          []predicate.Sprint
+}
+
+var _ ent.Mutation = (*SprintMutation)(nil)
+
+// sprintOption allows management of the mutation configuration using functional options.
+type sprintOption func(*SprintMutation)
+
+// newSprintMutation creates new mutation for the Sprint entity.
+func newSprintMutation(c config, op Op, opts ...sprintOption) *SprintMutation {
+	m := &SprintMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeSprint,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withSprintID sets the ID field of the mutation.
+func withSprintID(id uuid.UUID) sprintOption {
+	return func(m *SprintMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Sprint
+		)
+		m.oldValue = func(ctx context.Context) (*Sprint, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Sprint.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withSprint sets the old Sprint of the mutation.
+func withSprint(node *Sprint) sprintOption {
+	return func(m *SprintMutation) {
+		m.oldValue = func(context.Context) (*Sprint, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m SprintMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m SprintMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Sprint entities.
+func (m *SprintMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *SprintMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *SprintMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Sprint.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetOrganizationID sets the "organization_id" field.
+func (m *SprintMutation) SetOrganizationID(u uuid.UUID) {
+	m.organization_id = &u
+}
+
+// OrganizationID returns the value of the "organization_id" field in the mutation.
+func (m *SprintMutation) OrganizationID() (r uuid.UUID, exists bool) {
+	v := m.organization_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOrganizationID returns the old "organization_id" field's value of the Sprint entity.
+// If the Sprint object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintMutation) OldOrganizationID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOrganizationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOrganizationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOrganizationID: %w", err)
+	}
+	return oldValue.OrganizationID, nil
+}
+
+// ResetOrganizationID resets all changes to the "organization_id" field.
+func (m *SprintMutation) ResetOrganizationID() {
+	m.organization_id = nil
+}
+
+// SetBoardID sets the "board_id" field.
+func (m *SprintMutation) SetBoardID(u uuid.UUID) {
+	m.board_id = &u
+}
+
+// BoardID returns the value of the "board_id" field in the mutation.
+func (m *SprintMutation) BoardID() (r uuid.UUID, exists bool) {
+	v := m.board_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBoardID returns the old "board_id" field's value of the Sprint entity.
+// If the Sprint object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintMutation) OldBoardID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBoardID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBoardID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBoardID: %w", err)
+	}
+	return oldValue.BoardID, nil
+}
+
+// ResetBoardID resets all changes to the "board_id" field.
+func (m *SprintMutation) ResetBoardID() {
+	m.board_id = nil
+}
+
+// SetName sets the "name" field.
+func (m *SprintMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *SprintMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Sprint entity.
+// If the Sprint object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *SprintMutation) ResetName() {
+	m.name = nil
+}
+
+// SetGoal sets the "goal" field.
+func (m *SprintMutation) SetGoal(s string) {
+	m.goal = &s
+}
+
+// Goal returns the value of the "goal" field in the mutation.
+func (m *SprintMutation) Goal() (r string, exists bool) {
+	v := m.goal
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGoal returns the old "goal" field's value of the Sprint entity.
+// If the Sprint object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintMutation) OldGoal(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGoal is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGoal requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGoal: %w", err)
+	}
+	return oldValue.Goal, nil
+}
+
+// ResetGoal resets all changes to the "goal" field.
+func (m *SprintMutation) ResetGoal() {
+	m.goal = nil
+}
+
+// SetState sets the "state" field.
+func (m *SprintMutation) SetState(s string) {
+	m.state = &s
+}
+
+// State returns the value of the "state" field in the mutation.
+func (m *SprintMutation) State() (r string, exists bool) {
+	v := m.state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldState returns the old "state" field's value of the Sprint entity.
+// If the Sprint object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintMutation) OldState(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldState: %w", err)
+	}
+	return oldValue.State, nil
+}
+
+// ResetState resets all changes to the "state" field.
+func (m *SprintMutation) ResetState() {
+	m.state = nil
+}
+
+// SetStartAt sets the "start_at" field.
+func (m *SprintMutation) SetStartAt(t time.Time) {
+	m.start_at = &t
+}
+
+// StartAt returns the value of the "start_at" field in the mutation.
+func (m *SprintMutation) StartAt() (r time.Time, exists bool) {
+	v := m.start_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStartAt returns the old "start_at" field's value of the Sprint entity.
+// If the Sprint object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintMutation) OldStartAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStartAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStartAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStartAt: %w", err)
+	}
+	return oldValue.StartAt, nil
+}
+
+// ClearStartAt clears the value of the "start_at" field.
+func (m *SprintMutation) ClearStartAt() {
+	m.start_at = nil
+	m.clearedFields[sprint.FieldStartAt] = struct{}{}
+}
+
+// StartAtCleared returns if the "start_at" field was cleared in this mutation.
+func (m *SprintMutation) StartAtCleared() bool {
+	_, ok := m.clearedFields[sprint.FieldStartAt]
+	return ok
+}
+
+// ResetStartAt resets all changes to the "start_at" field.
+func (m *SprintMutation) ResetStartAt() {
+	m.start_at = nil
+	delete(m.clearedFields, sprint.FieldStartAt)
+}
+
+// SetEndAt sets the "end_at" field.
+func (m *SprintMutation) SetEndAt(t time.Time) {
+	m.end_at = &t
+}
+
+// EndAt returns the value of the "end_at" field in the mutation.
+func (m *SprintMutation) EndAt() (r time.Time, exists bool) {
+	v := m.end_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEndAt returns the old "end_at" field's value of the Sprint entity.
+// If the Sprint object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintMutation) OldEndAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEndAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEndAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEndAt: %w", err)
+	}
+	return oldValue.EndAt, nil
+}
+
+// ClearEndAt clears the value of the "end_at" field.
+func (m *SprintMutation) ClearEndAt() {
+	m.end_at = nil
+	m.clearedFields[sprint.FieldEndAt] = struct{}{}
+}
+
+// EndAtCleared returns if the "end_at" field was cleared in this mutation.
+func (m *SprintMutation) EndAtCleared() bool {
+	_, ok := m.clearedFields[sprint.FieldEndAt]
+	return ok
+}
+
+// ResetEndAt resets all changes to the "end_at" field.
+func (m *SprintMutation) ResetEndAt() {
+	m.end_at = nil
+	delete(m.clearedFields, sprint.FieldEndAt)
+}
+
+// SetCapacityPoints sets the "capacity_points" field.
+func (m *SprintMutation) SetCapacityPoints(i int16) {
+	m.capacity_points = &i
+	m.addcapacity_points = nil
+}
+
+// CapacityPoints returns the value of the "capacity_points" field in the mutation.
+func (m *SprintMutation) CapacityPoints() (r int16, exists bool) {
+	v := m.capacity_points
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCapacityPoints returns the old "capacity_points" field's value of the Sprint entity.
+// If the Sprint object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintMutation) OldCapacityPoints(ctx context.Context) (v *int16, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCapacityPoints is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCapacityPoints requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCapacityPoints: %w", err)
+	}
+	return oldValue.CapacityPoints, nil
+}
+
+// AddCapacityPoints adds i to the "capacity_points" field.
+func (m *SprintMutation) AddCapacityPoints(i int16) {
+	if m.addcapacity_points != nil {
+		*m.addcapacity_points += i
+	} else {
+		m.addcapacity_points = &i
+	}
+}
+
+// AddedCapacityPoints returns the value that was added to the "capacity_points" field in this mutation.
+func (m *SprintMutation) AddedCapacityPoints() (r int16, exists bool) {
+	v := m.addcapacity_points
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearCapacityPoints clears the value of the "capacity_points" field.
+func (m *SprintMutation) ClearCapacityPoints() {
+	m.capacity_points = nil
+	m.addcapacity_points = nil
+	m.clearedFields[sprint.FieldCapacityPoints] = struct{}{}
+}
+
+// CapacityPointsCleared returns if the "capacity_points" field was cleared in this mutation.
+func (m *SprintMutation) CapacityPointsCleared() bool {
+	_, ok := m.clearedFields[sprint.FieldCapacityPoints]
+	return ok
+}
+
+// ResetCapacityPoints resets all changes to the "capacity_points" field.
+func (m *SprintMutation) ResetCapacityPoints() {
+	m.capacity_points = nil
+	m.addcapacity_points = nil
+	delete(m.clearedFields, sprint.FieldCapacityPoints)
+}
+
+// SetCommittedPoints sets the "committed_points" field.
+func (m *SprintMutation) SetCommittedPoints(i int16) {
+	m.committed_points = &i
+	m.addcommitted_points = nil
+}
+
+// CommittedPoints returns the value of the "committed_points" field in the mutation.
+func (m *SprintMutation) CommittedPoints() (r int16, exists bool) {
+	v := m.committed_points
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCommittedPoints returns the old "committed_points" field's value of the Sprint entity.
+// If the Sprint object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintMutation) OldCommittedPoints(ctx context.Context) (v int16, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCommittedPoints is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCommittedPoints requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCommittedPoints: %w", err)
+	}
+	return oldValue.CommittedPoints, nil
+}
+
+// AddCommittedPoints adds i to the "committed_points" field.
+func (m *SprintMutation) AddCommittedPoints(i int16) {
+	if m.addcommitted_points != nil {
+		*m.addcommitted_points += i
+	} else {
+		m.addcommitted_points = &i
+	}
+}
+
+// AddedCommittedPoints returns the value that was added to the "committed_points" field in this mutation.
+func (m *SprintMutation) AddedCommittedPoints() (r int16, exists bool) {
+	v := m.addcommitted_points
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCommittedPoints resets all changes to the "committed_points" field.
+func (m *SprintMutation) ResetCommittedPoints() {
+	m.committed_points = nil
+	m.addcommitted_points = nil
+}
+
+// SetVersion sets the "version" field.
+func (m *SprintMutation) SetVersion(i int) {
+	m.version = &i
+	m.addversion = nil
+}
+
+// Version returns the value of the "version" field in the mutation.
+func (m *SprintMutation) Version() (r int, exists bool) {
+	v := m.version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVersion returns the old "version" field's value of the Sprint entity.
+// If the Sprint object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintMutation) OldVersion(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVersion: %w", err)
+	}
+	return oldValue.Version, nil
+}
+
+// AddVersion adds i to the "version" field.
+func (m *SprintMutation) AddVersion(i int) {
+	if m.addversion != nil {
+		*m.addversion += i
+	} else {
+		m.addversion = &i
+	}
+}
+
+// AddedVersion returns the value that was added to the "version" field in this mutation.
+func (m *SprintMutation) AddedVersion() (r int, exists bool) {
+	v := m.addversion
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetVersion resets all changes to the "version" field.
+func (m *SprintMutation) ResetVersion() {
+	m.version = nil
+	m.addversion = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *SprintMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *SprintMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Sprint entity.
+// If the Sprint object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *SprintMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *SprintMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *SprintMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the Sprint entity.
+// If the Sprint object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *SprintMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetClosedAt sets the "closed_at" field.
+func (m *SprintMutation) SetClosedAt(t time.Time) {
+	m.closed_at = &t
+}
+
+// ClosedAt returns the value of the "closed_at" field in the mutation.
+func (m *SprintMutation) ClosedAt() (r time.Time, exists bool) {
+	v := m.closed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClosedAt returns the old "closed_at" field's value of the Sprint entity.
+// If the Sprint object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintMutation) OldClosedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClosedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClosedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClosedAt: %w", err)
+	}
+	return oldValue.ClosedAt, nil
+}
+
+// ClearClosedAt clears the value of the "closed_at" field.
+func (m *SprintMutation) ClearClosedAt() {
+	m.closed_at = nil
+	m.clearedFields[sprint.FieldClosedAt] = struct{}{}
+}
+
+// ClosedAtCleared returns if the "closed_at" field was cleared in this mutation.
+func (m *SprintMutation) ClosedAtCleared() bool {
+	_, ok := m.clearedFields[sprint.FieldClosedAt]
+	return ok
+}
+
+// ResetClosedAt resets all changes to the "closed_at" field.
+func (m *SprintMutation) ResetClosedAt() {
+	m.closed_at = nil
+	delete(m.clearedFields, sprint.FieldClosedAt)
+}
+
+// Where appends a list predicates to the SprintMutation builder.
+func (m *SprintMutation) Where(ps ...predicate.Sprint) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the SprintMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *SprintMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Sprint, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *SprintMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *SprintMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Sprint).
+func (m *SprintMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *SprintMutation) Fields() []string {
+	fields := make([]string, 0, 13)
+	if m.organization_id != nil {
+		fields = append(fields, sprint.FieldOrganizationID)
+	}
+	if m.board_id != nil {
+		fields = append(fields, sprint.FieldBoardID)
+	}
+	if m.name != nil {
+		fields = append(fields, sprint.FieldName)
+	}
+	if m.goal != nil {
+		fields = append(fields, sprint.FieldGoal)
+	}
+	if m.state != nil {
+		fields = append(fields, sprint.FieldState)
+	}
+	if m.start_at != nil {
+		fields = append(fields, sprint.FieldStartAt)
+	}
+	if m.end_at != nil {
+		fields = append(fields, sprint.FieldEndAt)
+	}
+	if m.capacity_points != nil {
+		fields = append(fields, sprint.FieldCapacityPoints)
+	}
+	if m.committed_points != nil {
+		fields = append(fields, sprint.FieldCommittedPoints)
+	}
+	if m.version != nil {
+		fields = append(fields, sprint.FieldVersion)
+	}
+	if m.created_at != nil {
+		fields = append(fields, sprint.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, sprint.FieldUpdatedAt)
+	}
+	if m.closed_at != nil {
+		fields = append(fields, sprint.FieldClosedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *SprintMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case sprint.FieldOrganizationID:
+		return m.OrganizationID()
+	case sprint.FieldBoardID:
+		return m.BoardID()
+	case sprint.FieldName:
+		return m.Name()
+	case sprint.FieldGoal:
+		return m.Goal()
+	case sprint.FieldState:
+		return m.State()
+	case sprint.FieldStartAt:
+		return m.StartAt()
+	case sprint.FieldEndAt:
+		return m.EndAt()
+	case sprint.FieldCapacityPoints:
+		return m.CapacityPoints()
+	case sprint.FieldCommittedPoints:
+		return m.CommittedPoints()
+	case sprint.FieldVersion:
+		return m.Version()
+	case sprint.FieldCreatedAt:
+		return m.CreatedAt()
+	case sprint.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case sprint.FieldClosedAt:
+		return m.ClosedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *SprintMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case sprint.FieldOrganizationID:
+		return m.OldOrganizationID(ctx)
+	case sprint.FieldBoardID:
+		return m.OldBoardID(ctx)
+	case sprint.FieldName:
+		return m.OldName(ctx)
+	case sprint.FieldGoal:
+		return m.OldGoal(ctx)
+	case sprint.FieldState:
+		return m.OldState(ctx)
+	case sprint.FieldStartAt:
+		return m.OldStartAt(ctx)
+	case sprint.FieldEndAt:
+		return m.OldEndAt(ctx)
+	case sprint.FieldCapacityPoints:
+		return m.OldCapacityPoints(ctx)
+	case sprint.FieldCommittedPoints:
+		return m.OldCommittedPoints(ctx)
+	case sprint.FieldVersion:
+		return m.OldVersion(ctx)
+	case sprint.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case sprint.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case sprint.FieldClosedAt:
+		return m.OldClosedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Sprint field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SprintMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case sprint.FieldOrganizationID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOrganizationID(v)
+		return nil
+	case sprint.FieldBoardID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBoardID(v)
+		return nil
+	case sprint.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case sprint.FieldGoal:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGoal(v)
+		return nil
+	case sprint.FieldState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetState(v)
+		return nil
+	case sprint.FieldStartAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStartAt(v)
+		return nil
+	case sprint.FieldEndAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEndAt(v)
+		return nil
+	case sprint.FieldCapacityPoints:
+		v, ok := value.(int16)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCapacityPoints(v)
+		return nil
+	case sprint.FieldCommittedPoints:
+		v, ok := value.(int16)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCommittedPoints(v)
+		return nil
+	case sprint.FieldVersion:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVersion(v)
+		return nil
+	case sprint.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case sprint.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case sprint.FieldClosedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClosedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Sprint field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *SprintMutation) AddedFields() []string {
+	var fields []string
+	if m.addcapacity_points != nil {
+		fields = append(fields, sprint.FieldCapacityPoints)
+	}
+	if m.addcommitted_points != nil {
+		fields = append(fields, sprint.FieldCommittedPoints)
+	}
+	if m.addversion != nil {
+		fields = append(fields, sprint.FieldVersion)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *SprintMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case sprint.FieldCapacityPoints:
+		return m.AddedCapacityPoints()
+	case sprint.FieldCommittedPoints:
+		return m.AddedCommittedPoints()
+	case sprint.FieldVersion:
+		return m.AddedVersion()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SprintMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case sprint.FieldCapacityPoints:
+		v, ok := value.(int16)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCapacityPoints(v)
+		return nil
+	case sprint.FieldCommittedPoints:
+		v, ok := value.(int16)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCommittedPoints(v)
+		return nil
+	case sprint.FieldVersion:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddVersion(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Sprint numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *SprintMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(sprint.FieldStartAt) {
+		fields = append(fields, sprint.FieldStartAt)
+	}
+	if m.FieldCleared(sprint.FieldEndAt) {
+		fields = append(fields, sprint.FieldEndAt)
+	}
+	if m.FieldCleared(sprint.FieldCapacityPoints) {
+		fields = append(fields, sprint.FieldCapacityPoints)
+	}
+	if m.FieldCleared(sprint.FieldClosedAt) {
+		fields = append(fields, sprint.FieldClosedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *SprintMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *SprintMutation) ClearField(name string) error {
+	switch name {
+	case sprint.FieldStartAt:
+		m.ClearStartAt()
+		return nil
+	case sprint.FieldEndAt:
+		m.ClearEndAt()
+		return nil
+	case sprint.FieldCapacityPoints:
+		m.ClearCapacityPoints()
+		return nil
+	case sprint.FieldClosedAt:
+		m.ClearClosedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Sprint nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *SprintMutation) ResetField(name string) error {
+	switch name {
+	case sprint.FieldOrganizationID:
+		m.ResetOrganizationID()
+		return nil
+	case sprint.FieldBoardID:
+		m.ResetBoardID()
+		return nil
+	case sprint.FieldName:
+		m.ResetName()
+		return nil
+	case sprint.FieldGoal:
+		m.ResetGoal()
+		return nil
+	case sprint.FieldState:
+		m.ResetState()
+		return nil
+	case sprint.FieldStartAt:
+		m.ResetStartAt()
+		return nil
+	case sprint.FieldEndAt:
+		m.ResetEndAt()
+		return nil
+	case sprint.FieldCapacityPoints:
+		m.ResetCapacityPoints()
+		return nil
+	case sprint.FieldCommittedPoints:
+		m.ResetCommittedPoints()
+		return nil
+	case sprint.FieldVersion:
+		m.ResetVersion()
+		return nil
+	case sprint.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case sprint.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case sprint.FieldClosedAt:
+		m.ResetClosedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Sprint field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *SprintMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *SprintMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *SprintMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *SprintMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *SprintMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *SprintMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *SprintMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown Sprint unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *SprintMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown Sprint edge %s", name)
+}
+
+// SprintScopeEventMutation represents an operation that mutates the SprintScopeEvent nodes in the graph.
+type SprintScopeEventMutation struct {
+	config
+	op                 Op
+	typ                string
+	id                 *int
+	organization_id    *uuid.UUID
+	sprint_id          *uuid.UUID
+	work_item_id       *uuid.UUID
+	action             *string
+	points_at_event    *int16
+	addpoints_at_event *int16
+	actor_id           *string
+	note               *string
+	occurred_at        *time.Time
+	clearedFields      map[string]struct{}
+	done               bool
+	oldValue           func(context.Context) (*SprintScopeEvent, error)
+	predicates         []predicate.SprintScopeEvent
+}
+
+var _ ent.Mutation = (*SprintScopeEventMutation)(nil)
+
+// sprintscopeeventOption allows management of the mutation configuration using functional options.
+type sprintscopeeventOption func(*SprintScopeEventMutation)
+
+// newSprintScopeEventMutation creates new mutation for the SprintScopeEvent entity.
+func newSprintScopeEventMutation(c config, op Op, opts ...sprintscopeeventOption) *SprintScopeEventMutation {
+	m := &SprintScopeEventMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeSprintScopeEvent,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withSprintScopeEventID sets the ID field of the mutation.
+func withSprintScopeEventID(id int) sprintscopeeventOption {
+	return func(m *SprintScopeEventMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *SprintScopeEvent
+		)
+		m.oldValue = func(ctx context.Context) (*SprintScopeEvent, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().SprintScopeEvent.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withSprintScopeEvent sets the old SprintScopeEvent of the mutation.
+func withSprintScopeEvent(node *SprintScopeEvent) sprintscopeeventOption {
+	return func(m *SprintScopeEventMutation) {
+		m.oldValue = func(context.Context) (*SprintScopeEvent, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m SprintScopeEventMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m SprintScopeEventMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *SprintScopeEventMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *SprintScopeEventMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().SprintScopeEvent.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetOrganizationID sets the "organization_id" field.
+func (m *SprintScopeEventMutation) SetOrganizationID(u uuid.UUID) {
+	m.organization_id = &u
+}
+
+// OrganizationID returns the value of the "organization_id" field in the mutation.
+func (m *SprintScopeEventMutation) OrganizationID() (r uuid.UUID, exists bool) {
+	v := m.organization_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOrganizationID returns the old "organization_id" field's value of the SprintScopeEvent entity.
+// If the SprintScopeEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintScopeEventMutation) OldOrganizationID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOrganizationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOrganizationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOrganizationID: %w", err)
+	}
+	return oldValue.OrganizationID, nil
+}
+
+// ResetOrganizationID resets all changes to the "organization_id" field.
+func (m *SprintScopeEventMutation) ResetOrganizationID() {
+	m.organization_id = nil
+}
+
+// SetSprintID sets the "sprint_id" field.
+func (m *SprintScopeEventMutation) SetSprintID(u uuid.UUID) {
+	m.sprint_id = &u
+}
+
+// SprintID returns the value of the "sprint_id" field in the mutation.
+func (m *SprintScopeEventMutation) SprintID() (r uuid.UUID, exists bool) {
+	v := m.sprint_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSprintID returns the old "sprint_id" field's value of the SprintScopeEvent entity.
+// If the SprintScopeEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintScopeEventMutation) OldSprintID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSprintID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSprintID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSprintID: %w", err)
+	}
+	return oldValue.SprintID, nil
+}
+
+// ResetSprintID resets all changes to the "sprint_id" field.
+func (m *SprintScopeEventMutation) ResetSprintID() {
+	m.sprint_id = nil
+}
+
+// SetWorkItemID sets the "work_item_id" field.
+func (m *SprintScopeEventMutation) SetWorkItemID(u uuid.UUID) {
+	m.work_item_id = &u
+}
+
+// WorkItemID returns the value of the "work_item_id" field in the mutation.
+func (m *SprintScopeEventMutation) WorkItemID() (r uuid.UUID, exists bool) {
+	v := m.work_item_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWorkItemID returns the old "work_item_id" field's value of the SprintScopeEvent entity.
+// If the SprintScopeEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintScopeEventMutation) OldWorkItemID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWorkItemID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWorkItemID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWorkItemID: %w", err)
+	}
+	return oldValue.WorkItemID, nil
+}
+
+// ResetWorkItemID resets all changes to the "work_item_id" field.
+func (m *SprintScopeEventMutation) ResetWorkItemID() {
+	m.work_item_id = nil
+}
+
+// SetAction sets the "action" field.
+func (m *SprintScopeEventMutation) SetAction(s string) {
+	m.action = &s
+}
+
+// Action returns the value of the "action" field in the mutation.
+func (m *SprintScopeEventMutation) Action() (r string, exists bool) {
+	v := m.action
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAction returns the old "action" field's value of the SprintScopeEvent entity.
+// If the SprintScopeEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintScopeEventMutation) OldAction(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAction is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAction requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAction: %w", err)
+	}
+	return oldValue.Action, nil
+}
+
+// ResetAction resets all changes to the "action" field.
+func (m *SprintScopeEventMutation) ResetAction() {
+	m.action = nil
+}
+
+// SetPointsAtEvent sets the "points_at_event" field.
+func (m *SprintScopeEventMutation) SetPointsAtEvent(i int16) {
+	m.points_at_event = &i
+	m.addpoints_at_event = nil
+}
+
+// PointsAtEvent returns the value of the "points_at_event" field in the mutation.
+func (m *SprintScopeEventMutation) PointsAtEvent() (r int16, exists bool) {
+	v := m.points_at_event
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPointsAtEvent returns the old "points_at_event" field's value of the SprintScopeEvent entity.
+// If the SprintScopeEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintScopeEventMutation) OldPointsAtEvent(ctx context.Context) (v *int16, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPointsAtEvent is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPointsAtEvent requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPointsAtEvent: %w", err)
+	}
+	return oldValue.PointsAtEvent, nil
+}
+
+// AddPointsAtEvent adds i to the "points_at_event" field.
+func (m *SprintScopeEventMutation) AddPointsAtEvent(i int16) {
+	if m.addpoints_at_event != nil {
+		*m.addpoints_at_event += i
+	} else {
+		m.addpoints_at_event = &i
+	}
+}
+
+// AddedPointsAtEvent returns the value that was added to the "points_at_event" field in this mutation.
+func (m *SprintScopeEventMutation) AddedPointsAtEvent() (r int16, exists bool) {
+	v := m.addpoints_at_event
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearPointsAtEvent clears the value of the "points_at_event" field.
+func (m *SprintScopeEventMutation) ClearPointsAtEvent() {
+	m.points_at_event = nil
+	m.addpoints_at_event = nil
+	m.clearedFields[sprintscopeevent.FieldPointsAtEvent] = struct{}{}
+}
+
+// PointsAtEventCleared returns if the "points_at_event" field was cleared in this mutation.
+func (m *SprintScopeEventMutation) PointsAtEventCleared() bool {
+	_, ok := m.clearedFields[sprintscopeevent.FieldPointsAtEvent]
+	return ok
+}
+
+// ResetPointsAtEvent resets all changes to the "points_at_event" field.
+func (m *SprintScopeEventMutation) ResetPointsAtEvent() {
+	m.points_at_event = nil
+	m.addpoints_at_event = nil
+	delete(m.clearedFields, sprintscopeevent.FieldPointsAtEvent)
+}
+
+// SetActorID sets the "actor_id" field.
+func (m *SprintScopeEventMutation) SetActorID(s string) {
+	m.actor_id = &s
+}
+
+// ActorID returns the value of the "actor_id" field in the mutation.
+func (m *SprintScopeEventMutation) ActorID() (r string, exists bool) {
+	v := m.actor_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldActorID returns the old "actor_id" field's value of the SprintScopeEvent entity.
+// If the SprintScopeEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintScopeEventMutation) OldActorID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldActorID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldActorID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldActorID: %w", err)
+	}
+	return oldValue.ActorID, nil
+}
+
+// ClearActorID clears the value of the "actor_id" field.
+func (m *SprintScopeEventMutation) ClearActorID() {
+	m.actor_id = nil
+	m.clearedFields[sprintscopeevent.FieldActorID] = struct{}{}
+}
+
+// ActorIDCleared returns if the "actor_id" field was cleared in this mutation.
+func (m *SprintScopeEventMutation) ActorIDCleared() bool {
+	_, ok := m.clearedFields[sprintscopeevent.FieldActorID]
+	return ok
+}
+
+// ResetActorID resets all changes to the "actor_id" field.
+func (m *SprintScopeEventMutation) ResetActorID() {
+	m.actor_id = nil
+	delete(m.clearedFields, sprintscopeevent.FieldActorID)
+}
+
+// SetNote sets the "note" field.
+func (m *SprintScopeEventMutation) SetNote(s string) {
+	m.note = &s
+}
+
+// Note returns the value of the "note" field in the mutation.
+func (m *SprintScopeEventMutation) Note() (r string, exists bool) {
+	v := m.note
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNote returns the old "note" field's value of the SprintScopeEvent entity.
+// If the SprintScopeEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintScopeEventMutation) OldNote(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNote is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNote requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNote: %w", err)
+	}
+	return oldValue.Note, nil
+}
+
+// ClearNote clears the value of the "note" field.
+func (m *SprintScopeEventMutation) ClearNote() {
+	m.note = nil
+	m.clearedFields[sprintscopeevent.FieldNote] = struct{}{}
+}
+
+// NoteCleared returns if the "note" field was cleared in this mutation.
+func (m *SprintScopeEventMutation) NoteCleared() bool {
+	_, ok := m.clearedFields[sprintscopeevent.FieldNote]
+	return ok
+}
+
+// ResetNote resets all changes to the "note" field.
+func (m *SprintScopeEventMutation) ResetNote() {
+	m.note = nil
+	delete(m.clearedFields, sprintscopeevent.FieldNote)
+}
+
+// SetOccurredAt sets the "occurred_at" field.
+func (m *SprintScopeEventMutation) SetOccurredAt(t time.Time) {
+	m.occurred_at = &t
+}
+
+// OccurredAt returns the value of the "occurred_at" field in the mutation.
+func (m *SprintScopeEventMutation) OccurredAt() (r time.Time, exists bool) {
+	v := m.occurred_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOccurredAt returns the old "occurred_at" field's value of the SprintScopeEvent entity.
+// If the SprintScopeEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintScopeEventMutation) OldOccurredAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOccurredAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOccurredAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOccurredAt: %w", err)
+	}
+	return oldValue.OccurredAt, nil
+}
+
+// ResetOccurredAt resets all changes to the "occurred_at" field.
+func (m *SprintScopeEventMutation) ResetOccurredAt() {
+	m.occurred_at = nil
+}
+
+// Where appends a list predicates to the SprintScopeEventMutation builder.
+func (m *SprintScopeEventMutation) Where(ps ...predicate.SprintScopeEvent) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the SprintScopeEventMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *SprintScopeEventMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.SprintScopeEvent, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *SprintScopeEventMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *SprintScopeEventMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (SprintScopeEvent).
+func (m *SprintScopeEventMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *SprintScopeEventMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.organization_id != nil {
+		fields = append(fields, sprintscopeevent.FieldOrganizationID)
+	}
+	if m.sprint_id != nil {
+		fields = append(fields, sprintscopeevent.FieldSprintID)
+	}
+	if m.work_item_id != nil {
+		fields = append(fields, sprintscopeevent.FieldWorkItemID)
+	}
+	if m.action != nil {
+		fields = append(fields, sprintscopeevent.FieldAction)
+	}
+	if m.points_at_event != nil {
+		fields = append(fields, sprintscopeevent.FieldPointsAtEvent)
+	}
+	if m.actor_id != nil {
+		fields = append(fields, sprintscopeevent.FieldActorID)
+	}
+	if m.note != nil {
+		fields = append(fields, sprintscopeevent.FieldNote)
+	}
+	if m.occurred_at != nil {
+		fields = append(fields, sprintscopeevent.FieldOccurredAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *SprintScopeEventMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case sprintscopeevent.FieldOrganizationID:
+		return m.OrganizationID()
+	case sprintscopeevent.FieldSprintID:
+		return m.SprintID()
+	case sprintscopeevent.FieldWorkItemID:
+		return m.WorkItemID()
+	case sprintscopeevent.FieldAction:
+		return m.Action()
+	case sprintscopeevent.FieldPointsAtEvent:
+		return m.PointsAtEvent()
+	case sprintscopeevent.FieldActorID:
+		return m.ActorID()
+	case sprintscopeevent.FieldNote:
+		return m.Note()
+	case sprintscopeevent.FieldOccurredAt:
+		return m.OccurredAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *SprintScopeEventMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case sprintscopeevent.FieldOrganizationID:
+		return m.OldOrganizationID(ctx)
+	case sprintscopeevent.FieldSprintID:
+		return m.OldSprintID(ctx)
+	case sprintscopeevent.FieldWorkItemID:
+		return m.OldWorkItemID(ctx)
+	case sprintscopeevent.FieldAction:
+		return m.OldAction(ctx)
+	case sprintscopeevent.FieldPointsAtEvent:
+		return m.OldPointsAtEvent(ctx)
+	case sprintscopeevent.FieldActorID:
+		return m.OldActorID(ctx)
+	case sprintscopeevent.FieldNote:
+		return m.OldNote(ctx)
+	case sprintscopeevent.FieldOccurredAt:
+		return m.OldOccurredAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown SprintScopeEvent field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SprintScopeEventMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case sprintscopeevent.FieldOrganizationID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOrganizationID(v)
+		return nil
+	case sprintscopeevent.FieldSprintID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSprintID(v)
+		return nil
+	case sprintscopeevent.FieldWorkItemID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWorkItemID(v)
+		return nil
+	case sprintscopeevent.FieldAction:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAction(v)
+		return nil
+	case sprintscopeevent.FieldPointsAtEvent:
+		v, ok := value.(int16)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPointsAtEvent(v)
+		return nil
+	case sprintscopeevent.FieldActorID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetActorID(v)
+		return nil
+	case sprintscopeevent.FieldNote:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNote(v)
+		return nil
+	case sprintscopeevent.FieldOccurredAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOccurredAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SprintScopeEvent field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *SprintScopeEventMutation) AddedFields() []string {
+	var fields []string
+	if m.addpoints_at_event != nil {
+		fields = append(fields, sprintscopeevent.FieldPointsAtEvent)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *SprintScopeEventMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case sprintscopeevent.FieldPointsAtEvent:
+		return m.AddedPointsAtEvent()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SprintScopeEventMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case sprintscopeevent.FieldPointsAtEvent:
+		v, ok := value.(int16)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPointsAtEvent(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SprintScopeEvent numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *SprintScopeEventMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(sprintscopeevent.FieldPointsAtEvent) {
+		fields = append(fields, sprintscopeevent.FieldPointsAtEvent)
+	}
+	if m.FieldCleared(sprintscopeevent.FieldActorID) {
+		fields = append(fields, sprintscopeevent.FieldActorID)
+	}
+	if m.FieldCleared(sprintscopeevent.FieldNote) {
+		fields = append(fields, sprintscopeevent.FieldNote)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *SprintScopeEventMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *SprintScopeEventMutation) ClearField(name string) error {
+	switch name {
+	case sprintscopeevent.FieldPointsAtEvent:
+		m.ClearPointsAtEvent()
+		return nil
+	case sprintscopeevent.FieldActorID:
+		m.ClearActorID()
+		return nil
+	case sprintscopeevent.FieldNote:
+		m.ClearNote()
+		return nil
+	}
+	return fmt.Errorf("unknown SprintScopeEvent nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *SprintScopeEventMutation) ResetField(name string) error {
+	switch name {
+	case sprintscopeevent.FieldOrganizationID:
+		m.ResetOrganizationID()
+		return nil
+	case sprintscopeevent.FieldSprintID:
+		m.ResetSprintID()
+		return nil
+	case sprintscopeevent.FieldWorkItemID:
+		m.ResetWorkItemID()
+		return nil
+	case sprintscopeevent.FieldAction:
+		m.ResetAction()
+		return nil
+	case sprintscopeevent.FieldPointsAtEvent:
+		m.ResetPointsAtEvent()
+		return nil
+	case sprintscopeevent.FieldActorID:
+		m.ResetActorID()
+		return nil
+	case sprintscopeevent.FieldNote:
+		m.ResetNote()
+		return nil
+	case sprintscopeevent.FieldOccurredAt:
+		m.ResetOccurredAt()
+		return nil
+	}
+	return fmt.Errorf("unknown SprintScopeEvent field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *SprintScopeEventMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *SprintScopeEventMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *SprintScopeEventMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *SprintScopeEventMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *SprintScopeEventMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *SprintScopeEventMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *SprintScopeEventMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown SprintScopeEvent unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *SprintScopeEventMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown SprintScopeEvent edge %s", name)
+}
+
+// SprintSnapshotMutation represents an operation that mutates the SprintSnapshot nodes in the graph.
+type SprintSnapshotMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *int
+	sprint_id           *uuid.UUID
+	organization_id     *uuid.UUID
+	snapshot_date       *time.Time
+	scope_points        *int
+	addscope_points     *int
+	completed_points    *int
+	addcompleted_points *int
+	remaining_points    *int
+	addremaining_points *int
+	created_at          *time.Time
+	clearedFields       map[string]struct{}
+	done                bool
+	oldValue            func(context.Context) (*SprintSnapshot, error)
+	predicates          []predicate.SprintSnapshot
+}
+
+var _ ent.Mutation = (*SprintSnapshotMutation)(nil)
+
+// sprintsnapshotOption allows management of the mutation configuration using functional options.
+type sprintsnapshotOption func(*SprintSnapshotMutation)
+
+// newSprintSnapshotMutation creates new mutation for the SprintSnapshot entity.
+func newSprintSnapshotMutation(c config, op Op, opts ...sprintsnapshotOption) *SprintSnapshotMutation {
+	m := &SprintSnapshotMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeSprintSnapshot,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withSprintSnapshotID sets the ID field of the mutation.
+func withSprintSnapshotID(id int) sprintsnapshotOption {
+	return func(m *SprintSnapshotMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *SprintSnapshot
+		)
+		m.oldValue = func(ctx context.Context) (*SprintSnapshot, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().SprintSnapshot.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withSprintSnapshot sets the old SprintSnapshot of the mutation.
+func withSprintSnapshot(node *SprintSnapshot) sprintsnapshotOption {
+	return func(m *SprintSnapshotMutation) {
+		m.oldValue = func(context.Context) (*SprintSnapshot, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m SprintSnapshotMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m SprintSnapshotMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *SprintSnapshotMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *SprintSnapshotMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().SprintSnapshot.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetSprintID sets the "sprint_id" field.
+func (m *SprintSnapshotMutation) SetSprintID(u uuid.UUID) {
+	m.sprint_id = &u
+}
+
+// SprintID returns the value of the "sprint_id" field in the mutation.
+func (m *SprintSnapshotMutation) SprintID() (r uuid.UUID, exists bool) {
+	v := m.sprint_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSprintID returns the old "sprint_id" field's value of the SprintSnapshot entity.
+// If the SprintSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintSnapshotMutation) OldSprintID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSprintID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSprintID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSprintID: %w", err)
+	}
+	return oldValue.SprintID, nil
+}
+
+// ResetSprintID resets all changes to the "sprint_id" field.
+func (m *SprintSnapshotMutation) ResetSprintID() {
+	m.sprint_id = nil
+}
+
+// SetOrganizationID sets the "organization_id" field.
+func (m *SprintSnapshotMutation) SetOrganizationID(u uuid.UUID) {
+	m.organization_id = &u
+}
+
+// OrganizationID returns the value of the "organization_id" field in the mutation.
+func (m *SprintSnapshotMutation) OrganizationID() (r uuid.UUID, exists bool) {
+	v := m.organization_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOrganizationID returns the old "organization_id" field's value of the SprintSnapshot entity.
+// If the SprintSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintSnapshotMutation) OldOrganizationID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOrganizationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOrganizationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOrganizationID: %w", err)
+	}
+	return oldValue.OrganizationID, nil
+}
+
+// ResetOrganizationID resets all changes to the "organization_id" field.
+func (m *SprintSnapshotMutation) ResetOrganizationID() {
+	m.organization_id = nil
+}
+
+// SetSnapshotDate sets the "snapshot_date" field.
+func (m *SprintSnapshotMutation) SetSnapshotDate(t time.Time) {
+	m.snapshot_date = &t
+}
+
+// SnapshotDate returns the value of the "snapshot_date" field in the mutation.
+func (m *SprintSnapshotMutation) SnapshotDate() (r time.Time, exists bool) {
+	v := m.snapshot_date
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSnapshotDate returns the old "snapshot_date" field's value of the SprintSnapshot entity.
+// If the SprintSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintSnapshotMutation) OldSnapshotDate(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSnapshotDate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSnapshotDate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSnapshotDate: %w", err)
+	}
+	return oldValue.SnapshotDate, nil
+}
+
+// ResetSnapshotDate resets all changes to the "snapshot_date" field.
+func (m *SprintSnapshotMutation) ResetSnapshotDate() {
+	m.snapshot_date = nil
+}
+
+// SetScopePoints sets the "scope_points" field.
+func (m *SprintSnapshotMutation) SetScopePoints(i int) {
+	m.scope_points = &i
+	m.addscope_points = nil
+}
+
+// ScopePoints returns the value of the "scope_points" field in the mutation.
+func (m *SprintSnapshotMutation) ScopePoints() (r int, exists bool) {
+	v := m.scope_points
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldScopePoints returns the old "scope_points" field's value of the SprintSnapshot entity.
+// If the SprintSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintSnapshotMutation) OldScopePoints(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldScopePoints is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldScopePoints requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldScopePoints: %w", err)
+	}
+	return oldValue.ScopePoints, nil
+}
+
+// AddScopePoints adds i to the "scope_points" field.
+func (m *SprintSnapshotMutation) AddScopePoints(i int) {
+	if m.addscope_points != nil {
+		*m.addscope_points += i
+	} else {
+		m.addscope_points = &i
+	}
+}
+
+// AddedScopePoints returns the value that was added to the "scope_points" field in this mutation.
+func (m *SprintSnapshotMutation) AddedScopePoints() (r int, exists bool) {
+	v := m.addscope_points
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetScopePoints resets all changes to the "scope_points" field.
+func (m *SprintSnapshotMutation) ResetScopePoints() {
+	m.scope_points = nil
+	m.addscope_points = nil
+}
+
+// SetCompletedPoints sets the "completed_points" field.
+func (m *SprintSnapshotMutation) SetCompletedPoints(i int) {
+	m.completed_points = &i
+	m.addcompleted_points = nil
+}
+
+// CompletedPoints returns the value of the "completed_points" field in the mutation.
+func (m *SprintSnapshotMutation) CompletedPoints() (r int, exists bool) {
+	v := m.completed_points
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCompletedPoints returns the old "completed_points" field's value of the SprintSnapshot entity.
+// If the SprintSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintSnapshotMutation) OldCompletedPoints(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCompletedPoints is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCompletedPoints requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCompletedPoints: %w", err)
+	}
+	return oldValue.CompletedPoints, nil
+}
+
+// AddCompletedPoints adds i to the "completed_points" field.
+func (m *SprintSnapshotMutation) AddCompletedPoints(i int) {
+	if m.addcompleted_points != nil {
+		*m.addcompleted_points += i
+	} else {
+		m.addcompleted_points = &i
+	}
+}
+
+// AddedCompletedPoints returns the value that was added to the "completed_points" field in this mutation.
+func (m *SprintSnapshotMutation) AddedCompletedPoints() (r int, exists bool) {
+	v := m.addcompleted_points
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCompletedPoints resets all changes to the "completed_points" field.
+func (m *SprintSnapshotMutation) ResetCompletedPoints() {
+	m.completed_points = nil
+	m.addcompleted_points = nil
+}
+
+// SetRemainingPoints sets the "remaining_points" field.
+func (m *SprintSnapshotMutation) SetRemainingPoints(i int) {
+	m.remaining_points = &i
+	m.addremaining_points = nil
+}
+
+// RemainingPoints returns the value of the "remaining_points" field in the mutation.
+func (m *SprintSnapshotMutation) RemainingPoints() (r int, exists bool) {
+	v := m.remaining_points
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRemainingPoints returns the old "remaining_points" field's value of the SprintSnapshot entity.
+// If the SprintSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintSnapshotMutation) OldRemainingPoints(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRemainingPoints is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRemainingPoints requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRemainingPoints: %w", err)
+	}
+	return oldValue.RemainingPoints, nil
+}
+
+// AddRemainingPoints adds i to the "remaining_points" field.
+func (m *SprintSnapshotMutation) AddRemainingPoints(i int) {
+	if m.addremaining_points != nil {
+		*m.addremaining_points += i
+	} else {
+		m.addremaining_points = &i
+	}
+}
+
+// AddedRemainingPoints returns the value that was added to the "remaining_points" field in this mutation.
+func (m *SprintSnapshotMutation) AddedRemainingPoints() (r int, exists bool) {
+	v := m.addremaining_points
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRemainingPoints resets all changes to the "remaining_points" field.
+func (m *SprintSnapshotMutation) ResetRemainingPoints() {
+	m.remaining_points = nil
+	m.addremaining_points = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *SprintSnapshotMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *SprintSnapshotMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the SprintSnapshot entity.
+// If the SprintSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SprintSnapshotMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *SprintSnapshotMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the SprintSnapshotMutation builder.
+func (m *SprintSnapshotMutation) Where(ps ...predicate.SprintSnapshot) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the SprintSnapshotMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *SprintSnapshotMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.SprintSnapshot, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *SprintSnapshotMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *SprintSnapshotMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (SprintSnapshot).
+func (m *SprintSnapshotMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *SprintSnapshotMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.sprint_id != nil {
+		fields = append(fields, sprintsnapshot.FieldSprintID)
+	}
+	if m.organization_id != nil {
+		fields = append(fields, sprintsnapshot.FieldOrganizationID)
+	}
+	if m.snapshot_date != nil {
+		fields = append(fields, sprintsnapshot.FieldSnapshotDate)
+	}
+	if m.scope_points != nil {
+		fields = append(fields, sprintsnapshot.FieldScopePoints)
+	}
+	if m.completed_points != nil {
+		fields = append(fields, sprintsnapshot.FieldCompletedPoints)
+	}
+	if m.remaining_points != nil {
+		fields = append(fields, sprintsnapshot.FieldRemainingPoints)
+	}
+	if m.created_at != nil {
+		fields = append(fields, sprintsnapshot.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *SprintSnapshotMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case sprintsnapshot.FieldSprintID:
+		return m.SprintID()
+	case sprintsnapshot.FieldOrganizationID:
+		return m.OrganizationID()
+	case sprintsnapshot.FieldSnapshotDate:
+		return m.SnapshotDate()
+	case sprintsnapshot.FieldScopePoints:
+		return m.ScopePoints()
+	case sprintsnapshot.FieldCompletedPoints:
+		return m.CompletedPoints()
+	case sprintsnapshot.FieldRemainingPoints:
+		return m.RemainingPoints()
+	case sprintsnapshot.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *SprintSnapshotMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case sprintsnapshot.FieldSprintID:
+		return m.OldSprintID(ctx)
+	case sprintsnapshot.FieldOrganizationID:
+		return m.OldOrganizationID(ctx)
+	case sprintsnapshot.FieldSnapshotDate:
+		return m.OldSnapshotDate(ctx)
+	case sprintsnapshot.FieldScopePoints:
+		return m.OldScopePoints(ctx)
+	case sprintsnapshot.FieldCompletedPoints:
+		return m.OldCompletedPoints(ctx)
+	case sprintsnapshot.FieldRemainingPoints:
+		return m.OldRemainingPoints(ctx)
+	case sprintsnapshot.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown SprintSnapshot field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SprintSnapshotMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case sprintsnapshot.FieldSprintID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSprintID(v)
+		return nil
+	case sprintsnapshot.FieldOrganizationID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOrganizationID(v)
+		return nil
+	case sprintsnapshot.FieldSnapshotDate:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSnapshotDate(v)
+		return nil
+	case sprintsnapshot.FieldScopePoints:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetScopePoints(v)
+		return nil
+	case sprintsnapshot.FieldCompletedPoints:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCompletedPoints(v)
+		return nil
+	case sprintsnapshot.FieldRemainingPoints:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRemainingPoints(v)
+		return nil
+	case sprintsnapshot.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SprintSnapshot field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *SprintSnapshotMutation) AddedFields() []string {
+	var fields []string
+	if m.addscope_points != nil {
+		fields = append(fields, sprintsnapshot.FieldScopePoints)
+	}
+	if m.addcompleted_points != nil {
+		fields = append(fields, sprintsnapshot.FieldCompletedPoints)
+	}
+	if m.addremaining_points != nil {
+		fields = append(fields, sprintsnapshot.FieldRemainingPoints)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *SprintSnapshotMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case sprintsnapshot.FieldScopePoints:
+		return m.AddedScopePoints()
+	case sprintsnapshot.FieldCompletedPoints:
+		return m.AddedCompletedPoints()
+	case sprintsnapshot.FieldRemainingPoints:
+		return m.AddedRemainingPoints()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SprintSnapshotMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case sprintsnapshot.FieldScopePoints:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddScopePoints(v)
+		return nil
+	case sprintsnapshot.FieldCompletedPoints:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCompletedPoints(v)
+		return nil
+	case sprintsnapshot.FieldRemainingPoints:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRemainingPoints(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SprintSnapshot numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *SprintSnapshotMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *SprintSnapshotMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *SprintSnapshotMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown SprintSnapshot nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *SprintSnapshotMutation) ResetField(name string) error {
+	switch name {
+	case sprintsnapshot.FieldSprintID:
+		m.ResetSprintID()
+		return nil
+	case sprintsnapshot.FieldOrganizationID:
+		m.ResetOrganizationID()
+		return nil
+	case sprintsnapshot.FieldSnapshotDate:
+		m.ResetSnapshotDate()
+		return nil
+	case sprintsnapshot.FieldScopePoints:
+		m.ResetScopePoints()
+		return nil
+	case sprintsnapshot.FieldCompletedPoints:
+		m.ResetCompletedPoints()
+		return nil
+	case sprintsnapshot.FieldRemainingPoints:
+		m.ResetRemainingPoints()
+		return nil
+	case sprintsnapshot.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown SprintSnapshot field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *SprintSnapshotMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *SprintSnapshotMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *SprintSnapshotMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *SprintSnapshotMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *SprintSnapshotMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *SprintSnapshotMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *SprintSnapshotMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown SprintSnapshot unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *SprintSnapshotMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown SprintSnapshot edge %s", name)
+}
+
 // WorkItemMutation represents an operation that mutates the WorkItem nodes in the graph.
 type WorkItemMutation struct {
 	config
@@ -4545,6 +7838,11 @@ type WorkItemMutation struct {
 	reporter_id         *string
 	assignee_id         *string
 	parent_id           *uuid.UUID
+	sprint_id           *uuid.UUID
+	story_points        *int16
+	addstory_points     *int16
+	estimate_minutes    *int
+	addestimate_minutes *int
 	rank                *string
 	project_code        *string
 	wbs_code            *string
@@ -5307,6 +8605,195 @@ func (m *WorkItemMutation) ResetParentID() {
 	delete(m.clearedFields, workitem.FieldParentID)
 }
 
+// SetSprintID sets the "sprint_id" field.
+func (m *WorkItemMutation) SetSprintID(u uuid.UUID) {
+	m.sprint_id = &u
+}
+
+// SprintID returns the value of the "sprint_id" field in the mutation.
+func (m *WorkItemMutation) SprintID() (r uuid.UUID, exists bool) {
+	v := m.sprint_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSprintID returns the old "sprint_id" field's value of the WorkItem entity.
+// If the WorkItem object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkItemMutation) OldSprintID(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSprintID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSprintID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSprintID: %w", err)
+	}
+	return oldValue.SprintID, nil
+}
+
+// ClearSprintID clears the value of the "sprint_id" field.
+func (m *WorkItemMutation) ClearSprintID() {
+	m.sprint_id = nil
+	m.clearedFields[workitem.FieldSprintID] = struct{}{}
+}
+
+// SprintIDCleared returns if the "sprint_id" field was cleared in this mutation.
+func (m *WorkItemMutation) SprintIDCleared() bool {
+	_, ok := m.clearedFields[workitem.FieldSprintID]
+	return ok
+}
+
+// ResetSprintID resets all changes to the "sprint_id" field.
+func (m *WorkItemMutation) ResetSprintID() {
+	m.sprint_id = nil
+	delete(m.clearedFields, workitem.FieldSprintID)
+}
+
+// SetStoryPoints sets the "story_points" field.
+func (m *WorkItemMutation) SetStoryPoints(i int16) {
+	m.story_points = &i
+	m.addstory_points = nil
+}
+
+// StoryPoints returns the value of the "story_points" field in the mutation.
+func (m *WorkItemMutation) StoryPoints() (r int16, exists bool) {
+	v := m.story_points
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStoryPoints returns the old "story_points" field's value of the WorkItem entity.
+// If the WorkItem object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkItemMutation) OldStoryPoints(ctx context.Context) (v *int16, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStoryPoints is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStoryPoints requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStoryPoints: %w", err)
+	}
+	return oldValue.StoryPoints, nil
+}
+
+// AddStoryPoints adds i to the "story_points" field.
+func (m *WorkItemMutation) AddStoryPoints(i int16) {
+	if m.addstory_points != nil {
+		*m.addstory_points += i
+	} else {
+		m.addstory_points = &i
+	}
+}
+
+// AddedStoryPoints returns the value that was added to the "story_points" field in this mutation.
+func (m *WorkItemMutation) AddedStoryPoints() (r int16, exists bool) {
+	v := m.addstory_points
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearStoryPoints clears the value of the "story_points" field.
+func (m *WorkItemMutation) ClearStoryPoints() {
+	m.story_points = nil
+	m.addstory_points = nil
+	m.clearedFields[workitem.FieldStoryPoints] = struct{}{}
+}
+
+// StoryPointsCleared returns if the "story_points" field was cleared in this mutation.
+func (m *WorkItemMutation) StoryPointsCleared() bool {
+	_, ok := m.clearedFields[workitem.FieldStoryPoints]
+	return ok
+}
+
+// ResetStoryPoints resets all changes to the "story_points" field.
+func (m *WorkItemMutation) ResetStoryPoints() {
+	m.story_points = nil
+	m.addstory_points = nil
+	delete(m.clearedFields, workitem.FieldStoryPoints)
+}
+
+// SetEstimateMinutes sets the "estimate_minutes" field.
+func (m *WorkItemMutation) SetEstimateMinutes(i int) {
+	m.estimate_minutes = &i
+	m.addestimate_minutes = nil
+}
+
+// EstimateMinutes returns the value of the "estimate_minutes" field in the mutation.
+func (m *WorkItemMutation) EstimateMinutes() (r int, exists bool) {
+	v := m.estimate_minutes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEstimateMinutes returns the old "estimate_minutes" field's value of the WorkItem entity.
+// If the WorkItem object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkItemMutation) OldEstimateMinutes(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEstimateMinutes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEstimateMinutes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEstimateMinutes: %w", err)
+	}
+	return oldValue.EstimateMinutes, nil
+}
+
+// AddEstimateMinutes adds i to the "estimate_minutes" field.
+func (m *WorkItemMutation) AddEstimateMinutes(i int) {
+	if m.addestimate_minutes != nil {
+		*m.addestimate_minutes += i
+	} else {
+		m.addestimate_minutes = &i
+	}
+}
+
+// AddedEstimateMinutes returns the value that was added to the "estimate_minutes" field in this mutation.
+func (m *WorkItemMutation) AddedEstimateMinutes() (r int, exists bool) {
+	v := m.addestimate_minutes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearEstimateMinutes clears the value of the "estimate_minutes" field.
+func (m *WorkItemMutation) ClearEstimateMinutes() {
+	m.estimate_minutes = nil
+	m.addestimate_minutes = nil
+	m.clearedFields[workitem.FieldEstimateMinutes] = struct{}{}
+}
+
+// EstimateMinutesCleared returns if the "estimate_minutes" field was cleared in this mutation.
+func (m *WorkItemMutation) EstimateMinutesCleared() bool {
+	_, ok := m.clearedFields[workitem.FieldEstimateMinutes]
+	return ok
+}
+
+// ResetEstimateMinutes resets all changes to the "estimate_minutes" field.
+func (m *WorkItemMutation) ResetEstimateMinutes() {
+	m.estimate_minutes = nil
+	m.addestimate_minutes = nil
+	delete(m.clearedFields, workitem.FieldEstimateMinutes)
+}
+
 // SetRank sets the "rank" field.
 func (m *WorkItemMutation) SetRank(s string) {
 	m.rank = &s
@@ -5904,7 +9391,7 @@ func (m *WorkItemMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *WorkItemMutation) Fields() []string {
-	fields := make([]string, 0, 27)
+	fields := make([]string, 0, 30)
 	if m.organization_id != nil {
 		fields = append(fields, workitem.FieldOrganizationID)
 	}
@@ -5949,6 +9436,15 @@ func (m *WorkItemMutation) Fields() []string {
 	}
 	if m.parent_id != nil {
 		fields = append(fields, workitem.FieldParentID)
+	}
+	if m.sprint_id != nil {
+		fields = append(fields, workitem.FieldSprintID)
+	}
+	if m.story_points != nil {
+		fields = append(fields, workitem.FieldStoryPoints)
+	}
+	if m.estimate_minutes != nil {
+		fields = append(fields, workitem.FieldEstimateMinutes)
 	}
 	if m.rank != nil {
 		fields = append(fields, workitem.FieldRank)
@@ -6024,6 +9520,12 @@ func (m *WorkItemMutation) Field(name string) (ent.Value, bool) {
 		return m.AssigneeID()
 	case workitem.FieldParentID:
 		return m.ParentID()
+	case workitem.FieldSprintID:
+		return m.SprintID()
+	case workitem.FieldStoryPoints:
+		return m.StoryPoints()
+	case workitem.FieldEstimateMinutes:
+		return m.EstimateMinutes()
 	case workitem.FieldRank:
 		return m.Rank()
 	case workitem.FieldProjectCode:
@@ -6087,6 +9589,12 @@ func (m *WorkItemMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldAssigneeID(ctx)
 	case workitem.FieldParentID:
 		return m.OldParentID(ctx)
+	case workitem.FieldSprintID:
+		return m.OldSprintID(ctx)
+	case workitem.FieldStoryPoints:
+		return m.OldStoryPoints(ctx)
+	case workitem.FieldEstimateMinutes:
+		return m.OldEstimateMinutes(ctx)
 	case workitem.FieldRank:
 		return m.OldRank(ctx)
 	case workitem.FieldProjectCode:
@@ -6225,6 +9733,27 @@ func (m *WorkItemMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetParentID(v)
 		return nil
+	case workitem.FieldSprintID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSprintID(v)
+		return nil
+	case workitem.FieldStoryPoints:
+		v, ok := value.(int16)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStoryPoints(v)
+		return nil
+	case workitem.FieldEstimateMinutes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEstimateMinutes(v)
+		return nil
 	case workitem.FieldRank:
 		v, ok := value.(string)
 		if !ok {
@@ -6320,6 +9849,12 @@ func (m *WorkItemMutation) AddedFields() []string {
 	if m.addpriority != nil {
 		fields = append(fields, workitem.FieldPriority)
 	}
+	if m.addstory_points != nil {
+		fields = append(fields, workitem.FieldStoryPoints)
+	}
+	if m.addestimate_minutes != nil {
+		fields = append(fields, workitem.FieldEstimateMinutes)
+	}
 	if m.addreopened_count != nil {
 		fields = append(fields, workitem.FieldReopenedCount)
 	}
@@ -6336,6 +9871,10 @@ func (m *WorkItemMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case workitem.FieldPriority:
 		return m.AddedPriority()
+	case workitem.FieldStoryPoints:
+		return m.AddedStoryPoints()
+	case workitem.FieldEstimateMinutes:
+		return m.AddedEstimateMinutes()
 	case workitem.FieldReopenedCount:
 		return m.AddedReopenedCount()
 	case workitem.FieldVersion:
@@ -6355,6 +9894,20 @@ func (m *WorkItemMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddPriority(v)
+		return nil
+	case workitem.FieldStoryPoints:
+		v, ok := value.(int16)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddStoryPoints(v)
+		return nil
+	case workitem.FieldEstimateMinutes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddEstimateMinutes(v)
 		return nil
 	case workitem.FieldReopenedCount:
 		v, ok := value.(int16)
@@ -6395,6 +9948,15 @@ func (m *WorkItemMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(workitem.FieldParentID) {
 		fields = append(fields, workitem.FieldParentID)
+	}
+	if m.FieldCleared(workitem.FieldSprintID) {
+		fields = append(fields, workitem.FieldSprintID)
+	}
+	if m.FieldCleared(workitem.FieldStoryPoints) {
+		fields = append(fields, workitem.FieldStoryPoints)
+	}
+	if m.FieldCleared(workitem.FieldEstimateMinutes) {
+		fields = append(fields, workitem.FieldEstimateMinutes)
 	}
 	if m.FieldCleared(workitem.FieldProjectCode) {
 		fields = append(fields, workitem.FieldProjectCode)
@@ -6448,6 +10010,15 @@ func (m *WorkItemMutation) ClearField(name string) error {
 		return nil
 	case workitem.FieldParentID:
 		m.ClearParentID()
+		return nil
+	case workitem.FieldSprintID:
+		m.ClearSprintID()
+		return nil
+	case workitem.FieldStoryPoints:
+		m.ClearStoryPoints()
+		return nil
+	case workitem.FieldEstimateMinutes:
+		m.ClearEstimateMinutes()
 		return nil
 	case workitem.FieldProjectCode:
 		m.ClearProjectCode()
@@ -6522,6 +10093,15 @@ func (m *WorkItemMutation) ResetField(name string) error {
 		return nil
 	case workitem.FieldParentID:
 		m.ResetParentID()
+		return nil
+	case workitem.FieldSprintID:
+		m.ResetSprintID()
+		return nil
+	case workitem.FieldStoryPoints:
+		m.ResetStoryPoints()
+		return nil
+	case workitem.FieldEstimateMinutes:
+		m.ResetEstimateMinutes()
 		return nil
 	case workitem.FieldRank:
 		m.ResetRank()

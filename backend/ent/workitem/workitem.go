@@ -44,6 +44,12 @@ const (
 	FieldAssigneeID = "assignee_id"
 	// FieldParentID holds the string denoting the parent_id field in the database.
 	FieldParentID = "parent_id"
+	// FieldSprintID holds the string denoting the sprint_id field in the database.
+	FieldSprintID = "sprint_id"
+	// FieldStoryPoints holds the string denoting the story_points field in the database.
+	FieldStoryPoints = "story_points"
+	// FieldEstimateMinutes holds the string denoting the estimate_minutes field in the database.
+	FieldEstimateMinutes = "estimate_minutes"
 	// FieldRank holds the string denoting the rank field in the database.
 	FieldRank = "rank"
 	// FieldProjectCode holds the string denoting the project_code field in the database.
@@ -90,6 +96,9 @@ var Columns = []string{
 	FieldReporterID,
 	FieldAssigneeID,
 	FieldParentID,
+	FieldSprintID,
+	FieldStoryPoints,
+	FieldEstimateMinutes,
 	FieldRank,
 	FieldProjectCode,
 	FieldWbsCode,
@@ -240,6 +249,21 @@ func ByAssigneeID(opts ...sql.OrderTermOption) OrderOption {
 // ByParentID orders the results by the parent_id field.
 func ByParentID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldParentID, opts...).ToFunc()
+}
+
+// BySprintID orders the results by the sprint_id field.
+func BySprintID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSprintID, opts...).ToFunc()
+}
+
+// ByStoryPoints orders the results by the story_points field.
+func ByStoryPoints(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldStoryPoints, opts...).ToFunc()
+}
+
+// ByEstimateMinutes orders the results by the estimate_minutes field.
+func ByEstimateMinutes(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldEstimateMinutes, opts...).ToFunc()
 }
 
 // ByRank orders the results by the rank field.

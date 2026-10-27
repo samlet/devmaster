@@ -39,6 +39,7 @@ type WorkItemRow struct {
 	Status      string
 	AssigneeID  string
 	ExternalRef string
+	StoryPoints string
 }
 
 type ProductExpectation struct {
@@ -157,6 +158,7 @@ func readWorkItems(path string) ([]WorkItemRow, error) {
 			Status:      strings.TrimSpace(record["status"]),
 			AssigneeID:  strings.TrimSpace(record["assignee_id"]),
 			ExternalRef: strings.TrimSpace(record["external_ref"]),
+			StoryPoints: strings.TrimSpace(record["story_points"]),
 		}
 		if row.ProductKey == "" || row.Type == "" || row.Title == "" || row.ExternalRef == "" {
 			return nil, fmt.Errorf("%s 第 %d 行：product_key / type / title / external_ref 必填", path, index+2)

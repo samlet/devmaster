@@ -3,9 +3,8 @@
 面向软件研发的执行事实源：**工作项、冲刺、版本、工时**。参考 Jira 的任务/缺陷/冲刺/版本迭代
 四件套，但只保留其中可被核算的部分，并把它们接进生态的项目与财务链路。
 
-**当前状态：M1 工作项已落地（2026-10-27）。** M0 的平台骨架（gRPC + PG + outbox + relay +
-Temporal worker）之上，已交付工作项五类型、固定状态机与守卫、CAS、事件日志、评论、链接、
-中文搜索、数据包导入器与事件折叠对账。冲刺/版本/工时在 M2–M4 落地。
+**当前状态：M2 冲刺与看板已落地（2026-10-27）。** 在 M1 工作项之上，已交付四列看板、
+冲刺生命周期、范围事件与蔓延率、每日燃尽快照、rank 并发与重平衡。版本/工时在 M3–M4 落地。
 评估与裁决见 [docs/01](docs/01-方案评估与关键决策.md)，分期见 [docs/01 §8](docs/01-方案评估与关键决策.md)。
 
 ## 定位
@@ -53,6 +52,7 @@ make web-install      # 首次
 make web-dev          # 控制台 http://127.0.0.1:3031
 make seed-dataset     # 导入 m1-smoke（幂等；重复跑不会产生第二份事实）
 make reconcile        # 事件折叠对账：当前态必须等于事件日志
+make snapshot         # 给进行中冲刺写当天燃尽快照（建议 cron 每日跑）
 ```
 
 `make dev` 同起 server + relay + worker；`relay` 负责把 outbox 投递到
@@ -74,9 +74,10 @@ grpcurl -plaintext -d '{"options":{"idempotency_key":"p-1"},"key":"hosp","name":
 | `server` | gRPC + HTTP（healthz / metrics / 只读 `/api/*`） | `:50091` / `:8291` |
 | `relay` | outbox → JetStream | 无 |
 | `worker` | Temporal worker（当前只有 PingWorkflow） | 无 |
-| `web` | Next.js 只读控制台（产品 / 工作项） | `:3031` |
+| `web` | Next.js 只读控制台（产品 / 工作项 / 看板） | `:3031` |
 | `importer` | 数据包导入（一次性，`make seed-dataset`） | 无 |
 | `reconcile` | 事件折叠对账（一次性，`make reconcile`） | 无 |
+| `snapshot` | 燃尽快照（一次性/cron，`make snapshot`） | 无 |
 
 ```bash
 curl -s localhost:8291/healthz   # postgres / nats / temporal，任一失败 503
@@ -100,11 +101,13 @@ make web-check         # 前端 tsc --noEmit
 
 ```text
 backend/
-  cmd/            server / relay / worker / importer / reconcile
+  cmd/            server / relay / worker / importer / reconcile / snapshot
   internal/
     platform/     config / database / auth / outbox / jetstream / idempotency / observability
     product/      domain / application / adapter/postgres
     workitem/     domain（状态机/排序）/ application / adapter/postgres
+    sprint/       domain（生命周期/范围统计）/ application / adapter/postgres
+    board/        domain（列映射）/ application（读模型 + 拖拽）
     transport/    grpc / http
     workflow/     Temporal 工作流与活动
   ent/schema/     ent schema（迁移才是 DDL 的唯一来源）

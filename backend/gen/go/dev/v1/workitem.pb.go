@@ -419,6 +419,9 @@ type WorkItem struct {
 	UpdatedAt          *timestamppb.Timestamp `protobuf:"bytes,24,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	ResolvedAt         *timestamppb.Timestamp `protobuf:"bytes,25,opt,name=resolved_at,json=resolvedAt,proto3" json:"resolved_at,omitempty"`
 	ClosedAt           *timestamppb.Timestamp `protobuf:"bytes,26,opt,name=closed_at,json=closedAt,proto3" json:"closed_at,omitempty"`
+	SprintId           string                 `protobuf:"bytes,27,opt,name=sprint_id,json=sprintId,proto3" json:"sprint_id,omitempty"`
+	StoryPoints        int32                  `protobuf:"varint,28,opt,name=story_points,json=storyPoints,proto3" json:"story_points,omitempty"`
+	EstimateMinutes    int32                  `protobuf:"varint,29,opt,name=estimate_minutes,json=estimateMinutes,proto3" json:"estimate_minutes,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -635,6 +638,27 @@ func (x *WorkItem) GetClosedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *WorkItem) GetSprintId() string {
+	if x != nil {
+		return x.SprintId
+	}
+	return ""
+}
+
+func (x *WorkItem) GetStoryPoints() int32 {
+	if x != nil {
+		return x.StoryPoints
+	}
+	return 0
+}
+
+func (x *WorkItem) GetEstimateMinutes() int32 {
+	if x != nil {
+		return x.EstimateMinutes
+	}
+	return 0
+}
+
 type CreateWorkItemRequest struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	Options            *WriteOptions          `protobuf:"bytes,1,opt,name=options,proto3" json:"options,omitempty"`
@@ -651,6 +675,8 @@ type CreateWorkItemRequest struct {
 	ProjectCode        string                 `protobuf:"bytes,12,opt,name=project_code,json=projectCode,proto3" json:"project_code,omitempty"`
 	WbsCode            string                 `protobuf:"bytes,13,opt,name=wbs_code,json=wbsCode,proto3" json:"wbs_code,omitempty"`
 	ExternalRef        string                 `protobuf:"bytes,14,opt,name=external_ref,json=externalRef,proto3" json:"external_ref,omitempty"`
+	StoryPoints        *int32                 `protobuf:"varint,15,opt,name=story_points,json=storyPoints,proto3,oneof" json:"story_points,omitempty"`
+	EstimateMinutes    *int32                 `protobuf:"varint,16,opt,name=estimate_minutes,json=estimateMinutes,proto3,oneof" json:"estimate_minutes,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -781,6 +807,20 @@ func (x *CreateWorkItemRequest) GetExternalRef() string {
 		return x.ExternalRef
 	}
 	return ""
+}
+
+func (x *CreateWorkItemRequest) GetStoryPoints() int32 {
+	if x != nil && x.StoryPoints != nil {
+		return *x.StoryPoints
+	}
+	return 0
+}
+
+func (x *CreateWorkItemRequest) GetEstimateMinutes() int32 {
+	if x != nil && x.EstimateMinutes != nil {
+		return *x.EstimateMinutes
+	}
+	return 0
 }
 
 type CreateWorkItemResponse struct {
@@ -937,6 +977,8 @@ type UpdateWorkItemRequest struct {
 	WbsCode            *string                `protobuf:"bytes,10,opt,name=wbs_code,json=wbsCode,proto3,oneof" json:"wbs_code,omitempty"`
 	ExternalRef        *string                `protobuf:"bytes,11,opt,name=external_ref,json=externalRef,proto3,oneof" json:"external_ref,omitempty"`
 	BlockedReason      *string                `protobuf:"bytes,12,opt,name=blocked_reason,json=blockedReason,proto3,oneof" json:"blocked_reason,omitempty"`
+	StoryPoints        *int32                 `protobuf:"varint,13,opt,name=story_points,json=storyPoints,proto3,oneof" json:"story_points,omitempty"`
+	EstimateMinutes    *int32                 `protobuf:"varint,14,opt,name=estimate_minutes,json=estimateMinutes,proto3,oneof" json:"estimate_minutes,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -1053,6 +1095,20 @@ func (x *UpdateWorkItemRequest) GetBlockedReason() string {
 		return *x.BlockedReason
 	}
 	return ""
+}
+
+func (x *UpdateWorkItemRequest) GetStoryPoints() int32 {
+	if x != nil && x.StoryPoints != nil {
+		return *x.StoryPoints
+	}
+	return 0
+}
+
+func (x *UpdateWorkItemRequest) GetEstimateMinutes() int32 {
+	if x != nil && x.EstimateMinutes != nil {
+		return *x.EstimateMinutes
+	}
+	return 0
 }
 
 type UpdateWorkItemResponse struct {
@@ -2412,7 +2468,7 @@ var File_dev_v1_workitem_proto protoreflect.FileDescriptor
 
 const file_dev_v1_workitem_proto_rawDesc = "" +
 	"\n" +
-	"\x15dev/v1/workitem.proto\x12\x06dev.v1\x1a\x13dev/v1/common.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xef\a\n" +
+	"\x15dev/v1/workitem.proto\x12\x06dev.v1\x1a\x13dev/v1/common.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xda\b\n" +
 	"\bWorkItem\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
 	"\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x12\x10\n" +
@@ -2448,7 +2504,10 @@ const file_dev_v1_workitem_proto_rawDesc = "" +
 	"updated_at\x18\x18 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12;\n" +
 	"\vresolved_at\x18\x19 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"resolvedAt\x127\n" +
-	"\tclosed_at\x18\x1a \x01(\v2\x1a.google.protobuf.TimestampR\bclosedAt\"\x9b\x04\n" +
+	"\tclosed_at\x18\x1a \x01(\v2\x1a.google.protobuf.TimestampR\bclosedAt\x12\x1b\n" +
+	"\tsprint_id\x18\x1b \x01(\tR\bsprintId\x12!\n" +
+	"\fstory_points\x18\x1c \x01(\x05R\vstoryPoints\x12)\n" +
+	"\x10estimate_minutes\x18\x1d \x01(\x05R\x0festimateMinutes\"\x99\x05\n" +
 	"\x15CreateWorkItemRequest\x12.\n" +
 	"\aoptions\x18\x01 \x01(\v2\x14.dev.v1.WriteOptionsR\aoptions\x12\x1d\n" +
 	"\n" +
@@ -2466,14 +2525,18 @@ const file_dev_v1_workitem_proto_rawDesc = "" +
 	"\tparent_id\x18\v \x01(\tR\bparentId\x12!\n" +
 	"\fproject_code\x18\f \x01(\tR\vprojectCode\x12\x19\n" +
 	"\bwbs_code\x18\r \x01(\tR\awbsCode\x12!\n" +
-	"\fexternal_ref\x18\x0e \x01(\tR\vexternalRef\"G\n" +
+	"\fexternal_ref\x18\x0e \x01(\tR\vexternalRef\x12&\n" +
+	"\fstory_points\x18\x0f \x01(\x05H\x00R\vstoryPoints\x88\x01\x01\x12.\n" +
+	"\x10estimate_minutes\x18\x10 \x01(\x05H\x01R\x0festimateMinutes\x88\x01\x01B\x0f\n" +
+	"\r_story_pointsB\x13\n" +
+	"\x11_estimate_minutes\"G\n" +
 	"\x16CreateWorkItemResponse\x12-\n" +
 	"\twork_item\x18\x01 \x01(\v2\x10.dev.v1.WorkItemR\bworkItem\"6\n" +
 	"\x12GetWorkItemRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\"D\n" +
 	"\x13GetWorkItemResponse\x12-\n" +
-	"\twork_item\x18\x01 \x01(\v2\x10.dev.v1.WorkItemR\bworkItem\"\x9e\x05\n" +
+	"\twork_item\x18\x01 \x01(\v2\x10.dev.v1.WorkItemR\bworkItem\"\x9c\x06\n" +
 	"\x15UpdateWorkItemRequest\x12.\n" +
 	"\aoptions\x18\x01 \x01(\v2\x14.dev.v1.WriteOptionsR\aoptions\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x19\n" +
@@ -2487,7 +2550,10 @@ const file_dev_v1_workitem_proto_rawDesc = "" +
 	"\bwbs_code\x18\n" +
 	" \x01(\tH\aR\awbsCode\x88\x01\x01\x12&\n" +
 	"\fexternal_ref\x18\v \x01(\tH\bR\vexternalRef\x88\x01\x01\x12*\n" +
-	"\x0eblocked_reason\x18\f \x01(\tH\tR\rblockedReason\x88\x01\x01B\b\n" +
+	"\x0eblocked_reason\x18\f \x01(\tH\tR\rblockedReason\x88\x01\x01\x12&\n" +
+	"\fstory_points\x18\r \x01(\x05H\n" +
+	"R\vstoryPoints\x88\x01\x01\x12.\n" +
+	"\x10estimate_minutes\x18\x0e \x01(\x05H\vR\x0festimateMinutes\x88\x01\x01B\b\n" +
 	"\x06_titleB\x11\n" +
 	"\x0f_description_mdB\x16\n" +
 	"\x14_acceptance_criteriaB\v\n" +
@@ -2497,7 +2563,9 @@ const file_dev_v1_workitem_proto_rawDesc = "" +
 	"\r_project_codeB\v\n" +
 	"\t_wbs_codeB\x0f\n" +
 	"\r_external_refB\x11\n" +
-	"\x0f_blocked_reason\"G\n" +
+	"\x0f_blocked_reasonB\x0f\n" +
+	"\r_story_pointsB\x13\n" +
+	"\x11_estimate_minutes\"G\n" +
 	"\x16UpdateWorkItemResponse\x12-\n" +
 	"\twork_item\x18\x01 \x01(\v2\x10.dev.v1.WorkItemR\bworkItem\"\xd1\x01\n" +
 	"\x19TransitionWorkItemRequest\x12.\n" +
@@ -2817,6 +2885,7 @@ func file_dev_v1_workitem_proto_init() {
 		return
 	}
 	file_dev_v1_common_proto_init()
+	file_dev_v1_workitem_proto_msgTypes[1].OneofWrappers = []any{}
 	file_dev_v1_workitem_proto_msgTypes[5].OneofWrappers = []any{}
 	file_dev_v1_workitem_proto_msgTypes[9].OneofWrappers = []any{}
 	type x struct{}

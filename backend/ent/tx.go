@@ -12,6 +12,8 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// Board is the client for interacting with the Board builders.
+	Board *BoardClient
 	// Comment is the client for interacting with the Comment builders.
 	Comment *CommentClient
 	// IdempotencyKey is the client for interacting with the IdempotencyKey builders.
@@ -24,6 +26,12 @@ type Tx struct {
 	Product *ProductClient
 	// ProductCounter is the client for interacting with the ProductCounter builders.
 	ProductCounter *ProductCounterClient
+	// Sprint is the client for interacting with the Sprint builders.
+	Sprint *SprintClient
+	// SprintScopeEvent is the client for interacting with the SprintScopeEvent builders.
+	SprintScopeEvent *SprintScopeEventClient
+	// SprintSnapshot is the client for interacting with the SprintSnapshot builders.
+	SprintSnapshot *SprintSnapshotClient
 	// WorkItem is the client for interacting with the WorkItem builders.
 	WorkItem *WorkItemClient
 	// WorkItemEvent is the client for interacting with the WorkItemEvent builders.
@@ -161,12 +169,16 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.Board = NewBoardClient(tx.config)
 	tx.Comment = NewCommentClient(tx.config)
 	tx.IdempotencyKey = NewIdempotencyKeyClient(tx.config)
 	tx.InboxEvent = NewInboxEventClient(tx.config)
 	tx.OutboxEvent = NewOutboxEventClient(tx.config)
 	tx.Product = NewProductClient(tx.config)
 	tx.ProductCounter = NewProductCounterClient(tx.config)
+	tx.Sprint = NewSprintClient(tx.config)
+	tx.SprintScopeEvent = NewSprintScopeEventClient(tx.config)
+	tx.SprintSnapshot = NewSprintSnapshotClient(tx.config)
 	tx.WorkItem = NewWorkItemClient(tx.config)
 	tx.WorkItemEvent = NewWorkItemEventClient(tx.config)
 	tx.WorkItemLink = NewWorkItemLinkClient(tx.config)
@@ -179,7 +191,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: Comment.QueryXXX(), the query will be executed
+// applies a query, for example: Board.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.
