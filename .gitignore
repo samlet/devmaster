@@ -1,0 +1,17 @@
+/.workbuddy-ai/
+.DS_Store
+
+# Go
+/backend/bin/
+*.test
+*.out
+
+# Node / Next.js
+node_modules/
+.next/
+dist/
+
+# 本地配置与凭据（模板用 *.example.*）
+*.local.yaml
+*.env
+!*.env.example
