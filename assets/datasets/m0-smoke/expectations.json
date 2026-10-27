@@ -1,0 +1,7 @@
+{
+  "product_count": 2,
+  "products": [
+    { "key": "HOSP", "status": "ACTIVE" },
+    { "key": "FI", "status": "ACTIVE" }
+  ]
+}

@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package dev.v1;
+
+option go_package = "github.com/xiaofeiwu/devmaster/backend/gen/go/dev/v1;devv1";
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  map<string, string> components = 2;
+}
+
+// SystemService 只放运维面：健康检查与构建信息。
+// 业务 RPC 不进这里，避免"系统服务"变成杂物间。
+service SystemService {
+  rpc Health(HealthRequest) returns (HealthResponse);
+}

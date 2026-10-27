@@ -10,6 +10,7 @@
 node_modules/
 .next/
 dist/
+*.tsbuildinfo
 
 # 本地配置与凭据（模板用 *.example.*）
 *.local.yaml

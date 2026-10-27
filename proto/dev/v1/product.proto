@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package dev.v1;
+
+import "dev/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/xiaofeiwu/devmaster/backend/gen/go/dev/v1;devv1";
+
+enum ProductStatus {
+  PRODUCT_STATUS_UNSPECIFIED = 0;
+  PRODUCT_STATUS_ACTIVE = 1;
+  PRODUCT_STATUS_ARCHIVED = 2;
+}
+
+// Product 是被开发的软件（HOSP / FI / PPM），不是项目。
+// 项目结构与预算在 PPM，这里只做可空弱引用。
+message Product {
+  string id = 1;
+  string organization_id = 2;
+  string key = 3;
+  string name = 4;
+  string description = 5;
+  ProductStatus status = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message CreateProductRequest {
+  WriteOptions options = 1;
+  string key = 2;
+  string name = 3;
+  string description = 4;
+}
+
+message CreateProductResponse {
+  Product product = 1;
+}
+
+message GetProductRequest {
+  string id = 1;
+  // key 与 id 二选一；同时传时以 id 为准。
+  string key = 2;
+}
+
+message GetProductResponse {
+  Product product = 1;
+}
+
+message ListProductsRequest {
+  ProductStatus status = 1;
+  PageRequest page = 2;
+}
+
+message ListProductsResponse {
+  repeated Product products = 1;
+  PageResponse page = 2;
+}
+
+service ProductService {
+  rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse);
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
+}

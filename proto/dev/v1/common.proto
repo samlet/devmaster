@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package dev.v1;
+
+option go_package = "github.com/xiaofeiwu/devmaster/backend/gen/go/dev/v1;devv1";
+
+message PageRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message PageResponse {
+  int32 total_size = 1;
+  string next_page_token = 2;
+}
+
+// WriteOptions 是所有写 RPC 的公共参数。
+// idempotency_key 必填：同 key 重放返回同一结果，异 payload 返回 ABORTED。
+message WriteOptions {
+  string idempotency_key = 1;
+  int64 expected_version = 2;
+}
+
+message ErrorDetail {
+  string code = 1;
+  string message = 2;
+  bool retryable = 3;
+  repeated FieldViolation field_violations = 4;
+  string trace_id = 5;
+}
+
+message FieldViolation {
+  string field = 1;
+  string reason = 2;
+}
