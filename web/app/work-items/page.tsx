@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Nav } from "../nav";
 
 export const dynamic = "force-dynamic";
@@ -209,9 +210,13 @@ export default async function WorkItemsPage({
               <tbody>
                 {items.map((item) => (
                   <tr key={item.id}>
-                    <td className="key">{item.key}</td>
+                    <td className="key">
+                      <Link href={`/work-items/${item.key}`}>{item.key}</Link>
+                    </td>
                     <td className="muted">{TYPE_LABELS[item.type] ?? item.type}</td>
-                    <td>{item.title}</td>
+                    <td>
+                      <Link href={`/work-items/${item.key}`}>{item.title}</Link>
+                    </td>
                     <td>
                       <span className={`pill status-${item.status.toLowerCase()}`}>
                         {STATUS_LABELS[item.status] ?? item.status}
@@ -223,7 +228,7 @@ export default async function WorkItemsPage({
                     <td>
                       <details className="row-edit">
                         <summary>编辑</summary>
-                        <form className="edit-form" action={`/api/work-items/${item.id}`} method="post">
+                        <form className="edit-form" action={`/api/work-items/${item.key}`} method="post">
                           <input type="hidden" name="return_to" value={returnTo} />
                           <input type="hidden" name="expected_version" value={item.version} />
                           <input name="title" defaultValue={item.title} size={24} required />
@@ -243,7 +248,7 @@ export default async function WorkItemsPage({
                       ) : (
                         <form
                           className="transition-form"
-                          action={`/api/work-items/${item.id}/transition`}
+                          action={`/api/work-items/${item.key}/transition`}
                           method="post"
                         >
                           <input type="hidden" name="return_to" value={returnTo} />

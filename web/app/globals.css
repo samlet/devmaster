@@ -175,6 +175,140 @@ td.muted {
   min-width: 180px;
 }
 
+/* 工作项详情 */
+.detail-card {
+  padding: 16px;
+}
+
+.detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.detail-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.detail-meta dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.detail-meta dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+h2 {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 24px 0 8px;
+}
+
+h3 {
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0 0 6px;
+  color: var(--muted);
+}
+
+.comment-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.comment-list li {
+  border-left: 2px solid var(--border);
+  padding-left: 12px;
+}
+
+.comment-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+}
+
+.comment-body {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+
+.comment-form,
+.link-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comment-form textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.comment-form button,
+.link-form button {
+  align-self: flex-start;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--text);
+  border-radius: 6px;
+  background: var(--text);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.link-form {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.link-form select,
+.link-form input {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.link-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.link-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
 /* 新建/编辑折叠块：默认收起，空列表时新建自动展开。 */
 .create-work-item {
   padding: 12px 16px;

@@ -30,8 +30,70 @@ type fakeWorkItems struct {
 	calls2     []string
 	lastUpdate workitemapp.UpdateCommand
 	lastAssign workitemapp.AssignCommand
+	getErr     error
 	version    int
 	updateErr  error
+}
+
+// Get/GetByKey 返回固定的一条：单条路径现在用 key，handler 会先解析再写。
+func (f *fakeWorkItems) Get(_ context.Context, _ workitemapp.Actor, id uuid.UUID) (workitemdomain.WorkItem, error) {
+	return f.current()
+}
+
+func (f *fakeWorkItems) GetByKey(_ context.Context, _ workitemapp.Actor, key string) (workitemdomain.WorkItem, error) {
+	if f.getErr != nil {
+		return workitemdomain.WorkItem{}, f.getErr
+	}
+	item, err := f.current()
+	if err != nil {
+		return workitemdomain.WorkItem{}, err
+	}
+	item.Key = key
+	return item, nil
+}
+
+func (f *fakeWorkItems) current() (workitemdomain.WorkItem, error) {
+	if f.getErr != nil {
+		return workitemdomain.WorkItem{}, f.getErr
+	}
+	return workitemdomain.WorkItem{
+		ID: uuid.MustParse(testWorkItemID), Key: "DEMO-1",
+		Status: workitemdomain.StatusInProgress, Version: 3,
+	}, nil
+}
+
+func (f *fakeWorkItems) List(context.Context, workitemapp.Actor, workitemapp.ListFilter) ([]workitemdomain.WorkItem, int, error) {
+	return nil, 0, nil
+}
+
+func (f *fakeWorkItems) ListComments(context.Context, workitemapp.Actor, uuid.UUID) ([]workitemdomain.Comment, error) {
+	return nil, nil
+}
+
+func (f *fakeWorkItems) ListLinks(context.Context, workitemapp.Actor, uuid.UUID) ([]workitemdomain.Link, error) {
+	return nil, nil
+}
+
+func (f *fakeWorkItems) ListEvents(context.Context, workitemapp.Actor, uuid.UUID) ([]workitemapp.EventRecord, error) {
+	return nil, nil
+}
+
+func (f *fakeWorkItems) AddComment(_ context.Context, actor workitemapp.Actor, workItemID uuid.UUID, body string) (workitemdomain.Comment, error) {
+	f.calls2 = append(f.calls2, "comment")
+	if f.err != nil {
+		return workitemdomain.Comment{}, f.err
+	}
+	return workitemdomain.Comment{ID: uuid.New(), WorkItemID: workItemID, AuthorID: actor.Subject, BodyMD: body}, nil
+}
+
+func (f *fakeWorkItems) AddLink(context.Context, workitemapp.Actor, uuid.UUID, uuid.UUID, workitemdomain.LinkType) (workitemdomain.Link, error) {
+	f.calls2 = append(f.calls2, "link")
+	return workitemdomain.Link{}, f.err
+}
+
+func (f *fakeWorkItems) RemoveLink(context.Context, workitemapp.Actor, uuid.UUID, uuid.UUID, workitemdomain.LinkType) error {
+	f.calls2 = append(f.calls2, "unlink")
+	return f.err
 }
 
 func (f *fakeWorkItems) Create(_ context.Context, actor workitemapp.Actor, cmd workitemapp.CreateCommand) (workitemdomain.WorkItem, error) {
@@ -78,8 +140,10 @@ func (f *fakeWorkItems) Transition(_ context.Context, actor workitemapp.Actor, c
 	}, nil
 }
 
-func transitionServer(items WorkItemWriter) *Server {
+// fakeWorkItems 同时满足读端口与写端口：单条路径先用 key 解析（读），再写。
+func transitionServer(items *fakeWorkItems) *Server {
 	return &Server{
+		workItems:             items,
 		workItemsW:            items,
 		bffSecret:             testBFFSecret,
 		logger:                slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -95,7 +159,7 @@ func transitionRequest(t *testing.T, body map[string]any) *http.Request {
 	}
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	request := httptest.NewRequest(http.MethodPost, "/api/work-items/"+testWorkItemID+"/transition", bytes.NewReader(payload))
-	request.SetPathValue("id", testWorkItemID)
+	request.SetPathValue("key", "DEMO-1")
 	request.Header.Set("X-BFF-Timestamp", timestamp)
 	request.Header.Set("X-BFF-Signature", signBFF(testBFFSecret, timestamp, payload))
 	return request
@@ -230,7 +294,7 @@ func TestTransitionRejectsUnsignedRequest(t *testing.T) {
 
 	payload, _ := json.Marshal(validTransitionBody())
 	request := httptest.NewRequest(http.MethodPost, "/api/work-items/"+testWorkItemID+"/transition", bytes.NewReader(payload))
-	request.SetPathValue("id", testWorkItemID)
+	request.SetPathValue("key", "DEMO-1")
 
 	recorder := httptest.NewRecorder()
 	server.handleTransitionWorkItem(recorder, request)
@@ -247,7 +311,7 @@ func TestTransitionRejectsNonPost(t *testing.T) {
 	server := transitionServer(&fakeWorkItems{})
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/api/work-items/"+testWorkItemID+"/transition", nil)
-	request.SetPathValue("id", testWorkItemID)
+	request.SetPathValue("key", "DEMO-1")
 	server.handleTransitionWorkItem(recorder, request)
 	if recorder.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status=%d", recorder.Code)
@@ -334,7 +398,7 @@ func patchRequest(t *testing.T, body map[string]any) *http.Request {
 	}
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	request := httptest.NewRequest(http.MethodPatch, "/api/work-items/"+testWorkItemID, bytes.NewReader(payload))
-	request.SetPathValue("id", testWorkItemID)
+	request.SetPathValue("key", "DEMO-1")
 	request.Header.Set("X-BFF-Timestamp", timestamp)
 	request.Header.Set("X-BFF-Signature", signBFF(testBFFSecret, timestamp, payload))
 	return request
@@ -419,5 +483,137 @@ func TestUpdateWorkItemRejectsMissingVersion(t *testing.T) {
 	}
 	if len(items.calls2) != 0 {
 		t.Fatal("service was called without expected_version")
+	}
+}
+
+func detailRequest(t *testing.T, key string) *http.Request {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodGet, "/api/work-items/"+key, nil)
+	request.SetPathValue("key", key)
+	return request
+}
+
+// 详情一次返回四块内容：拆分会让页面变慢、错误态变多。
+func TestWorkItemDetailReturnsEverything(t *testing.T) {
+	items := &fakeWorkItems{}
+	server := transitionServer(items)
+
+	recorder := httptest.NewRecorder()
+	server.handleWorkItemDetail(recorder, detailRequest(t, "DEMO-1"))
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Item     map[string]any   `json:"item"`
+		Comments []map[string]any `json:"comments"`
+		Links    map[string]any   `json:"links"`
+		Events   []map[string]any `json:"events"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if response.Item["key"] != "DEMO-1" {
+		t.Fatalf("item=%v", response.Item)
+	}
+	// 即使为空也要是数组/对象，不能是 null——前端少一层判空。
+	if response.Comments == nil || response.Links == nil || response.Events == nil {
+		t.Fatalf("empty collections must be [], got %+v", response)
+	}
+}
+
+func TestWorkItemDetailMapsNotFound(t *testing.T) {
+	items := &fakeWorkItems{getErr: apperr.NotFound("work item not found")}
+	server := transitionServer(items)
+
+	recorder := httptest.NewRecorder()
+	server.handleWorkItemDetail(recorder, detailRequest(t, "NOPE-1"))
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("status=%d", recorder.Code)
+	}
+}
+
+func signedPost(t *testing.T, path string, body map[string]any, setKey bool) *http.Request {
+	t.Helper()
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	request := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(payload))
+	if setKey {
+		request.SetPathValue("key", "DEMO-1")
+	}
+	request.Header.Set("X-BFF-Timestamp", timestamp)
+	request.Header.Set("X-BFF-Signature", signBFF(testBFFSecret, timestamp, payload))
+	return request
+}
+
+func TestAddCommentCreatesComment(t *testing.T) {
+	items := &fakeWorkItems{}
+	server := transitionServer(items)
+
+	recorder := httptest.NewRecorder()
+	server.handleAddComment(recorder, signedPost(t, "/api/work-items/DEMO-1/comments",
+		map[string]any{"body_md": "看起来是缓存问题", "actor": "alice"}, true))
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		AuthorID string `json:"author_id"`
+		BodyMD   string `json:"body_md"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if response.AuthorID != "alice" || response.BodyMD != "看起来是缓存问题" {
+		t.Fatalf("response=%+v", response)
+	}
+}
+
+func TestAddCommentRejectsEmptyBody(t *testing.T) {
+	items := &fakeWorkItems{err: apperr.Invalid("body_md", "must not be empty")}
+	server := transitionServer(items)
+
+	recorder := httptest.NewRecorder()
+	server.handleAddComment(recorder, signedPost(t, "/api/work-items/DEMO-1/comments",
+		map[string]any{"body_md": "  ", "actor": "alice"}, true))
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d", recorder.Code)
+	}
+}
+
+func TestAddLinkRejectsUnknownType(t *testing.T) {
+	items := &fakeWorkItems{}
+	server := transitionServer(items)
+
+	recorder := httptest.NewRecorder()
+	server.handleAddLink(recorder, signedPost(t, "/api/work-items/DEMO-1/links",
+		map[string]any{"target_key": "DEMO-2", "type": "NOPE", "actor": "alice"}, true))
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if len(items.calls2) != 0 {
+		t.Fatal("service was called with an unknown link type")
+	}
+}
+
+func TestAddLinkCreatesLink(t *testing.T) {
+	items := &fakeWorkItems{}
+	server := transitionServer(items)
+
+	recorder := httptest.NewRecorder()
+	server.handleAddLink(recorder, signedPost(t, "/api/work-items/DEMO-1/links",
+		map[string]any{"target_key": "DEMO-2", "type": "BLOCKED_BY", "actor": "alice"}, true))
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if len(items.calls2) != 1 || items.calls2[0] != "link" {
+		t.Fatalf("calls=%v", items.calls2)
 	}
 }

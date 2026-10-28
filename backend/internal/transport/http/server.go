@@ -46,6 +46,11 @@ type ProductReader interface {
 
 type WorkItemReader interface {
 	List(ctx context.Context, actor workitemapplication.Actor, filter workitemapplication.ListFilter) ([]workitemdomain.WorkItem, int, error)
+	Get(ctx context.Context, actor workitemapplication.Actor, id uuid.UUID) (workitemdomain.WorkItem, error)
+	GetByKey(ctx context.Context, actor workitemapplication.Actor, key string) (workitemdomain.WorkItem, error)
+	ListComments(ctx context.Context, actor workitemapplication.Actor, workItemID uuid.UUID) ([]workitemdomain.Comment, error)
+	ListLinks(ctx context.Context, actor workitemapplication.Actor, workItemID uuid.UUID) ([]workitemdomain.Link, error)
+	ListEvents(ctx context.Context, actor workitemapplication.Actor, workItemID uuid.UUID) ([]workitemapplication.EventRecord, error)
 }
 
 // WorkItemWriter 是工作项的写端口：创建、编辑、指派、流转。
@@ -54,6 +59,9 @@ type WorkItemWriter interface {
 	Update(ctx context.Context, actor workitemapplication.Actor, cmd workitemapplication.UpdateCommand) (workitemdomain.WorkItem, error)
 	Assign(ctx context.Context, actor workitemapplication.Actor, cmd workitemapplication.AssignCommand) (workitemdomain.WorkItem, error)
 	Transition(ctx context.Context, actor workitemapplication.Actor, cmd workitemapplication.TransitionCommand) (workitemdomain.WorkItem, error)
+	AddComment(ctx context.Context, actor workitemapplication.Actor, workItemID uuid.UUID, body string) (workitemdomain.Comment, error)
+	AddLink(ctx context.Context, actor workitemapplication.Actor, fromID, toID uuid.UUID, linkType workitemdomain.LinkType) (workitemdomain.Link, error)
+	RemoveLink(ctx context.Context, actor workitemapplication.Actor, fromID, toID uuid.UUID, linkType workitemdomain.LinkType) error
 }
 
 type SprintReader interface {
@@ -151,8 +159,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/products", s.handleProducts)
 	mux.HandleFunc("/api/work-items", s.handleWorkItems)
 	mux.HandleFunc("POST /api/work-items", s.handleCreateWorkItem)
-	mux.HandleFunc("PATCH /api/work-items/{id}", s.handleUpdateWorkItem)
-	mux.HandleFunc("/api/work-items/{id}/transition", s.handleTransitionWorkItem)
+	mux.HandleFunc("GET /api/work-items/{key}", s.handleWorkItemDetail)
+	mux.HandleFunc("PATCH /api/work-items/{key}", s.handleUpdateWorkItem)
+	mux.HandleFunc("POST /api/work-items/{key}/comments", s.handleAddComment)
+	mux.HandleFunc("POST /api/work-items/{key}/links", s.handleAddLink)
+	mux.HandleFunc("DELETE /api/work-items/{key}/links", s.handleRemoveLink)
+	mux.HandleFunc("/api/work-items/{key}/transition", s.handleTransitionWorkItem)
 	mux.HandleFunc("/api/sprints", s.handleSprints)
 	mux.HandleFunc("/api/board", s.handleBoard)
 	mux.HandleFunc("/api/versions", s.handleVersions)
@@ -1000,11 +1012,6 @@ func (s *Server) handleUpdateWorkItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
 		return
 	}
-	workItemID, err := uuid.Parse(strings.TrimSpace(r.PathValue("id")))
-	if err != nil {
-		http.Error(w, "work item id must be a valid UUID", http.StatusBadRequest)
-		return
-	}
 	var payload struct {
 		// 指针：新建的工作项版本就是 0，用 int 无法区分「没传」和「传了 0」。
 		ExpectedVersion *int    `json:"expected_version"`
@@ -1028,12 +1035,12 @@ func (s *Server) handleUpdateWorkItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "expected_version is required", http.StatusBadRequest)
 		return
 	}
-	organizationID, err := s.organizationFrom(r)
+	existing, actorRef, err := s.workItemByKey(r, actor)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.writeAppError(w, "resolve work item failed", err)
 		return
 	}
-	actorRef := workitemapplication.Actor{Subject: actor, OrganizationID: organizationID}
+	workItemID := existing.ID
 
 	fields := workitemdomain.UpdateFields{}
 	if payload.Title != nil {
@@ -1086,6 +1093,278 @@ func (s *Server) handleUpdateWorkItem(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleWorkItemDetail 一次返回详情页需要的全部内容。
+//
+// 不做「先拿 item 再分别拿评论/关联/事件」的四次往返：详情页必然都要，
+// 拆开只会让页面变慢、错误态变多。代价是单个 handler 稍长，值得。
+func (s *Server) handleWorkItemDetail(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	actor := workitemapplication.Actor{Subject: "http-readonly", OrganizationID: organizationID}
+	key := strings.TrimSpace(r.PathValue("key"))
+	item, err := s.workItems.GetByKey(r.Context(), actor, key)
+	if err != nil {
+		s.writeAppError(w, "get work item failed", err)
+		return
+	}
+	comments, err := s.workItems.ListComments(r.Context(), actor, item.ID)
+	if err != nil {
+		s.writeAppError(w, "list comments failed", err)
+		return
+	}
+	links, err := s.workItems.ListLinks(r.Context(), actor, item.ID)
+	if err != nil {
+		s.writeAppError(w, "list links failed", err)
+		return
+	}
+	events, err := s.workItems.ListEvents(r.Context(), actor, item.ID)
+	if err != nil {
+		s.writeAppError(w, "list events failed", err)
+		return
+	}
+
+	commentViews := make([]map[string]any, 0, len(comments))
+	for _, comment := range comments {
+		commentViews = append(commentViews, map[string]any{
+			"id":         comment.ID.String(),
+			"author_id":  comment.AuthorID,
+			"body_md":    comment.BodyMD,
+			"created_at": comment.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	// 关联分出入向，并补上另一端的 key/标题/状态——只给 UUID 的列表没法读。
+	outgoing := make([]map[string]any, 0, len(links))
+	incoming := make([]map[string]any, 0, len(links))
+	for _, link := range links {
+		otherID := link.ToID
+		direction := "outgoing"
+		if link.ToID == item.ID {
+			otherID = link.FromID
+			direction = "incoming"
+		}
+		other, getErr := s.workItems.Get(r.Context(), actor, otherID)
+		if getErr != nil {
+			continue
+		}
+		entry := map[string]any{
+			"type":         string(link.Type),
+			"other_id":     other.ID.String(),
+			"other_key":    other.Key,
+			"other_title":  other.Title,
+			"other_status": string(other.Status),
+		}
+		if direction == "outgoing" {
+			outgoing = append(outgoing, entry)
+		} else {
+			incoming = append(incoming, entry)
+		}
+	}
+	eventViews := make([]map[string]any, 0, len(events))
+	for _, event := range events {
+		entry := map[string]any{
+			"event_type":  event.EventType,
+			"actor_id":    event.ActorID,
+			"occurred_at": event.OccurredAt.Format(time.RFC3339),
+			"payload":     event.Payload,
+		}
+		if event.FromStatus != nil {
+			entry["from_status"] = string(*event.FromStatus)
+		}
+		if event.ToStatus != nil {
+			entry["to_status"] = string(*event.ToStatus)
+		}
+		eventViews = append(eventViews, entry)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"item":     workItemToView(item),
+		"comments": commentViews,
+		"links":    map[string]any{"outgoing": outgoing, "incoming": incoming},
+		"events":   eventViews,
+	})
+}
+
+// handleAddComment 追加一条评论。
+func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 64<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	var payload struct {
+		BodyMD string `json:"body_md"`
+		Actor  string `json:"actor"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(payload.Actor)
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	item, actorRef, err := s.workItemByKey(r, actor)
+	if err != nil {
+		s.writeAppError(w, "resolve work item failed", err)
+		return
+	}
+	comment, err := s.workItemsW.AddComment(r.Context(), actorRef, item.ID, payload.BodyMD)
+	if err != nil {
+		s.writeAppError(w, "add comment failed", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id":         comment.ID.String(),
+		"author_id":  comment.AuthorID,
+		"body_md":    comment.BodyMD,
+		"created_at": comment.CreatedAt.Format(time.RFC3339),
+	})
+}
+
+// handleAddLink 建一条关联。目标用 key 指定，便于人直接填。
+func (s *Server) handleAddLink(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 32<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	var payload struct {
+		TargetKey string `json:"target_key"`
+		Type      string `json:"type"`
+		Actor     string `json:"actor"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(payload.Actor)
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	linkType, err := workitemdomain.ParseLinkType(payload.Type)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	source, actorRef, err := s.workItemByKey(r, actor)
+	if err != nil {
+		s.writeAppError(w, "resolve work item failed", err)
+		return
+	}
+	target, err := s.workItems.GetByKey(r.Context(), actorRef, strings.TrimSpace(payload.TargetKey))
+	if err != nil {
+		s.writeAppError(w, "resolve target work item failed", err)
+		return
+	}
+	if _, err := s.workItemsW.AddLink(r.Context(), actorRef, source.ID, target.ID, linkType); err != nil {
+		s.writeAppError(w, "add link failed", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+// handleRemoveLink 删一条关联。用 query 参数传目标与类型（DELETE 带 body 不通用）。
+func (s *Server) handleRemoveLink(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.validBFFSignature(r, nil) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	actor := strings.TrimSpace(r.URL.Query().Get("actor"))
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	linkType, err := workitemdomain.ParseLinkType(r.URL.Query().Get("type"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	source, actorRef, err := s.workItemByKey(r, actor)
+	if err != nil {
+		s.writeAppError(w, "resolve work item failed", err)
+		return
+	}
+	target, err := s.workItems.GetByKey(r.Context(), actorRef, strings.TrimSpace(r.URL.Query().Get("target_key")))
+	if err != nil {
+		s.writeAppError(w, "resolve target work item failed", err)
+		return
+	}
+	if err := s.workItemsW.RemoveLink(r.Context(), actorRef, source.ID, target.ID, linkType); err != nil {
+		s.writeAppError(w, "remove link failed", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+// workItemByKey 把路径里的 key 解析成工作项与 actor。
+// 单条路径统一用 key：URL 可读，内部再换成 UUID 去调领域服务。
+func (s *Server) workItemByKey(r *http.Request, actor string) (workitemdomain.WorkItem, workitemapplication.Actor, error) {
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		return workitemdomain.WorkItem{}, workitemapplication.Actor{}, err
+	}
+	actorRef := workitemapplication.Actor{Subject: actor, OrganizationID: organizationID}
+	item, err := s.workItems.GetByKey(r.Context(), actorRef, strings.TrimSpace(r.PathValue("key")))
+	if err != nil {
+		return workitemdomain.WorkItem{}, workitemapplication.Actor{}, err
+	}
+	return item, actorRef, nil
+}
+
+// workItemToView 把领域对象转成控制台视图（列表与详情共用）。
+func workItemToView(item workitemdomain.WorkItem) workItemView {
+	return workItemView{
+		ID:           item.ID.String(),
+		Key:          item.Key,
+		ProductID:    item.ProductID.String(),
+		Type:         string(item.Type),
+		Status:       string(item.Status),
+		Resolution:   resolutionOrEmpty(item.Resolution),
+		Title:        item.Title,
+		Priority:     priorityLabel(item.Priority),
+		AssigneeID:   stringOrEmpty(item.AssigneeID),
+		ReporterID:   item.ReporterID,
+		Version:      int32(item.Version),
+		UpdatedAt:    item.UpdatedAt.Format(time.RFC3339),
+		NextStatuses: statusNames(workitemdomain.AllowedTransitions(item.Type, item.Status)),
+	}
+}
+
 // handleTransitionWorkItem 是控制台的第二个写端点：工作项状态流转。
 //
 // 与提交发布同一条 BFF 签名通道。actor 与角色放在 body 里而不是 header：
@@ -1102,11 +1381,6 @@ func (s *Server) handleTransitionWorkItem(w http.ResponseWriter, r *http.Request
 	}
 	if !s.validBFFSignature(r, body) {
 		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
-		return
-	}
-	workItemID, err := uuid.Parse(strings.TrimSpace(r.PathValue("id")))
-	if err != nil {
-		http.Error(w, "work item id must be a valid UUID", http.StatusBadRequest)
 		return
 	}
 	var payload struct {
@@ -1136,7 +1410,6 @@ func (s *Server) handleTransitionWorkItem(w http.ResponseWriter, r *http.Request
 		return
 	}
 	cmd := workitemapplication.TransitionCommand{
-		WorkItemID:      workItemID,
 		To:              to,
 		Comment:         strings.TrimSpace(payload.Comment),
 		ExpectedVersion: *payload.ExpectedVersion,
@@ -1149,22 +1422,20 @@ func (s *Server) handleTransitionWorkItem(w http.ResponseWriter, r *http.Request
 		}
 		cmd.Resolution = &resolution
 	}
-	organizationID, err := s.organizationFrom(r)
+	existing, actorRef, err := s.workItemByKey(r, actor)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.writeAppError(w, "resolve work item failed", err)
 		return
 	}
-	item, err := s.workItemsW.Transition(r.Context(), workitemapplication.Actor{
-		Subject:        actor,
-		OrganizationID: organizationID,
-		Roles:          payload.ActorRoles,
-	}, cmd)
+	actorRef.Roles = payload.ActorRoles
+	cmd.WorkItemID = existing.ID
+	item, err := s.workItemsW.Transition(r.Context(), actorRef, cmd)
 	if err != nil {
 		s.writeAppError(w, "transition work item failed", err)
 		return
 	}
 	s.logger.Info("work item transitioned via console",
-		slog.String("work_item_id", workItemID.String()),
+		slog.String("work_item_id", item.ID.String()),
 		slog.String("to", string(item.Status)),
 		slog.String("actor", actor))
 	w.Header().Set("Content-Type", "application/json")

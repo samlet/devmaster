@@ -19,3 +19,4 @@ backend/configs/local.yaml
 !*.env.example
 .env.local
 web/.env.local
+/.idea/

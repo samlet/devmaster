@@ -17,8 +17,8 @@ function backTo(returnTo: string, key: "error" | "updated", value: string) {
   redirect(`${base}${separator}${key}=${encodeURIComponent(value)}`);
 }
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const { id } = await context.params;
+export async function POST(request: Request, context: { params: Promise<{ key: string }> }) {
+  const { key } = await context.params;
   const form = await request.formData();
   const returnTo = String(form.get("return_to") ?? "/work-items").trim();
   const expectedVersion = Number(form.get("expected_version") ?? "0");
@@ -49,7 +49,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   let failure = "";
   try {
-    const response = await signedFetch(`/api/work-items/${encodeURIComponent(id)}`, {
+    const response = await signedFetch(`/api/work-items/${encodeURIComponent(key)}`, {
       method: "PATCH",
       body,
     });
