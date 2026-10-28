@@ -71,7 +71,7 @@ export default async function VersionsPage({
       <header className="page">
         <h1>版本</h1>
         <span className="hint">
-          <a href="/">产品</a> · <a href="/work-items">工作项</a> · <a href="/board">看板</a> · devmaster
+          <a href="/">产品</a> · <a href="/work-items">工作项</a> · <a href="/board">看板</a> · <a href="/reports">报表</a> · devmaster
         </span>
       </header>
 

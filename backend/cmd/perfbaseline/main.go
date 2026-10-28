@@ -160,6 +160,12 @@ func clean(ctx context.Context, ownerDSN string, org uuid.UUID) error {
 		return err
 	}
 	defer owner.Close()
+	// owner 也受 FORCE RLS 约束：不设组织上下文，DELETE 会静默 0 行，
+	// 随后删工作项时被外键挡住，造数就会残留。
+	if _, err := owner.ExecContext(ctx,
+		`SELECT set_config('app.organization_id', $1, false)`, org.String()); err != nil {
+		return err
+	}
 	if _, err := owner.ExecContext(ctx, `ALTER TABLE work_item_events DISABLE TRIGGER work_item_events_no_update`); err != nil {
 		return err
 	}
