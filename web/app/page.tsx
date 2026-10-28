@@ -31,7 +31,12 @@ async function loadProducts(): Promise<{ data?: ProductList; error?: string }> {
   }
 }
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; created?: string }>;
+}) {
+  const params = await searchParams;
   const { data, error } = await loadProducts();
   const items = data?.items ?? [];
 
@@ -42,16 +47,39 @@ export default async function Page() {
         <Nav />
       </header>
 
+      {params.error ? <p className="error">操作失败：{params.error}</p> : null}
+      {params.created ? <p className="ok">已创建产品「{params.created}」。</p> : null}
+
       {error ? (
         <p className="error">
           读取产品失败：{error}
           <br />
           请确认后端已启动（<code>make run</code>，HTTP 8291）。
         </p>
-      ) : (
+      ) : null}
+
+      <details className="card create-work-item" open={items.length === 0}>
+          <summary>新建产品</summary>
+          <form className="create-form" action="/api/products" method="post">
+            <label>
+              Key
+              <input name="key" placeholder="PAY" required size={8} />
+            </label>
+            <label>
+              名称
+              <input name="name" placeholder="支付平台" required size={16} />
+            </label>
+            <label>
+              描述
+              <input name="description" placeholder="一句话说明这个产品做什么" size={28} />
+            </label>
+            <button type="submit">创建</button>
+          </form>
+        </details>
+
         <div className="card">
           {items.length === 0 ? (
-            <div className="empty">还没有产品。用 gRPC 创建一个，或导入走查数据包。</div>
+            <div className="empty">还没有产品。用上面的表单建一个，再在版本页建第一个版本。</div>
           ) : (
             <table>
               <thead>
@@ -81,10 +109,9 @@ export default async function Page() {
             </table>
           )}
         </div>
-      )}
 
       <footer className="page">
-        <span>只读控制台 · M0 骨架</span>
+        <span>产品 · 版本与冲刺的起点</span>
         <span>{data ? `共 ${data.total} 个产品` : ""}</span>
       </footer>
     </main>

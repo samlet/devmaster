@@ -46,6 +46,11 @@ type ProductReader interface {
 	List(ctx context.Context, actor application.Actor, filter application.ListFilter) ([]domain.Product, int, error)
 }
 
+// ProductWriter 是产品的写端口。产品是低频对象，只开放创建。
+type ProductWriter interface {
+	Create(ctx context.Context, actor application.Actor, cmd application.CreateCommand) (domain.Product, error)
+}
+
 type WorkItemReader interface {
 	List(ctx context.Context, actor workitemapplication.Actor, filter workitemapplication.ListFilter) ([]workitemdomain.WorkItem, int, error)
 	Get(ctx context.Context, actor workitemapplication.Actor, id uuid.UUID) (workitemdomain.WorkItem, error)
@@ -90,6 +95,12 @@ type VersionReader interface {
 	List(ctx context.Context, actor versionapp.Actor, productID uuid.UUID) ([]versiondomain.Version, error)
 }
 
+// VersionWriter 是版本的写端口：创建与挂工作项。
+type VersionWriter interface {
+	Create(ctx context.Context, actor versionapp.Actor, cmd versionapp.CreateCommand) (versiondomain.Version, error)
+	AssignItems(ctx context.Context, actor versionapp.Actor, versionID uuid.UUID, itemIDs []uuid.UUID) (int, error)
+}
+
 // ReleaseSubmitter 是提交发布的写端口。
 type ReleaseSubmitter interface {
 	SubmitRelease(ctx context.Context, actor versionapp.Actor, cmd versionapp.SubmitReleaseCommand) (versiondomain.ReleaseRecord, error)
@@ -114,6 +125,8 @@ type SubjectResolver interface {
 // 打包传参，以后加控制台能力不必再改构造器签名。
 type ConsoleDeps struct {
 	Releases  ReleaseSubmitter
+	Products  ProductWriter
+	Versions  VersionWriter
 	Sprints   SprintWriter
 	WorkItems WorkItemWriter
 	WorkLogs  WorkLogStore
@@ -144,6 +157,8 @@ type Server struct {
 	workItemsW  WorkItemWriter
 	workLogs    WorkLogStore
 	sprintsW    SprintWriter
+	productsW   ProductWriter
+	versionsW   VersionWriter
 	subjects    SubjectResolver
 	bffSecret   string
 	reports     ReportReader
@@ -169,6 +184,8 @@ func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintR
 		workItemsW:            console.WorkItems,
 		workLogs:              console.WorkLogs,
 		sprintsW:              console.Sprints,
+		productsW:             console.Products,
+		versionsW:             console.Versions,
 		subjects:              console.Subjects,
 		bffSecret:             console.BFFSecret,
 		reports:               reports,
@@ -204,6 +221,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/sprints/{id}/burndown", s.handleSprintBurndown)
 	mux.HandleFunc("/api/board", s.handleBoard)
 	mux.HandleFunc("/api/versions", s.handleVersions)
+	mux.HandleFunc("POST /api/products", s.handleCreateProduct)
+	mux.HandleFunc("POST /api/versions", s.handleCreateVersion)
+	mux.HandleFunc("POST /api/versions/{id}/items", s.handleAssignVersionItems)
 	mux.HandleFunc("/api/releases", s.handleSubmitRelease)
 	mux.HandleFunc("/api/worklogs", s.handleWorkLogs)
 	mux.HandleFunc("POST /api/worklogs/{id}/reverse", s.handleReverseWorkLog)
@@ -224,6 +244,213 @@ type productView struct {
 	Status      string `json:"status"`
 	CreatedAt   string `json:"created_at"`
 	UpdatedAt   string `json:"updated_at"`
+}
+
+// handleCreateProduct 建产品。产品是低频对象，只开放创建，不做改删。
+func (s *Server) handleCreateProduct(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 32<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	var payload struct {
+		Key         string `json:"key"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Actor       string `json:"actor"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(payload.Actor)
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	product, err := s.productsW.Create(r.Context(), application.Actor{
+		Subject: actor, OrganizationID: organizationID,
+	}, application.CreateCommand{
+		Key:         strings.TrimSpace(payload.Key),
+		Name:        strings.TrimSpace(payload.Name),
+		Description: strings.TrimSpace(payload.Description),
+	})
+	if err != nil {
+		// 产品 key 唯一：重复时给一句人话，而不是 internal error。
+		if strings.Contains(err.Error(), "products_key_key") || strings.Contains(err.Error(), "duplicate key") {
+			http.Error(w, "产品 key 已存在，换一个", http.StatusConflict)
+			return
+		}
+		s.writeAppError(w, "create product failed", err)
+		return
+	}
+	s.logger.Info("product created via console",
+		slog.String("product_id", product.ID.String()),
+		slog.String("key", product.Key), slog.String("actor", actor))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id":   product.ID.String(),
+		"key":  product.Key,
+		"name": product.Name,
+	})
+}
+
+// handleCreateVersion 建版本。名称在产品内唯一。
+func (s *Server) handleCreateVersion(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 32<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	var payload struct {
+		ProductID      string `json:"product_id"`
+		Name           string `json:"name"`
+		MilestoneLabel string `json:"milestone_label"`
+		PlannedDate    string `json:"planned_date"`
+		Actor          string `json:"actor"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(payload.Actor)
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	productID, err := uuid.Parse(strings.TrimSpace(payload.ProductID))
+	if err != nil {
+		http.Error(w, "product_id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	cmd := versionapp.CreateCommand{
+		ProductID: productID,
+		Name:      strings.TrimSpace(payload.Name),
+	}
+	if label := strings.TrimSpace(payload.MilestoneLabel); label != "" {
+		cmd.MilestoneLabel = &label
+	}
+	if raw := strings.TrimSpace(payload.PlannedDate); raw != "" {
+		parsed, parseErr := time.Parse("2006-01-02", raw)
+		if parseErr != nil {
+			http.Error(w, "planned_date must be YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+		cmd.PlannedDate = &parsed
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	version, err := s.versionsW.Create(r.Context(), versionapp.Actor{
+		Subject: actor, OrganizationID: organizationID,
+	}, cmd)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "versions_") {
+			http.Error(w, "该产品下已存在同名版本", http.StatusConflict)
+			return
+		}
+		s.writeAppError(w, "create version failed", err)
+		return
+	}
+	s.logger.Info("version created via console",
+		slog.String("version_id", version.ID.String()),
+		slog.String("name", version.Name), slog.String("actor", actor))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id":      version.ID.String(),
+		"name":    version.Name,
+		"status":  string(version.Status),
+		"version": int32(version.Version),
+	})
+}
+
+// handleAssignVersionItems 把工作项挂到版本。用 key 而不是 UUID。
+func (s *Server) handleAssignVersionItems(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 32*1024))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	versionID, err := uuid.Parse(strings.TrimSpace(r.PathValue("id")))
+	if err != nil {
+		http.Error(w, "version id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	var payload struct {
+		ItemKeys []string `json:"item_keys"`
+		Actor    string   `json:"actor"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(payload.Actor)
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	workItemActor := workitemapplication.Actor{Subject: actor, OrganizationID: organizationID}
+	ids, missingKey := s.sprintItemKeys(r, workItemActor, payload.ItemKeys)
+	if missingKey != "" {
+		http.Error(w, "work item not found: "+missingKey, http.StatusNotFound)
+		return
+	}
+	if len(ids) == 0 {
+		http.Error(w, "item_keys is required", http.StatusBadRequest)
+		return
+	}
+	affected, err := s.versionsW.AssignItems(r.Context(), versionapp.Actor{
+		Subject: actor, OrganizationID: organizationID,
+	}, versionID, ids)
+	if err != nil {
+		// 版本范围冻结后不能再挂项：这是发布链的关键约束。
+		if strings.Contains(err.Error(), "frozen") {
+			http.Error(w, "版本范围已冻结（已提交过发布），不能再挂工作项", http.StatusConflict)
+			return
+		}
+		s.writeAppError(w, "assign version items failed", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"affected": affected})
 }
 
 func (s *Server) handleProducts(w http.ResponseWriter, r *http.Request) {

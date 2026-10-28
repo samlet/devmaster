@@ -39,7 +39,13 @@ async function getJSON<T>(path: string): Promise<{ data?: T; error?: string }> {
 export default async function VersionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ product_id?: string; error?: string; submitted?: string }>;
+  searchParams: Promise<{
+    product_id?: string;
+    error?: string;
+    submitted?: string;
+    created?: string;
+    assigned?: string;
+  }>;
 }) {
   const params = await searchParams;
   const productsResult = await getJSON<{ items: Product[] }>("/api/products");
@@ -90,8 +96,30 @@ export default async function VersionsPage({
         <button type="submit">切换</button>
       </form>
 
-      {params.error ? <p className="error">提交失败：{params.error}</p> : null}
+      {params.error ? <p className="error">操作失败：{params.error}</p> : null}
+      {params.created ? <p className="ok">已创建版本「{params.created}」。</p> : null}
+      {params.assigned ? <p className="ok">已挂入 {params.assigned}。</p> : null}
       {params.submitted ? <p className="ok">已提交发布，等待审批。审批通过后会自动打 tag、存证并发布。</p> : null}
+
+      <details className="card create-work-item" open={versions.length === 0}>
+        <summary>新建版本</summary>
+        <form className="create-form" action="/api/versions" method="post">
+          <input type="hidden" name="product_id" value={productID} />
+          <label>
+            版本号
+            <input name="name" placeholder="2.0.0" required size={10} />
+          </label>
+          <label>
+            里程碑
+            <input name="milestone_label" placeholder="M7" size={8} />
+          </label>
+          <label>
+            计划日期
+            <input name="planned_date" type="date" />
+          </label>
+          <button type="submit">创建</button>
+        </form>
+      </details>
 
       {releasable.length > 0 ? (
         <form className="card release-form" action="/api/releases" method="post">
@@ -150,7 +178,23 @@ export default async function VersionsPage({
                     <td className="muted">
                       {version.released_at ? new Date(version.released_at).toLocaleString("zh-CN") : "—"}
                     </td>
-                    <td className="muted">{version.scope_frozen ? "已冻结" : "可调整"}</td>
+                    <td className="muted">
+                      {version.scope_frozen ? "已冻结" : "可调整"}
+                      {version.scope_frozen ? null : (
+                        <details className="row-edit">
+                          <summary>挂项</summary>
+                          <form
+                            className="edit-form"
+                            action={`/api/versions/${version.id}/items`}
+                            method="post"
+                          >
+                            <input type="hidden" name="product_id" value={productID} />
+                            <input name="item_keys" placeholder="HOSP-3, HOSP-5" size={16} />
+                            <button type="submit">挂入</button>
+                          </form>
+                        </details>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
