@@ -30,6 +30,9 @@ type ProductCounter func(*sql.Selector)
 // ReleaseRecord is the predicate function for releaserecord builders.
 type ReleaseRecord func(*sql.Selector)
 
+// RepoSyncCursor is the predicate function for reposynccursor builders.
+type RepoSyncCursor func(*sql.Selector)
+
 // Sprint is the predicate function for sprint builders.
 type Sprint func(*sql.Selector)
 
@@ -45,8 +48,14 @@ type Version func(*sql.Selector)
 // WorkItem is the predicate function for workitem builders.
 type WorkItem func(*sql.Selector)
 
+// WorkItemCommit is the predicate function for workitemcommit builders.
+type WorkItemCommit func(*sql.Selector)
+
 // WorkItemEvent is the predicate function for workitemevent builders.
 type WorkItemEvent func(*sql.Selector)
 
 // WorkItemLink is the predicate function for workitemlink builders.
 type WorkItemLink func(*sql.Selector)
+
+// WorkLog is the predicate function for worklog builders.
+type WorkLog func(*sql.Selector)

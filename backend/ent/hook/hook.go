@@ -105,6 +105,18 @@ func (f ReleaseRecordFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Valu
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ReleaseRecordMutation", m)
 }
 
+// The RepoSyncCursorFunc type is an adapter to allow the use of ordinary
+// function as RepoSyncCursor mutator.
+type RepoSyncCursorFunc func(context.Context, *ent.RepoSyncCursorMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f RepoSyncCursorFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.RepoSyncCursorMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.RepoSyncCursorMutation", m)
+}
+
 // The SprintFunc type is an adapter to allow the use of ordinary
 // function as Sprint mutator.
 type SprintFunc func(context.Context, *ent.SprintMutation) (ent.Value, error)
@@ -165,6 +177,18 @@ func (f WorkItemFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, er
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorkItemMutation", m)
 }
 
+// The WorkItemCommitFunc type is an adapter to allow the use of ordinary
+// function as WorkItemCommit mutator.
+type WorkItemCommitFunc func(context.Context, *ent.WorkItemCommitMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f WorkItemCommitFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.WorkItemCommitMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorkItemCommitMutation", m)
+}
+
 // The WorkItemEventFunc type is an adapter to allow the use of ordinary
 // function as WorkItemEvent mutator.
 type WorkItemEventFunc func(context.Context, *ent.WorkItemEventMutation) (ent.Value, error)
@@ -187,6 +211,18 @@ func (f WorkItemLinkFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorkItemLinkMutation", m)
+}
+
+// The WorkLogFunc type is an adapter to allow the use of ordinary
+// function as WorkLog mutator.
+type WorkLogFunc func(context.Context, *ent.WorkLogMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f WorkLogFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.WorkLogMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorkLogMutation", m)
 }
 
 // Condition is a hook condition function.

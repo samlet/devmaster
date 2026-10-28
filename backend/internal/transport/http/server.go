@@ -6,8 +6,12 @@ package http
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -17,6 +21,7 @@ import (
 	"github.com/google/uuid"
 
 	boardapp "github.com/xiaofeiwu/devmaster/backend/internal/board/application"
+	giteaapp "github.com/xiaofeiwu/devmaster/backend/internal/gitea/application"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/observability"
 	"github.com/xiaofeiwu/devmaster/backend/internal/product/application"
 	"github.com/xiaofeiwu/devmaster/backend/internal/product/domain"
@@ -48,27 +53,39 @@ type VersionReader interface {
 	List(ctx context.Context, actor versionapp.Actor, productID uuid.UUID) ([]versiondomain.Version, error)
 }
 
+type GiteaInbound interface {
+	RecordDelivery(ctx context.Context, organizationID uuid.UUID, deliveryID, eventType string, payload []byte) (bool, error)
+	HandlePush(ctx context.Context, organizationID uuid.UUID, repo, branch string, commits []giteaapp.Commit) (int, error)
+	HandlePullRequest(ctx context.Context, organizationID uuid.UUID, repo string, pr giteaapp.PullRequest) (int, error)
+}
+
 type Server struct {
-	products  ProductReader
-	workItems WorkItemReader
-	sprints   SprintReader
-	board     BoardReader
-	versions  VersionReader
-	metrics   *observability.Metrics
-	health    observability.Health
-	logger    *slog.Logger
+	products    ProductReader
+	workItems   WorkItemReader
+	sprints     SprintReader
+	board       BoardReader
+	versions    VersionReader
+	gitea       GiteaInbound
+	giteaSecret string
+	giteaOrg    uuid.UUID
+	metrics     *observability.Metrics
+	health      observability.Health
+	logger      *slog.Logger
 	// defaultOrganizationID 只在 auth.enabled=false 时使用。
 	// 生产环境必须由网关注入 X-Organization-Id，否则只读面会跨组织泄露。
 	defaultOrganizationID uuid.UUID
 }
 
-func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintReader, board BoardReader, versions VersionReader, metrics *observability.Metrics, health observability.Health, logger *slog.Logger, defaultOrganizationID uuid.UUID) *Server {
+func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintReader, board BoardReader, versions VersionReader, giteaInbound GiteaInbound, giteaSecret string, giteaOrg uuid.UUID, metrics *observability.Metrics, health observability.Health, logger *slog.Logger, defaultOrganizationID uuid.UUID) *Server {
 	return &Server{
 		products:              products,
 		workItems:             workItems,
 		sprints:               sprints,
 		board:                 board,
 		versions:              versions,
+		gitea:                 giteaInbound,
+		giteaSecret:           giteaSecret,
+		giteaOrg:              giteaOrg,
 		metrics:               metrics,
 		health:                health,
 		logger:                logger,
@@ -85,6 +102,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/sprints", s.handleSprints)
 	mux.HandleFunc("/api/board", s.handleBoard)
 	mux.HandleFunc("/api/versions", s.handleVersions)
+	mux.HandleFunc("/integrations/gitea/webhook", s.handleGiteaWebhook)
 	return cors(mux)
 }
 
@@ -499,4 +517,133 @@ func (s *Server) handleVersions(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"items": out})
+}
+
+type giteaPushPayload struct {
+	Ref        string `json:"ref"`
+	Repository struct {
+		FullName string `json:"full_name"`
+	} `json:"repository"`
+	Commits []struct {
+		ID        string    `json:"id"`
+		Message   string    `json:"message"`
+		Timestamp time.Time `json:"timestamp"`
+		Author    struct {
+			Username string `json:"username"`
+		} `json:"author"`
+	} `json:"commits"`
+}
+
+type giteaPullRequestPayload struct {
+	Action      string `json:"action"`
+	Number      int    `json:"number"`
+	PullRequest struct {
+		Number int    `json:"number"`
+		State  string `json:"state"`
+		Merged bool   `json:"merged"`
+		Head   struct {
+			Ref string `json:"ref"`
+		} `json:"head"`
+	} `json:"pull_request"`
+	Repository struct {
+		FullName string `json:"full_name"`
+	} `json:"repository"`
+}
+
+// handleGiteaWebhook 校验 HMAC 后把 push/PR 事件落成提交关联。
+//
+// 幂等键是 X-Gitea-Delivery：Gitea 重投同一条 delivery 时直接 200，
+// 不重复写关联，也不重复推进任何状态。
+func (s *Server) handleGiteaWebhook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.gitea == nil || s.giteaSecret == "" {
+		http.Error(w, "gitea webhook is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 5<<20))
+	if err != nil {
+		http.Error(w, "cannot read body", http.StatusBadRequest)
+		return
+	}
+	if !validGiteaSignature(s.giteaSecret, body, r.Header.Get("X-Gitea-Signature")) {
+		http.Error(w, "invalid signature", http.StatusUnauthorized)
+		return
+	}
+	eventType := r.Header.Get("X-Gitea-Event")
+	deliveryID := strings.TrimSpace(r.Header.Get("X-Gitea-Delivery"))
+	if deliveryID == "" {
+		hash := sha256.Sum256(body)
+		deliveryID = hex.EncodeToString(hash[:])
+	}
+	inserted, err := s.gitea.RecordDelivery(r.Context(), s.giteaOrg, deliveryID, eventType, body)
+	if err != nil {
+		s.logger.Error("record gitea delivery failed", slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if !inserted {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "duplicate": true})
+		return
+	}
+
+	affected := 0
+	switch eventType {
+	case "push":
+		var payload giteaPushPayload
+		if err := json.Unmarshal(body, &payload); err != nil {
+			http.Error(w, "invalid push payload", http.StatusBadRequest)
+			return
+		}
+		branch := strings.TrimPrefix(payload.Ref, "refs/heads/")
+		commits := make([]giteaapp.Commit, 0, len(payload.Commits))
+		for _, commit := range payload.Commits {
+			commits = append(commits, giteaapp.Commit{
+				SHA:         commit.ID,
+				Message:     commit.Message,
+				Branch:      branch,
+				CommittedAt: commit.Timestamp,
+				AuthorID:    commit.Author.Username,
+			})
+		}
+		affected, err = s.gitea.HandlePush(r.Context(), s.giteaOrg, payload.Repository.FullName, branch, commits)
+	case "pull_request":
+		var payload giteaPullRequestPayload
+		if err := json.Unmarshal(body, &payload); err != nil {
+			http.Error(w, "invalid pull_request payload", http.StatusBadRequest)
+			return
+		}
+		state := strings.ToUpper(payload.PullRequest.State)
+		if payload.PullRequest.Merged {
+			state = "MERGED"
+		}
+		affected, err = s.gitea.HandlePullRequest(r.Context(), s.giteaOrg, payload.Repository.FullName, giteaapp.PullRequest{
+			Number:     payload.PullRequest.Number,
+			State:      state,
+			HeadBranch: payload.PullRequest.Head.Ref,
+		})
+	default:
+		// create/ping 等事件只记投递，不改变关联。
+	}
+	if err != nil {
+		s.logger.Error("handle gitea event failed",
+			slog.String("event", eventType), slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "affected": affected})
+}
+
+func validGiteaSignature(secret string, body []byte, signature string) bool {
+	provided, err := hex.DecodeString(strings.TrimSpace(signature))
+	if err != nil || len(provided) == 0 {
+		return false
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(body)
+	return hmac.Equal(mac.Sum(nil), provided)
 }

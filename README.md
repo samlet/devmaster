@@ -3,8 +3,8 @@
 面向软件研发的执行事实源：**工作项、冲刺、版本、工时**。参考 Jira 的任务/缺陷/冲刺/版本迭代
 四件套，但只保留其中可被核算的部分，并把它们接进生态的项目与财务链路。
 
-**当前状态：M3 版本与发布已落地（2026-10-28）。** 已交付版本生命周期、发布记录、
-approver 真实审批、Gitea 打 tag、发布后范围冻结；BUG 字段补全。工时与集成收口在 M4–M5。
+**当前状态：M4 代码关联与工时已落地（2026-10-28）。** 已交付 Gitea webhook（HMAC + delivery 幂等）、
+提交关联、每日对账、工时记录与更正（E7/E8 已由 PPM 真实消费）。集成收口在 M5。
 评估与裁决见 [docs/01](docs/01-方案评估与关键决策.md)，分期见 [docs/01 §8](docs/01-方案评估与关键决策.md)。
 
 ## 定位
@@ -54,10 +54,12 @@ make seed-dataset     # 导入 m1-smoke（幂等；重复跑不会产生第二�
 make reconcile        # 事件折叠对账：当前态必须等于事件日志
 make snapshot         # 给进行中冲刺写当天燃尽快照（建议 cron 每日跑）
 make approver-bootstrap  # 把发布审批流程定义发布到 approver（首次/改定义后）
+make gitea-reconcile     # Gitea 提交对账（补齐 webhook 漏掉的关联）
 ```
 
 发布需要 approver（API `:18090`）与 Gitea（`:3123`）在跑；Gitea 令牌通过
-`DEVMASTER_GITEA_TOKEN` 注入，仓库用 `gitea.owner/repo` 配置。
+`DEVMASTER_GITEA_TOKEN` 注入，仓库用 `gitea.owner/repo` 配置。Webhook 地址
+`POST /integrations/gitea/webhook`，secret 与 `gitea.webhook_secret` 一致。
 
 `make dev` 同起 server + relay + worker；`relay` 负责把 outbox 投递到
 `DEVMASTER_EVENTS`（`dev.>`）。**consumer 在 M4 接 Gitea webhook 时引入**，M0 没有入站源。
@@ -79,6 +81,7 @@ grpcurl -plaintext -d '{"options":{"idempotency_key":"p-1"},"key":"hosp","name":
 | `relay` | outbox → JetStream | 无 |
 | `worker` | Temporal worker（Ping + ReleaseWorkflow） | 无 |
 | `consumer` | 消费 `release.submitted` 起发布工作流（inbox 幂等） | 无 |
+| `gitea-reconcile` | 每日对账（一次性/cron） | 无 |
 | `web` | Next.js 只读控制台（产品 / 工作项 / 看板 / 版本） | `:3031` |
 | `importer` | 数据包导入（一次性，`make seed-dataset`） | 无 |
 | `reconcile` | 事件折叠对账（一次性，`make reconcile`） | 无 |
@@ -106,7 +109,7 @@ make web-check         # 前端 tsc --noEmit
 
 ```text
 backend/
-  cmd/            server / relay / worker / consumer / importer / reconcile / snapshot
+  cmd/            server / relay / worker / consumer / importer / reconcile / snapshot / gitea-reconcile
   internal/
     platform/     config / database / auth / outbox / jetstream / idempotency / observability
     product/      domain / application / adapter/postgres
@@ -114,6 +117,8 @@ backend/
     sprint/       domain（生命周期/范围统计）/ application / adapter/postgres
     board/        domain（列映射）/ application（读模型 + 拖拽）
     version/      domain（版本/发布记录/四眼）/ application / adapter/postgres
+    gitea/        application（key 解析/关联）/ adapter/postgres
+    worklog/      domain（只增不改/更正）/ application / adapter/postgres
     transport/    grpc / http
     workflow/     Temporal 工作流与活动
   ent/schema/     ent schema（迁移才是 DDL 的唯一来源）

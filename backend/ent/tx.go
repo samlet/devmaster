@@ -28,6 +28,8 @@ type Tx struct {
 	ProductCounter *ProductCounterClient
 	// ReleaseRecord is the client for interacting with the ReleaseRecord builders.
 	ReleaseRecord *ReleaseRecordClient
+	// RepoSyncCursor is the client for interacting with the RepoSyncCursor builders.
+	RepoSyncCursor *RepoSyncCursorClient
 	// Sprint is the client for interacting with the Sprint builders.
 	Sprint *SprintClient
 	// SprintScopeEvent is the client for interacting with the SprintScopeEvent builders.
@@ -38,10 +40,14 @@ type Tx struct {
 	Version *VersionClient
 	// WorkItem is the client for interacting with the WorkItem builders.
 	WorkItem *WorkItemClient
+	// WorkItemCommit is the client for interacting with the WorkItemCommit builders.
+	WorkItemCommit *WorkItemCommitClient
 	// WorkItemEvent is the client for interacting with the WorkItemEvent builders.
 	WorkItemEvent *WorkItemEventClient
 	// WorkItemLink is the client for interacting with the WorkItemLink builders.
 	WorkItemLink *WorkItemLinkClient
+	// WorkLog is the client for interacting with the WorkLog builders.
+	WorkLog *WorkLogClient
 
 	// lazily loaded.
 	client     *Client
@@ -181,13 +187,16 @@ func (tx *Tx) init() {
 	tx.Product = NewProductClient(tx.config)
 	tx.ProductCounter = NewProductCounterClient(tx.config)
 	tx.ReleaseRecord = NewReleaseRecordClient(tx.config)
+	tx.RepoSyncCursor = NewRepoSyncCursorClient(tx.config)
 	tx.Sprint = NewSprintClient(tx.config)
 	tx.SprintScopeEvent = NewSprintScopeEventClient(tx.config)
 	tx.SprintSnapshot = NewSprintSnapshotClient(tx.config)
 	tx.Version = NewVersionClient(tx.config)
 	tx.WorkItem = NewWorkItemClient(tx.config)
+	tx.WorkItemCommit = NewWorkItemCommitClient(tx.config)
 	tx.WorkItemEvent = NewWorkItemEventClient(tx.config)
 	tx.WorkItemLink = NewWorkItemLinkClient(tx.config)
+	tx.WorkLog = NewWorkLogClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package dev.v1;
+
+import "dev/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/xiaofeiwu/devmaster/backend/gen/go/dev/v1;devv1";
+
+enum WorkLogSource {
+  WORK_LOG_SOURCE_UNSPECIFIED = 0;
+  WORK_LOG_SOURCE_MANUAL = 1;
+  WORK_LOG_SOURCE_IMPORT = 2;
+}
+
+message WorkLog {
+  string id = 1;
+  string organization_id = 2;
+  string work_item_id = 3;
+  string work_item_key = 4;
+  string author_id = 5;
+  int32 minutes = 6;
+  string work_date = 7; // YYYY-MM-DD
+  string note = 8;
+  string project_code = 9;
+  string wbs_code = 10;
+  string grade_code = 11;
+  WorkLogSource source = 12;
+  string reversal_of = 13;
+  google.protobuf.Timestamp created_at = 14;
+}
+
+message LogWorkRequest {
+  WriteOptions options = 1;
+  string work_item_id = 2;
+  // 与 work_item_id 二选一；key 便于命令行/导入使用。
+  string work_item_key = 3;
+  int32 minutes = 4;
+  string work_date = 5;
+  string note = 6;
+  string project_code = 7;
+  string wbs_code = 8;
+  string grade_code = 9;
+  WorkLogSource source = 10;
+}
+
+message LogWorkResponse {
+  WorkLog work_log = 1;
+}
+
+message GetWorkLogRequest {
+  string id = 1;
+}
+
+message GetWorkLogResponse {
+  WorkLog work_log = 1;
+}
+
+message ListWorkLogsRequest {
+  string work_item_id = 1;
+  string author_id = 2;
+  string from_date = 3;
+  string to_date = 4;
+  PageRequest page = 5;
+}
+
+message ListWorkLogsResponse {
+  repeated WorkLog work_logs = 1;
+  PageResponse page = 2;
+}
+
+message SumWorkLogsRequest {
+  string work_item_id = 1;
+  string from_date = 2;
+  string to_date = 3;
+}
+
+message SumWorkLogsResponse {
+  int32 minutes = 1;
+}
+
+message ReverseWorkLogRequest {
+  WriteOptions options = 1;
+  string work_log_id = 2;
+  string note = 3;
+}
+
+message ReverseWorkLogResponse {
+  WorkLog work_log = 1;
+}
+
+service WorkLogService {
+  rpc LogWork(LogWorkRequest) returns (LogWorkResponse);
+  rpc GetWorkLog(GetWorkLogRequest) returns (GetWorkLogResponse);
+  rpc ListWorkLogs(ListWorkLogsRequest) returns (ListWorkLogsResponse);
+  rpc SumWorkLogs(SumWorkLogsRequest) returns (SumWorkLogsResponse);
+  rpc ReverseWorkLog(ReverseWorkLogRequest) returns (ReverseWorkLogResponse);
+}

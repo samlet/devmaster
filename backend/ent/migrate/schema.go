@@ -196,6 +196,28 @@ var (
 		Columns:    ReleaseRecordsColumns,
 		PrimaryKey: []*schema.Column{ReleaseRecordsColumns[0]},
 	}
+	// RepoSyncCursorsColumns holds the columns for the "repo_sync_cursors" table.
+	RepoSyncCursorsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "repo", Type: field.TypeString, Size: 200},
+		{Name: "last_commit_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_sha", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// RepoSyncCursorsTable holds the schema information for the "repo_sync_cursors" table.
+	RepoSyncCursorsTable = &schema.Table{
+		Name:       "repo_sync_cursors",
+		Columns:    RepoSyncCursorsColumns,
+		PrimaryKey: []*schema.Column{RepoSyncCursorsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "reposynccursor_organization_id_repo",
+				Unique:  true,
+				Columns: []*schema.Column{RepoSyncCursorsColumns[1], RepoSyncCursorsColumns[2]},
+			},
+		},
+	}
 	// SprintsColumns holds the columns for the "sprints" table.
 	SprintsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -361,6 +383,33 @@ var (
 			},
 		},
 	}
+	// WorkItemCommitsColumns holds the columns for the "work_item_commits" table.
+	WorkItemCommitsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "work_item_id", Type: field.TypeUUID},
+		{Name: "repo", Type: field.TypeString, Size: 200},
+		{Name: "branch", Type: field.TypeString, Nullable: true, Size: 200},
+		{Name: "commit_sha", Type: field.TypeString, Size: 64},
+		{Name: "pr_no", Type: field.TypeInt, Nullable: true},
+		{Name: "pr_state", Type: field.TypeString, Nullable: true, Size: 16},
+		{Name: "committed_at", Type: field.TypeTime, Nullable: true},
+		{Name: "author_id", Type: field.TypeString, Nullable: true, Size: 128},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// WorkItemCommitsTable holds the schema information for the "work_item_commits" table.
+	WorkItemCommitsTable = &schema.Table{
+		Name:       "work_item_commits",
+		Columns:    WorkItemCommitsColumns,
+		PrimaryKey: []*schema.Column{WorkItemCommitsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "workitemcommit_work_item_id_repo_commit_sha",
+				Unique:  true,
+				Columns: []*schema.Column{WorkItemCommitsColumns[2], WorkItemCommitsColumns[3], WorkItemCommitsColumns[5]},
+			},
+		},
+	}
 	// WorkItemEventsColumns holds the columns for the "work_item_events" table.
 	WorkItemEventsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -419,6 +468,28 @@ var (
 			},
 		},
 	}
+	// WorkLogsColumns holds the columns for the "work_logs" table.
+	WorkLogsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "work_item_id", Type: field.TypeUUID},
+		{Name: "author_id", Type: field.TypeString, Size: 128},
+		{Name: "minutes", Type: field.TypeInt},
+		{Name: "work_date", Type: field.TypeTime},
+		{Name: "note", Type: field.TypeString, Nullable: true},
+		{Name: "project_code", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "wbs_code", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "grade_code", Type: field.TypeString, Nullable: true, Size: 32},
+		{Name: "source", Type: field.TypeString, Size: 16, Default: "MANUAL"},
+		{Name: "reversal_of", Type: field.TypeUUID, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// WorkLogsTable holds the schema information for the "work_logs" table.
+	WorkLogsTable = &schema.Table{
+		Name:       "work_logs",
+		Columns:    WorkLogsColumns,
+		PrimaryKey: []*schema.Column{WorkLogsColumns[0]},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		BoardsTable,
@@ -429,13 +500,16 @@ var (
 		ProductsTable,
 		ProductCountersTable,
 		ReleaseRecordsTable,
+		RepoSyncCursorsTable,
 		SprintsTable,
 		SprintScopeEventsTable,
 		SprintSnapshotsTable,
 		VersionsTable,
 		WorkItemsTable,
+		WorkItemCommitsTable,
 		WorkItemEventsTable,
 		WorkItemLinksTable,
+		WorkLogsTable,
 	}
 )
 

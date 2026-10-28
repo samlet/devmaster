@@ -17,6 +17,8 @@ import (
 	"google.golang.org/grpc"
 
 	boardapplication "github.com/xiaofeiwu/devmaster/backend/internal/board/application"
+	giteapostgres "github.com/xiaofeiwu/devmaster/backend/internal/gitea/adapter/postgres"
+	giteaapplication "github.com/xiaofeiwu/devmaster/backend/internal/gitea/application"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/auth"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/config"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/database"
@@ -32,6 +34,8 @@ import (
 	versionapplication "github.com/xiaofeiwu/devmaster/backend/internal/version/application"
 	workitempostgres "github.com/xiaofeiwu/devmaster/backend/internal/workitem/adapter/postgres"
 	workitemapplication "github.com/xiaofeiwu/devmaster/backend/internal/workitem/application"
+	worklogpostgres "github.com/xiaofeiwu/devmaster/backend/internal/worklog/adapter/postgres"
+	worklogapplication "github.com/xiaofeiwu/devmaster/backend/internal/worklog/application"
 )
 
 func main() {
@@ -75,6 +79,12 @@ func run() error {
 	sprintService := sprintapplication.NewService(sprintpostgres.NewRepository(db))
 	boardService := boardapplication.NewService(workItemService, sprintService)
 	versionService := versionapplication.NewService(versionpostgres.NewRepository(db))
+	workLogService := worklogapplication.NewService(worklogpostgres.NewRepository(db))
+	giteaService := giteaapplication.NewService(giteapostgres.NewRepository(db))
+	giteaOrg, err := uuid.Parse(cfg.Gitea.OrganizationID)
+	if err != nil {
+		return fmt.Errorf("gitea.organization_id: %w", err)
+	}
 	workItemService.SetVersionGuard(func(ctx context.Context, organizationID, versionID uuid.UUID) error {
 		return versionService.EnsureMutable(ctx, versionapplication.Actor{
 			Subject: "workitem-guard", OrganizationID: organizationID,
@@ -88,6 +98,7 @@ func run() error {
 		grpctransport.NewSprintService(sprintService, db, logger),
 		grpctransport.NewBoardService(boardService, db, logger),
 		grpctransport.NewVersionService(versionService, db, logger),
+		grpctransport.NewWorkLogService(workLogService, db, logger),
 		grpctransport.NewSystemService(),
 	)
 	grpcListener, err := net.Listen("tcp", cfg.Server.GRPCAddress)
@@ -109,7 +120,7 @@ func run() error {
 	}
 	httpServer := &http.Server{
 		Addr:    cfg.Server.HTTPAddress,
-		Handler: httptransport.NewServer(productService, workItemService, sprintService, boardService, versionService, metrics, health, logger, defaultOrganizationID).Handler(),
+		Handler: httptransport.NewServer(productService, workItemService, sprintService, boardService, versionService, giteaService, cfg.Gitea.WebhookSecret, giteaOrg, metrics, health, logger, defaultOrganizationID).Handler(),
 	}
 
 	errCh := make(chan error, 2)

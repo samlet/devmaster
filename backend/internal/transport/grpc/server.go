@@ -27,6 +27,7 @@ func NewServer(
 	sprintService *SprintService,
 	boardService *BoardService,
 	versionService *VersionService,
+	workLogService *WorkLogService,
 	systemService *SystemService,
 ) *grpc.Server {
 	server := grpc.NewServer(
@@ -41,6 +42,7 @@ func NewServer(
 	devv1.RegisterSprintServiceServer(server, sprintService)
 	devv1.RegisterBoardServiceServer(server, boardService)
 	devv1.RegisterVersionServiceServer(server, versionService)
+	devv1.RegisterWorkLogServiceServer(server, workLogService)
 	devv1.RegisterSystemServiceServer(server, systemService)
 	reflection.Register(server)
 	return server

@@ -103,10 +103,13 @@ type ApproverConfig struct {
 }
 
 type GiteaConfig struct {
-	BaseURL string `yaml:"base_url"`
-	Token   string `yaml:"token"`
-	Owner   string `yaml:"owner"`
-	Repo    string `yaml:"repo"`
+	BaseURL       string `yaml:"base_url"`
+	Token         string `yaml:"token"`
+	Owner         string `yaml:"owner"`
+	Repo          string `yaml:"repo"`
+	WebhookSecret string `yaml:"webhook_secret"`
+	// OrganizationID 是 webhook 的归属组织：Gitea 的 payload 不带租户信息。
+	OrganizationID string `yaml:"organization_id"`
 }
 
 type IntegrationConfig struct {
@@ -172,9 +175,10 @@ func Default() Config {
 			PollTimeout:  30 * time.Minute,
 		},
 		Gitea: GiteaConfig{
-			BaseURL: "http://127.0.0.1:3123",
-			Owner:   "meshadmin",
-			Repo:    "hosp",
+			BaseURL:        "http://127.0.0.1:3123",
+			Owner:          "meshadmin",
+			Repo:           "hosp",
+			OrganizationID: "00000000-0000-0000-0000-000000000001",
 		},
 	}
 }
@@ -217,6 +221,8 @@ func applyEnv(cfg *Config) {
 	setString(&cfg.Gitea.Token, "DEVMASTER_GITEA_TOKEN")
 	setString(&cfg.Gitea.Owner, "DEVMASTER_GITEA_OWNER")
 	setString(&cfg.Gitea.Repo, "DEVMASTER_GITEA_REPO")
+	setString(&cfg.Gitea.WebhookSecret, "DEVMASTER_GITEA_WEBHOOK_SECRET")
+	setString(&cfg.Gitea.OrganizationID, "DEVMASTER_GITEA_ORGANIZATION_ID")
 	setBool(&cfg.Auth.Enabled, "DEVMASTER_AUTH_ENABLED")
 	setString(&cfg.Auth.Issuer, "DEVMASTER_AUTH_ISSUER")
 	setString(&cfg.Auth.Audience, "DEVMASTER_AUTH_AUDIENCE")

@@ -1,5 +1,6 @@
-h1:gDX+Bdzv6yqyO7Ksz/psY6/VON8NPPj5gh4Z+Yfn/zE=
+h1:NjrL+h1TsHCntEvMswVcbn3m6Zn3BWv4RLUocfGGT3Y=
 0001_init.sql h1:AFNC8pRGEI2e+BgLtNd0eqwTDMDpOejWWDK944VoQsY=
 0002_workitem.sql h1:vOaIo3iDnjtXUpwlNG+ETpsV4XS/nyYcdiLIvuTPUHU=
 0003_sprint_board.sql h1:2YkZXREia5sWh8/Vg2Ae3uZj6CPiWMvdgkUngCoW6jE=
 0004_version_release.sql h1:MlUM3DCXnIj+mRq1+pPGka3qcaTCTeOptQvT+EeS420=
+0005_gitea_worklog.sql h1:alqDIG4ZzOsV4G0LVp8RMUlfiW0Y4v+AlDLRj16JzLw=

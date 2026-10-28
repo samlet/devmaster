@@ -20,13 +20,16 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/ent/product"
 	"github.com/xiaofeiwu/devmaster/backend/ent/productcounter"
 	"github.com/xiaofeiwu/devmaster/backend/ent/releaserecord"
+	"github.com/xiaofeiwu/devmaster/backend/ent/reposynccursor"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprint"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintscopeevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintsnapshot"
 	"github.com/xiaofeiwu/devmaster/backend/ent/version"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitem"
+	"github.com/xiaofeiwu/devmaster/backend/ent/workitemcommit"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemlink"
+	"github.com/xiaofeiwu/devmaster/backend/ent/worklog"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -95,13 +98,16 @@ func checkColumn(t, c string) error {
 			product.Table:          product.ValidColumn,
 			productcounter.Table:   productcounter.ValidColumn,
 			releaserecord.Table:    releaserecord.ValidColumn,
+			reposynccursor.Table:   reposynccursor.ValidColumn,
 			sprint.Table:           sprint.ValidColumn,
 			sprintscopeevent.Table: sprintscopeevent.ValidColumn,
 			sprintsnapshot.Table:   sprintsnapshot.ValidColumn,
 			version.Table:          version.ValidColumn,
 			workitem.Table:         workitem.ValidColumn,
+			workitemcommit.Table:   workitemcommit.ValidColumn,
 			workitemevent.Table:    workitemevent.ValidColumn,
 			workitemlink.Table:     workitemlink.ValidColumn,
+			worklog.Table:          worklog.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

@@ -21,13 +21,16 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/ent/product"
 	"github.com/xiaofeiwu/devmaster/backend/ent/productcounter"
 	"github.com/xiaofeiwu/devmaster/backend/ent/releaserecord"
+	"github.com/xiaofeiwu/devmaster/backend/ent/reposynccursor"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprint"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintscopeevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintsnapshot"
 	"github.com/xiaofeiwu/devmaster/backend/ent/version"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitem"
+	"github.com/xiaofeiwu/devmaster/backend/ent/workitemcommit"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemlink"
+	"github.com/xiaofeiwu/devmaster/backend/ent/worklog"
 )
 
 const (
@@ -47,13 +50,16 @@ const (
 	TypeProduct          = "Product"
 	TypeProductCounter   = "ProductCounter"
 	TypeReleaseRecord    = "ReleaseRecord"
+	TypeRepoSyncCursor   = "RepoSyncCursor"
 	TypeSprint           = "Sprint"
 	TypeSprintScopeEvent = "SprintScopeEvent"
 	TypeSprintSnapshot   = "SprintSnapshot"
 	TypeVersion          = "Version"
 	TypeWorkItem         = "WorkItem"
+	TypeWorkItemCommit   = "WorkItemCommit"
 	TypeWorkItemEvent    = "WorkItemEvent"
 	TypeWorkItemLink     = "WorkItemLink"
+	TypeWorkLog          = "WorkLog"
 )
 
 // BoardMutation represents an operation that mutates the Board nodes in the graph.
@@ -6455,6 +6461,589 @@ func (m *ReleaseRecordMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *ReleaseRecordMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown ReleaseRecord edge %s", name)
+}
+
+// RepoSyncCursorMutation represents an operation that mutates the RepoSyncCursor nodes in the graph.
+type RepoSyncCursorMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int
+	organization_id *uuid.UUID
+	repo            *string
+	last_commit_at  *time.Time
+	last_sha        *string
+	updated_at      *time.Time
+	clearedFields   map[string]struct{}
+	done            bool
+	oldValue        func(context.Context) (*RepoSyncCursor, error)
+	predicates      []predicate.RepoSyncCursor
+}
+
+var _ ent.Mutation = (*RepoSyncCursorMutation)(nil)
+
+// reposynccursorOption allows management of the mutation configuration using functional options.
+type reposynccursorOption func(*RepoSyncCursorMutation)
+
+// newRepoSyncCursorMutation creates new mutation for the RepoSyncCursor entity.
+func newRepoSyncCursorMutation(c config, op Op, opts ...reposynccursorOption) *RepoSyncCursorMutation {
+	m := &RepoSyncCursorMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeRepoSyncCursor,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withRepoSyncCursorID sets the ID field of the mutation.
+func withRepoSyncCursorID(id int) reposynccursorOption {
+	return func(m *RepoSyncCursorMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *RepoSyncCursor
+		)
+		m.oldValue = func(ctx context.Context) (*RepoSyncCursor, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().RepoSyncCursor.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withRepoSyncCursor sets the old RepoSyncCursor of the mutation.
+func withRepoSyncCursor(node *RepoSyncCursor) reposynccursorOption {
+	return func(m *RepoSyncCursorMutation) {
+		m.oldValue = func(context.Context) (*RepoSyncCursor, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m RepoSyncCursorMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m RepoSyncCursorMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *RepoSyncCursorMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *RepoSyncCursorMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().RepoSyncCursor.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetOrganizationID sets the "organization_id" field.
+func (m *RepoSyncCursorMutation) SetOrganizationID(u uuid.UUID) {
+	m.organization_id = &u
+}
+
+// OrganizationID returns the value of the "organization_id" field in the mutation.
+func (m *RepoSyncCursorMutation) OrganizationID() (r uuid.UUID, exists bool) {
+	v := m.organization_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOrganizationID returns the old "organization_id" field's value of the RepoSyncCursor entity.
+// If the RepoSyncCursor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RepoSyncCursorMutation) OldOrganizationID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOrganizationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOrganizationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOrganizationID: %w", err)
+	}
+	return oldValue.OrganizationID, nil
+}
+
+// ResetOrganizationID resets all changes to the "organization_id" field.
+func (m *RepoSyncCursorMutation) ResetOrganizationID() {
+	m.organization_id = nil
+}
+
+// SetRepo sets the "repo" field.
+func (m *RepoSyncCursorMutation) SetRepo(s string) {
+	m.repo = &s
+}
+
+// Repo returns the value of the "repo" field in the mutation.
+func (m *RepoSyncCursorMutation) Repo() (r string, exists bool) {
+	v := m.repo
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRepo returns the old "repo" field's value of the RepoSyncCursor entity.
+// If the RepoSyncCursor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RepoSyncCursorMutation) OldRepo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRepo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRepo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRepo: %w", err)
+	}
+	return oldValue.Repo, nil
+}
+
+// ResetRepo resets all changes to the "repo" field.
+func (m *RepoSyncCursorMutation) ResetRepo() {
+	m.repo = nil
+}
+
+// SetLastCommitAt sets the "last_commit_at" field.
+func (m *RepoSyncCursorMutation) SetLastCommitAt(t time.Time) {
+	m.last_commit_at = &t
+}
+
+// LastCommitAt returns the value of the "last_commit_at" field in the mutation.
+func (m *RepoSyncCursorMutation) LastCommitAt() (r time.Time, exists bool) {
+	v := m.last_commit_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastCommitAt returns the old "last_commit_at" field's value of the RepoSyncCursor entity.
+// If the RepoSyncCursor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RepoSyncCursorMutation) OldLastCommitAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastCommitAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastCommitAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastCommitAt: %w", err)
+	}
+	return oldValue.LastCommitAt, nil
+}
+
+// ClearLastCommitAt clears the value of the "last_commit_at" field.
+func (m *RepoSyncCursorMutation) ClearLastCommitAt() {
+	m.last_commit_at = nil
+	m.clearedFields[reposynccursor.FieldLastCommitAt] = struct{}{}
+}
+
+// LastCommitAtCleared returns if the "last_commit_at" field was cleared in this mutation.
+func (m *RepoSyncCursorMutation) LastCommitAtCleared() bool {
+	_, ok := m.clearedFields[reposynccursor.FieldLastCommitAt]
+	return ok
+}
+
+// ResetLastCommitAt resets all changes to the "last_commit_at" field.
+func (m *RepoSyncCursorMutation) ResetLastCommitAt() {
+	m.last_commit_at = nil
+	delete(m.clearedFields, reposynccursor.FieldLastCommitAt)
+}
+
+// SetLastSha sets the "last_sha" field.
+func (m *RepoSyncCursorMutation) SetLastSha(s string) {
+	m.last_sha = &s
+}
+
+// LastSha returns the value of the "last_sha" field in the mutation.
+func (m *RepoSyncCursorMutation) LastSha() (r string, exists bool) {
+	v := m.last_sha
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastSha returns the old "last_sha" field's value of the RepoSyncCursor entity.
+// If the RepoSyncCursor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RepoSyncCursorMutation) OldLastSha(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastSha is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastSha requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastSha: %w", err)
+	}
+	return oldValue.LastSha, nil
+}
+
+// ClearLastSha clears the value of the "last_sha" field.
+func (m *RepoSyncCursorMutation) ClearLastSha() {
+	m.last_sha = nil
+	m.clearedFields[reposynccursor.FieldLastSha] = struct{}{}
+}
+
+// LastShaCleared returns if the "last_sha" field was cleared in this mutation.
+func (m *RepoSyncCursorMutation) LastShaCleared() bool {
+	_, ok := m.clearedFields[reposynccursor.FieldLastSha]
+	return ok
+}
+
+// ResetLastSha resets all changes to the "last_sha" field.
+func (m *RepoSyncCursorMutation) ResetLastSha() {
+	m.last_sha = nil
+	delete(m.clearedFields, reposynccursor.FieldLastSha)
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *RepoSyncCursorMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *RepoSyncCursorMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the RepoSyncCursor entity.
+// If the RepoSyncCursor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RepoSyncCursorMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *RepoSyncCursorMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the RepoSyncCursorMutation builder.
+func (m *RepoSyncCursorMutation) Where(ps ...predicate.RepoSyncCursor) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the RepoSyncCursorMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *RepoSyncCursorMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.RepoSyncCursor, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *RepoSyncCursorMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *RepoSyncCursorMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (RepoSyncCursor).
+func (m *RepoSyncCursorMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *RepoSyncCursorMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.organization_id != nil {
+		fields = append(fields, reposynccursor.FieldOrganizationID)
+	}
+	if m.repo != nil {
+		fields = append(fields, reposynccursor.FieldRepo)
+	}
+	if m.last_commit_at != nil {
+		fields = append(fields, reposynccursor.FieldLastCommitAt)
+	}
+	if m.last_sha != nil {
+		fields = append(fields, reposynccursor.FieldLastSha)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, reposynccursor.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *RepoSyncCursorMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case reposynccursor.FieldOrganizationID:
+		return m.OrganizationID()
+	case reposynccursor.FieldRepo:
+		return m.Repo()
+	case reposynccursor.FieldLastCommitAt:
+		return m.LastCommitAt()
+	case reposynccursor.FieldLastSha:
+		return m.LastSha()
+	case reposynccursor.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *RepoSyncCursorMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case reposynccursor.FieldOrganizationID:
+		return m.OldOrganizationID(ctx)
+	case reposynccursor.FieldRepo:
+		return m.OldRepo(ctx)
+	case reposynccursor.FieldLastCommitAt:
+		return m.OldLastCommitAt(ctx)
+	case reposynccursor.FieldLastSha:
+		return m.OldLastSha(ctx)
+	case reposynccursor.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown RepoSyncCursor field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *RepoSyncCursorMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case reposynccursor.FieldOrganizationID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOrganizationID(v)
+		return nil
+	case reposynccursor.FieldRepo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRepo(v)
+		return nil
+	case reposynccursor.FieldLastCommitAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastCommitAt(v)
+		return nil
+	case reposynccursor.FieldLastSha:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastSha(v)
+		return nil
+	case reposynccursor.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown RepoSyncCursor field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *RepoSyncCursorMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *RepoSyncCursorMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *RepoSyncCursorMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown RepoSyncCursor numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *RepoSyncCursorMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(reposynccursor.FieldLastCommitAt) {
+		fields = append(fields, reposynccursor.FieldLastCommitAt)
+	}
+	if m.FieldCleared(reposynccursor.FieldLastSha) {
+		fields = append(fields, reposynccursor.FieldLastSha)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *RepoSyncCursorMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *RepoSyncCursorMutation) ClearField(name string) error {
+	switch name {
+	case reposynccursor.FieldLastCommitAt:
+		m.ClearLastCommitAt()
+		return nil
+	case reposynccursor.FieldLastSha:
+		m.ClearLastSha()
+		return nil
+	}
+	return fmt.Errorf("unknown RepoSyncCursor nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *RepoSyncCursorMutation) ResetField(name string) error {
+	switch name {
+	case reposynccursor.FieldOrganizationID:
+		m.ResetOrganizationID()
+		return nil
+	case reposynccursor.FieldRepo:
+		m.ResetRepo()
+		return nil
+	case reposynccursor.FieldLastCommitAt:
+		m.ResetLastCommitAt()
+		return nil
+	case reposynccursor.FieldLastSha:
+		m.ResetLastSha()
+		return nil
+	case reposynccursor.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown RepoSyncCursor field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *RepoSyncCursorMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *RepoSyncCursorMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *RepoSyncCursorMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *RepoSyncCursorMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *RepoSyncCursorMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *RepoSyncCursorMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *RepoSyncCursorMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown RepoSyncCursor unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *RepoSyncCursorMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown RepoSyncCursor edge %s", name)
 }
 
 // SprintMutation represents an operation that mutates the Sprint nodes in the graph.
@@ -13118,6 +13707,959 @@ func (m *WorkItemMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown WorkItem edge %s", name)
 }
 
+// WorkItemCommitMutation represents an operation that mutates the WorkItemCommit nodes in the graph.
+type WorkItemCommitMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *uuid.UUID
+	organization_id *uuid.UUID
+	work_item_id    *uuid.UUID
+	repo            *string
+	branch          *string
+	commit_sha      *string
+	pr_no           *int
+	addpr_no        *int
+	pr_state        *string
+	committed_at    *time.Time
+	author_id       *string
+	created_at      *time.Time
+	clearedFields   map[string]struct{}
+	done            bool
+	oldValue        func(context.Context) (*WorkItemCommit, error)
+	predicates      []predicate.WorkItemCommit
+}
+
+var _ ent.Mutation = (*WorkItemCommitMutation)(nil)
+
+// workitemcommitOption allows management of the mutation configuration using functional options.
+type workitemcommitOption func(*WorkItemCommitMutation)
+
+// newWorkItemCommitMutation creates new mutation for the WorkItemCommit entity.
+func newWorkItemCommitMutation(c config, op Op, opts ...workitemcommitOption) *WorkItemCommitMutation {
+	m := &WorkItemCommitMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeWorkItemCommit,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withWorkItemCommitID sets the ID field of the mutation.
+func withWorkItemCommitID(id uuid.UUID) workitemcommitOption {
+	return func(m *WorkItemCommitMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *WorkItemCommit
+		)
+		m.oldValue = func(ctx context.Context) (*WorkItemCommit, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().WorkItemCommit.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withWorkItemCommit sets the old WorkItemCommit of the mutation.
+func withWorkItemCommit(node *WorkItemCommit) workitemcommitOption {
+	return func(m *WorkItemCommitMutation) {
+		m.oldValue = func(context.Context) (*WorkItemCommit, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m WorkItemCommitMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m WorkItemCommitMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of WorkItemCommit entities.
+func (m *WorkItemCommitMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *WorkItemCommitMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *WorkItemCommitMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().WorkItemCommit.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetOrganizationID sets the "organization_id" field.
+func (m *WorkItemCommitMutation) SetOrganizationID(u uuid.UUID) {
+	m.organization_id = &u
+}
+
+// OrganizationID returns the value of the "organization_id" field in the mutation.
+func (m *WorkItemCommitMutation) OrganizationID() (r uuid.UUID, exists bool) {
+	v := m.organization_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOrganizationID returns the old "organization_id" field's value of the WorkItemCommit entity.
+// If the WorkItemCommit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkItemCommitMutation) OldOrganizationID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOrganizationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOrganizationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOrganizationID: %w", err)
+	}
+	return oldValue.OrganizationID, nil
+}
+
+// ResetOrganizationID resets all changes to the "organization_id" field.
+func (m *WorkItemCommitMutation) ResetOrganizationID() {
+	m.organization_id = nil
+}
+
+// SetWorkItemID sets the "work_item_id" field.
+func (m *WorkItemCommitMutation) SetWorkItemID(u uuid.UUID) {
+	m.work_item_id = &u
+}
+
+// WorkItemID returns the value of the "work_item_id" field in the mutation.
+func (m *WorkItemCommitMutation) WorkItemID() (r uuid.UUID, exists bool) {
+	v := m.work_item_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWorkItemID returns the old "work_item_id" field's value of the WorkItemCommit entity.
+// If the WorkItemCommit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkItemCommitMutation) OldWorkItemID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWorkItemID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWorkItemID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWorkItemID: %w", err)
+	}
+	return oldValue.WorkItemID, nil
+}
+
+// ResetWorkItemID resets all changes to the "work_item_id" field.
+func (m *WorkItemCommitMutation) ResetWorkItemID() {
+	m.work_item_id = nil
+}
+
+// SetRepo sets the "repo" field.
+func (m *WorkItemCommitMutation) SetRepo(s string) {
+	m.repo = &s
+}
+
+// Repo returns the value of the "repo" field in the mutation.
+func (m *WorkItemCommitMutation) Repo() (r string, exists bool) {
+	v := m.repo
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRepo returns the old "repo" field's value of the WorkItemCommit entity.
+// If the WorkItemCommit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkItemCommitMutation) OldRepo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRepo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRepo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRepo: %w", err)
+	}
+	return oldValue.Repo, nil
+}
+
+// ResetRepo resets all changes to the "repo" field.
+func (m *WorkItemCommitMutation) ResetRepo() {
+	m.repo = nil
+}
+
+// SetBranch sets the "branch" field.
+func (m *WorkItemCommitMutation) SetBranch(s string) {
+	m.branch = &s
+}
+
+// Branch returns the value of the "branch" field in the mutation.
+func (m *WorkItemCommitMutation) Branch() (r string, exists bool) {
+	v := m.branch
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBranch returns the old "branch" field's value of the WorkItemCommit entity.
+// If the WorkItemCommit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkItemCommitMutation) OldBranch(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBranch is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBranch requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBranch: %w", err)
+	}
+	return oldValue.Branch, nil
+}
+
+// ClearBranch clears the value of the "branch" field.
+func (m *WorkItemCommitMutation) ClearBranch() {
+	m.branch = nil
+	m.clearedFields[workitemcommit.FieldBranch] = struct{}{}
+}
+
+// BranchCleared returns if the "branch" field was cleared in this mutation.
+func (m *WorkItemCommitMutation) BranchCleared() bool {
+	_, ok := m.clearedFields[workitemcommit.FieldBranch]
+	return ok
+}
+
+// ResetBranch resets all changes to the "branch" field.
+func (m *WorkItemCommitMutation) ResetBranch() {
+	m.branch = nil
+	delete(m.clearedFields, workitemcommit.FieldBranch)
+}
+
+// SetCommitSha sets the "commit_sha" field.
+func (m *WorkItemCommitMutation) SetCommitSha(s string) {
+	m.commit_sha = &s
+}
+
+// CommitSha returns the value of the "commit_sha" field in the mutation.
+func (m *WorkItemCommitMutation) CommitSha() (r string, exists bool) {
+	v := m.commit_sha
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCommitSha returns the old "commit_sha" field's value of the WorkItemCommit entity.
+// If the WorkItemCommit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkItemCommitMutation) OldCommitSha(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCommitSha is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCommitSha requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCommitSha: %w", err)
+	}
+	return oldValue.CommitSha, nil
+}
+
+// ResetCommitSha resets all changes to the "commit_sha" field.
+func (m *WorkItemCommitMutation) ResetCommitSha() {
+	m.commit_sha = nil
+}
+
+// SetPrNo sets the "pr_no" field.
+func (m *WorkItemCommitMutation) SetPrNo(i int) {
+	m.pr_no = &i
+	m.addpr_no = nil
+}
+
+// PrNo returns the value of the "pr_no" field in the mutation.
+func (m *WorkItemCommitMutation) PrNo() (r int, exists bool) {
+	v := m.pr_no
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPrNo returns the old "pr_no" field's value of the WorkItemCommit entity.
+// If the WorkItemCommit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkItemCommitMutation) OldPrNo(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPrNo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPrNo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPrNo: %w", err)
+	}
+	return oldValue.PrNo, nil
+}
+
+// AddPrNo adds i to the "pr_no" field.
+func (m *WorkItemCommitMutation) AddPrNo(i int) {
+	if m.addpr_no != nil {
+		*m.addpr_no += i
+	} else {
+		m.addpr_no = &i
+	}
+}
+
+// AddedPrNo returns the value that was added to the "pr_no" field in this mutation.
+func (m *WorkItemCommitMutation) AddedPrNo() (r int, exists bool) {
+	v := m.addpr_no
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearPrNo clears the value of the "pr_no" field.
+func (m *WorkItemCommitMutation) ClearPrNo() {
+	m.pr_no = nil
+	m.addpr_no = nil
+	m.clearedFields[workitemcommit.FieldPrNo] = struct{}{}
+}
+
+// PrNoCleared returns if the "pr_no" field was cleared in this mutation.
+func (m *WorkItemCommitMutation) PrNoCleared() bool {
+	_, ok := m.clearedFields[workitemcommit.FieldPrNo]
+	return ok
+}
+
+// ResetPrNo resets all changes to the "pr_no" field.
+func (m *WorkItemCommitMutation) ResetPrNo() {
+	m.pr_no = nil
+	m.addpr_no = nil
+	delete(m.clearedFields, workitemcommit.FieldPrNo)
+}
+
+// SetPrState sets the "pr_state" field.
+func (m *WorkItemCommitMutation) SetPrState(s string) {
+	m.pr_state = &s
+}
+
+// PrState returns the value of the "pr_state" field in the mutation.
+func (m *WorkItemCommitMutation) PrState() (r string, exists bool) {
+	v := m.pr_state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPrState returns the old "pr_state" field's value of the WorkItemCommit entity.
+// If the WorkItemCommit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkItemCommitMutation) OldPrState(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPrState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPrState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPrState: %w", err)
+	}
+	return oldValue.PrState, nil
+}
+
+// ClearPrState clears the value of the "pr_state" field.
+func (m *WorkItemCommitMutation) ClearPrState() {
+	m.pr_state = nil
+	m.clearedFields[workitemcommit.FieldPrState] = struct{}{}
+}
+
+// PrStateCleared returns if the "pr_state" field was cleared in this mutation.
+func (m *WorkItemCommitMutation) PrStateCleared() bool {
+	_, ok := m.clearedFields[workitemcommit.FieldPrState]
+	return ok
+}
+
+// ResetPrState resets all changes to the "pr_state" field.
+func (m *WorkItemCommitMutation) ResetPrState() {
+	m.pr_state = nil
+	delete(m.clearedFields, workitemcommit.FieldPrState)
+}
+
+// SetCommittedAt sets the "committed_at" field.
+func (m *WorkItemCommitMutation) SetCommittedAt(t time.Time) {
+	m.committed_at = &t
+}
+
+// CommittedAt returns the value of the "committed_at" field in the mutation.
+func (m *WorkItemCommitMutation) CommittedAt() (r time.Time, exists bool) {
+	v := m.committed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCommittedAt returns the old "committed_at" field's value of the WorkItemCommit entity.
+// If the WorkItemCommit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkItemCommitMutation) OldCommittedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCommittedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCommittedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCommittedAt: %w", err)
+	}
+	return oldValue.CommittedAt, nil
+}
+
+// ClearCommittedAt clears the value of the "committed_at" field.
+func (m *WorkItemCommitMutation) ClearCommittedAt() {
+	m.committed_at = nil
+	m.clearedFields[workitemcommit.FieldCommittedAt] = struct{}{}
+}
+
+// CommittedAtCleared returns if the "committed_at" field was cleared in this mutation.
+func (m *WorkItemCommitMutation) CommittedAtCleared() bool {
+	_, ok := m.clearedFields[workitemcommit.FieldCommittedAt]
+	return ok
+}
+
+// ResetCommittedAt resets all changes to the "committed_at" field.
+func (m *WorkItemCommitMutation) ResetCommittedAt() {
+	m.committed_at = nil
+	delete(m.clearedFields, workitemcommit.FieldCommittedAt)
+}
+
+// SetAuthorID sets the "author_id" field.
+func (m *WorkItemCommitMutation) SetAuthorID(s string) {
+	m.author_id = &s
+}
+
+// AuthorID returns the value of the "author_id" field in the mutation.
+func (m *WorkItemCommitMutation) AuthorID() (r string, exists bool) {
+	v := m.author_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAuthorID returns the old "author_id" field's value of the WorkItemCommit entity.
+// If the WorkItemCommit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkItemCommitMutation) OldAuthorID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAuthorID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAuthorID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAuthorID: %w", err)
+	}
+	return oldValue.AuthorID, nil
+}
+
+// ClearAuthorID clears the value of the "author_id" field.
+func (m *WorkItemCommitMutation) ClearAuthorID() {
+	m.author_id = nil
+	m.clearedFields[workitemcommit.FieldAuthorID] = struct{}{}
+}
+
+// AuthorIDCleared returns if the "author_id" field was cleared in this mutation.
+func (m *WorkItemCommitMutation) AuthorIDCleared() bool {
+	_, ok := m.clearedFields[workitemcommit.FieldAuthorID]
+	return ok
+}
+
+// ResetAuthorID resets all changes to the "author_id" field.
+func (m *WorkItemCommitMutation) ResetAuthorID() {
+	m.author_id = nil
+	delete(m.clearedFields, workitemcommit.FieldAuthorID)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *WorkItemCommitMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *WorkItemCommitMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the WorkItemCommit entity.
+// If the WorkItemCommit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkItemCommitMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *WorkItemCommitMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the WorkItemCommitMutation builder.
+func (m *WorkItemCommitMutation) Where(ps ...predicate.WorkItemCommit) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the WorkItemCommitMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *WorkItemCommitMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.WorkItemCommit, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *WorkItemCommitMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *WorkItemCommitMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (WorkItemCommit).
+func (m *WorkItemCommitMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *WorkItemCommitMutation) Fields() []string {
+	fields := make([]string, 0, 10)
+	if m.organization_id != nil {
+		fields = append(fields, workitemcommit.FieldOrganizationID)
+	}
+	if m.work_item_id != nil {
+		fields = append(fields, workitemcommit.FieldWorkItemID)
+	}
+	if m.repo != nil {
+		fields = append(fields, workitemcommit.FieldRepo)
+	}
+	if m.branch != nil {
+		fields = append(fields, workitemcommit.FieldBranch)
+	}
+	if m.commit_sha != nil {
+		fields = append(fields, workitemcommit.FieldCommitSha)
+	}
+	if m.pr_no != nil {
+		fields = append(fields, workitemcommit.FieldPrNo)
+	}
+	if m.pr_state != nil {
+		fields = append(fields, workitemcommit.FieldPrState)
+	}
+	if m.committed_at != nil {
+		fields = append(fields, workitemcommit.FieldCommittedAt)
+	}
+	if m.author_id != nil {
+		fields = append(fields, workitemcommit.FieldAuthorID)
+	}
+	if m.created_at != nil {
+		fields = append(fields, workitemcommit.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *WorkItemCommitMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case workitemcommit.FieldOrganizationID:
+		return m.OrganizationID()
+	case workitemcommit.FieldWorkItemID:
+		return m.WorkItemID()
+	case workitemcommit.FieldRepo:
+		return m.Repo()
+	case workitemcommit.FieldBranch:
+		return m.Branch()
+	case workitemcommit.FieldCommitSha:
+		return m.CommitSha()
+	case workitemcommit.FieldPrNo:
+		return m.PrNo()
+	case workitemcommit.FieldPrState:
+		return m.PrState()
+	case workitemcommit.FieldCommittedAt:
+		return m.CommittedAt()
+	case workitemcommit.FieldAuthorID:
+		return m.AuthorID()
+	case workitemcommit.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *WorkItemCommitMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case workitemcommit.FieldOrganizationID:
+		return m.OldOrganizationID(ctx)
+	case workitemcommit.FieldWorkItemID:
+		return m.OldWorkItemID(ctx)
+	case workitemcommit.FieldRepo:
+		return m.OldRepo(ctx)
+	case workitemcommit.FieldBranch:
+		return m.OldBranch(ctx)
+	case workitemcommit.FieldCommitSha:
+		return m.OldCommitSha(ctx)
+	case workitemcommit.FieldPrNo:
+		return m.OldPrNo(ctx)
+	case workitemcommit.FieldPrState:
+		return m.OldPrState(ctx)
+	case workitemcommit.FieldCommittedAt:
+		return m.OldCommittedAt(ctx)
+	case workitemcommit.FieldAuthorID:
+		return m.OldAuthorID(ctx)
+	case workitemcommit.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown WorkItemCommit field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WorkItemCommitMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case workitemcommit.FieldOrganizationID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOrganizationID(v)
+		return nil
+	case workitemcommit.FieldWorkItemID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWorkItemID(v)
+		return nil
+	case workitemcommit.FieldRepo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRepo(v)
+		return nil
+	case workitemcommit.FieldBranch:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBranch(v)
+		return nil
+	case workitemcommit.FieldCommitSha:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCommitSha(v)
+		return nil
+	case workitemcommit.FieldPrNo:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPrNo(v)
+		return nil
+	case workitemcommit.FieldPrState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPrState(v)
+		return nil
+	case workitemcommit.FieldCommittedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCommittedAt(v)
+		return nil
+	case workitemcommit.FieldAuthorID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAuthorID(v)
+		return nil
+	case workitemcommit.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown WorkItemCommit field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *WorkItemCommitMutation) AddedFields() []string {
+	var fields []string
+	if m.addpr_no != nil {
+		fields = append(fields, workitemcommit.FieldPrNo)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *WorkItemCommitMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case workitemcommit.FieldPrNo:
+		return m.AddedPrNo()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WorkItemCommitMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case workitemcommit.FieldPrNo:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPrNo(v)
+		return nil
+	}
+	return fmt.Errorf("unknown WorkItemCommit numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *WorkItemCommitMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(workitemcommit.FieldBranch) {
+		fields = append(fields, workitemcommit.FieldBranch)
+	}
+	if m.FieldCleared(workitemcommit.FieldPrNo) {
+		fields = append(fields, workitemcommit.FieldPrNo)
+	}
+	if m.FieldCleared(workitemcommit.FieldPrState) {
+		fields = append(fields, workitemcommit.FieldPrState)
+	}
+	if m.FieldCleared(workitemcommit.FieldCommittedAt) {
+		fields = append(fields, workitemcommit.FieldCommittedAt)
+	}
+	if m.FieldCleared(workitemcommit.FieldAuthorID) {
+		fields = append(fields, workitemcommit.FieldAuthorID)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *WorkItemCommitMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *WorkItemCommitMutation) ClearField(name string) error {
+	switch name {
+	case workitemcommit.FieldBranch:
+		m.ClearBranch()
+		return nil
+	case workitemcommit.FieldPrNo:
+		m.ClearPrNo()
+		return nil
+	case workitemcommit.FieldPrState:
+		m.ClearPrState()
+		return nil
+	case workitemcommit.FieldCommittedAt:
+		m.ClearCommittedAt()
+		return nil
+	case workitemcommit.FieldAuthorID:
+		m.ClearAuthorID()
+		return nil
+	}
+	return fmt.Errorf("unknown WorkItemCommit nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *WorkItemCommitMutation) ResetField(name string) error {
+	switch name {
+	case workitemcommit.FieldOrganizationID:
+		m.ResetOrganizationID()
+		return nil
+	case workitemcommit.FieldWorkItemID:
+		m.ResetWorkItemID()
+		return nil
+	case workitemcommit.FieldRepo:
+		m.ResetRepo()
+		return nil
+	case workitemcommit.FieldBranch:
+		m.ResetBranch()
+		return nil
+	case workitemcommit.FieldCommitSha:
+		m.ResetCommitSha()
+		return nil
+	case workitemcommit.FieldPrNo:
+		m.ResetPrNo()
+		return nil
+	case workitemcommit.FieldPrState:
+		m.ResetPrState()
+		return nil
+	case workitemcommit.FieldCommittedAt:
+		m.ResetCommittedAt()
+		return nil
+	case workitemcommit.FieldAuthorID:
+		m.ResetAuthorID()
+		return nil
+	case workitemcommit.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown WorkItemCommit field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *WorkItemCommitMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *WorkItemCommitMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *WorkItemCommitMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *WorkItemCommitMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *WorkItemCommitMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *WorkItemCommitMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *WorkItemCommitMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown WorkItemCommit unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *WorkItemCommitMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown WorkItemCommit edge %s", name)
+}
+
 // WorkItemEventMutation represents an operation that mutates the WorkItemEvent nodes in the graph.
 type WorkItemEventMutation struct {
 	config
@@ -14523,4 +16065,1064 @@ func (m *WorkItemLinkMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *WorkItemLinkMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown WorkItemLink edge %s", name)
+}
+
+// WorkLogMutation represents an operation that mutates the WorkLog nodes in the graph.
+type WorkLogMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *uuid.UUID
+	organization_id *uuid.UUID
+	work_item_id    *uuid.UUID
+	author_id       *string
+	minutes         *int
+	addminutes      *int
+	work_date       *time.Time
+	note            *string
+	project_code    *string
+	wbs_code        *string
+	grade_code      *string
+	source          *string
+	reversal_of     *uuid.UUID
+	created_at      *time.Time
+	clearedFields   map[string]struct{}
+	done            bool
+	oldValue        func(context.Context) (*WorkLog, error)
+	predicates      []predicate.WorkLog
+}
+
+var _ ent.Mutation = (*WorkLogMutation)(nil)
+
+// worklogOption allows management of the mutation configuration using functional options.
+type worklogOption func(*WorkLogMutation)
+
+// newWorkLogMutation creates new mutation for the WorkLog entity.
+func newWorkLogMutation(c config, op Op, opts ...worklogOption) *WorkLogMutation {
+	m := &WorkLogMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeWorkLog,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withWorkLogID sets the ID field of the mutation.
+func withWorkLogID(id uuid.UUID) worklogOption {
+	return func(m *WorkLogMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *WorkLog
+		)
+		m.oldValue = func(ctx context.Context) (*WorkLog, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().WorkLog.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withWorkLog sets the old WorkLog of the mutation.
+func withWorkLog(node *WorkLog) worklogOption {
+	return func(m *WorkLogMutation) {
+		m.oldValue = func(context.Context) (*WorkLog, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m WorkLogMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m WorkLogMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of WorkLog entities.
+func (m *WorkLogMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *WorkLogMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *WorkLogMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().WorkLog.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetOrganizationID sets the "organization_id" field.
+func (m *WorkLogMutation) SetOrganizationID(u uuid.UUID) {
+	m.organization_id = &u
+}
+
+// OrganizationID returns the value of the "organization_id" field in the mutation.
+func (m *WorkLogMutation) OrganizationID() (r uuid.UUID, exists bool) {
+	v := m.organization_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOrganizationID returns the old "organization_id" field's value of the WorkLog entity.
+// If the WorkLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkLogMutation) OldOrganizationID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOrganizationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOrganizationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOrganizationID: %w", err)
+	}
+	return oldValue.OrganizationID, nil
+}
+
+// ResetOrganizationID resets all changes to the "organization_id" field.
+func (m *WorkLogMutation) ResetOrganizationID() {
+	m.organization_id = nil
+}
+
+// SetWorkItemID sets the "work_item_id" field.
+func (m *WorkLogMutation) SetWorkItemID(u uuid.UUID) {
+	m.work_item_id = &u
+}
+
+// WorkItemID returns the value of the "work_item_id" field in the mutation.
+func (m *WorkLogMutation) WorkItemID() (r uuid.UUID, exists bool) {
+	v := m.work_item_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWorkItemID returns the old "work_item_id" field's value of the WorkLog entity.
+// If the WorkLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkLogMutation) OldWorkItemID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWorkItemID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWorkItemID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWorkItemID: %w", err)
+	}
+	return oldValue.WorkItemID, nil
+}
+
+// ResetWorkItemID resets all changes to the "work_item_id" field.
+func (m *WorkLogMutation) ResetWorkItemID() {
+	m.work_item_id = nil
+}
+
+// SetAuthorID sets the "author_id" field.
+func (m *WorkLogMutation) SetAuthorID(s string) {
+	m.author_id = &s
+}
+
+// AuthorID returns the value of the "author_id" field in the mutation.
+func (m *WorkLogMutation) AuthorID() (r string, exists bool) {
+	v := m.author_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAuthorID returns the old "author_id" field's value of the WorkLog entity.
+// If the WorkLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkLogMutation) OldAuthorID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAuthorID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAuthorID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAuthorID: %w", err)
+	}
+	return oldValue.AuthorID, nil
+}
+
+// ResetAuthorID resets all changes to the "author_id" field.
+func (m *WorkLogMutation) ResetAuthorID() {
+	m.author_id = nil
+}
+
+// SetMinutes sets the "minutes" field.
+func (m *WorkLogMutation) SetMinutes(i int) {
+	m.minutes = &i
+	m.addminutes = nil
+}
+
+// Minutes returns the value of the "minutes" field in the mutation.
+func (m *WorkLogMutation) Minutes() (r int, exists bool) {
+	v := m.minutes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMinutes returns the old "minutes" field's value of the WorkLog entity.
+// If the WorkLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkLogMutation) OldMinutes(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMinutes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMinutes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMinutes: %w", err)
+	}
+	return oldValue.Minutes, nil
+}
+
+// AddMinutes adds i to the "minutes" field.
+func (m *WorkLogMutation) AddMinutes(i int) {
+	if m.addminutes != nil {
+		*m.addminutes += i
+	} else {
+		m.addminutes = &i
+	}
+}
+
+// AddedMinutes returns the value that was added to the "minutes" field in this mutation.
+func (m *WorkLogMutation) AddedMinutes() (r int, exists bool) {
+	v := m.addminutes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMinutes resets all changes to the "minutes" field.
+func (m *WorkLogMutation) ResetMinutes() {
+	m.minutes = nil
+	m.addminutes = nil
+}
+
+// SetWorkDate sets the "work_date" field.
+func (m *WorkLogMutation) SetWorkDate(t time.Time) {
+	m.work_date = &t
+}
+
+// WorkDate returns the value of the "work_date" field in the mutation.
+func (m *WorkLogMutation) WorkDate() (r time.Time, exists bool) {
+	v := m.work_date
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWorkDate returns the old "work_date" field's value of the WorkLog entity.
+// If the WorkLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkLogMutation) OldWorkDate(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWorkDate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWorkDate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWorkDate: %w", err)
+	}
+	return oldValue.WorkDate, nil
+}
+
+// ResetWorkDate resets all changes to the "work_date" field.
+func (m *WorkLogMutation) ResetWorkDate() {
+	m.work_date = nil
+}
+
+// SetNote sets the "note" field.
+func (m *WorkLogMutation) SetNote(s string) {
+	m.note = &s
+}
+
+// Note returns the value of the "note" field in the mutation.
+func (m *WorkLogMutation) Note() (r string, exists bool) {
+	v := m.note
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNote returns the old "note" field's value of the WorkLog entity.
+// If the WorkLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkLogMutation) OldNote(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNote is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNote requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNote: %w", err)
+	}
+	return oldValue.Note, nil
+}
+
+// ClearNote clears the value of the "note" field.
+func (m *WorkLogMutation) ClearNote() {
+	m.note = nil
+	m.clearedFields[worklog.FieldNote] = struct{}{}
+}
+
+// NoteCleared returns if the "note" field was cleared in this mutation.
+func (m *WorkLogMutation) NoteCleared() bool {
+	_, ok := m.clearedFields[worklog.FieldNote]
+	return ok
+}
+
+// ResetNote resets all changes to the "note" field.
+func (m *WorkLogMutation) ResetNote() {
+	m.note = nil
+	delete(m.clearedFields, worklog.FieldNote)
+}
+
+// SetProjectCode sets the "project_code" field.
+func (m *WorkLogMutation) SetProjectCode(s string) {
+	m.project_code = &s
+}
+
+// ProjectCode returns the value of the "project_code" field in the mutation.
+func (m *WorkLogMutation) ProjectCode() (r string, exists bool) {
+	v := m.project_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectCode returns the old "project_code" field's value of the WorkLog entity.
+// If the WorkLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkLogMutation) OldProjectCode(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectCode: %w", err)
+	}
+	return oldValue.ProjectCode, nil
+}
+
+// ClearProjectCode clears the value of the "project_code" field.
+func (m *WorkLogMutation) ClearProjectCode() {
+	m.project_code = nil
+	m.clearedFields[worklog.FieldProjectCode] = struct{}{}
+}
+
+// ProjectCodeCleared returns if the "project_code" field was cleared in this mutation.
+func (m *WorkLogMutation) ProjectCodeCleared() bool {
+	_, ok := m.clearedFields[worklog.FieldProjectCode]
+	return ok
+}
+
+// ResetProjectCode resets all changes to the "project_code" field.
+func (m *WorkLogMutation) ResetProjectCode() {
+	m.project_code = nil
+	delete(m.clearedFields, worklog.FieldProjectCode)
+}
+
+// SetWbsCode sets the "wbs_code" field.
+func (m *WorkLogMutation) SetWbsCode(s string) {
+	m.wbs_code = &s
+}
+
+// WbsCode returns the value of the "wbs_code" field in the mutation.
+func (m *WorkLogMutation) WbsCode() (r string, exists bool) {
+	v := m.wbs_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWbsCode returns the old "wbs_code" field's value of the WorkLog entity.
+// If the WorkLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkLogMutation) OldWbsCode(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWbsCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWbsCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWbsCode: %w", err)
+	}
+	return oldValue.WbsCode, nil
+}
+
+// ClearWbsCode clears the value of the "wbs_code" field.
+func (m *WorkLogMutation) ClearWbsCode() {
+	m.wbs_code = nil
+	m.clearedFields[worklog.FieldWbsCode] = struct{}{}
+}
+
+// WbsCodeCleared returns if the "wbs_code" field was cleared in this mutation.
+func (m *WorkLogMutation) WbsCodeCleared() bool {
+	_, ok := m.clearedFields[worklog.FieldWbsCode]
+	return ok
+}
+
+// ResetWbsCode resets all changes to the "wbs_code" field.
+func (m *WorkLogMutation) ResetWbsCode() {
+	m.wbs_code = nil
+	delete(m.clearedFields, worklog.FieldWbsCode)
+}
+
+// SetGradeCode sets the "grade_code" field.
+func (m *WorkLogMutation) SetGradeCode(s string) {
+	m.grade_code = &s
+}
+
+// GradeCode returns the value of the "grade_code" field in the mutation.
+func (m *WorkLogMutation) GradeCode() (r string, exists bool) {
+	v := m.grade_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGradeCode returns the old "grade_code" field's value of the WorkLog entity.
+// If the WorkLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkLogMutation) OldGradeCode(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGradeCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGradeCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGradeCode: %w", err)
+	}
+	return oldValue.GradeCode, nil
+}
+
+// ClearGradeCode clears the value of the "grade_code" field.
+func (m *WorkLogMutation) ClearGradeCode() {
+	m.grade_code = nil
+	m.clearedFields[worklog.FieldGradeCode] = struct{}{}
+}
+
+// GradeCodeCleared returns if the "grade_code" field was cleared in this mutation.
+func (m *WorkLogMutation) GradeCodeCleared() bool {
+	_, ok := m.clearedFields[worklog.FieldGradeCode]
+	return ok
+}
+
+// ResetGradeCode resets all changes to the "grade_code" field.
+func (m *WorkLogMutation) ResetGradeCode() {
+	m.grade_code = nil
+	delete(m.clearedFields, worklog.FieldGradeCode)
+}
+
+// SetSource sets the "source" field.
+func (m *WorkLogMutation) SetSource(s string) {
+	m.source = &s
+}
+
+// Source returns the value of the "source" field in the mutation.
+func (m *WorkLogMutation) Source() (r string, exists bool) {
+	v := m.source
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSource returns the old "source" field's value of the WorkLog entity.
+// If the WorkLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkLogMutation) OldSource(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSource: %w", err)
+	}
+	return oldValue.Source, nil
+}
+
+// ResetSource resets all changes to the "source" field.
+func (m *WorkLogMutation) ResetSource() {
+	m.source = nil
+}
+
+// SetReversalOf sets the "reversal_of" field.
+func (m *WorkLogMutation) SetReversalOf(u uuid.UUID) {
+	m.reversal_of = &u
+}
+
+// ReversalOf returns the value of the "reversal_of" field in the mutation.
+func (m *WorkLogMutation) ReversalOf() (r uuid.UUID, exists bool) {
+	v := m.reversal_of
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReversalOf returns the old "reversal_of" field's value of the WorkLog entity.
+// If the WorkLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkLogMutation) OldReversalOf(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReversalOf is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReversalOf requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReversalOf: %w", err)
+	}
+	return oldValue.ReversalOf, nil
+}
+
+// ClearReversalOf clears the value of the "reversal_of" field.
+func (m *WorkLogMutation) ClearReversalOf() {
+	m.reversal_of = nil
+	m.clearedFields[worklog.FieldReversalOf] = struct{}{}
+}
+
+// ReversalOfCleared returns if the "reversal_of" field was cleared in this mutation.
+func (m *WorkLogMutation) ReversalOfCleared() bool {
+	_, ok := m.clearedFields[worklog.FieldReversalOf]
+	return ok
+}
+
+// ResetReversalOf resets all changes to the "reversal_of" field.
+func (m *WorkLogMutation) ResetReversalOf() {
+	m.reversal_of = nil
+	delete(m.clearedFields, worklog.FieldReversalOf)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *WorkLogMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *WorkLogMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the WorkLog entity.
+// If the WorkLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkLogMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *WorkLogMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the WorkLogMutation builder.
+func (m *WorkLogMutation) Where(ps ...predicate.WorkLog) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the WorkLogMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *WorkLogMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.WorkLog, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *WorkLogMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *WorkLogMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (WorkLog).
+func (m *WorkLogMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *WorkLogMutation) Fields() []string {
+	fields := make([]string, 0, 12)
+	if m.organization_id != nil {
+		fields = append(fields, worklog.FieldOrganizationID)
+	}
+	if m.work_item_id != nil {
+		fields = append(fields, worklog.FieldWorkItemID)
+	}
+	if m.author_id != nil {
+		fields = append(fields, worklog.FieldAuthorID)
+	}
+	if m.minutes != nil {
+		fields = append(fields, worklog.FieldMinutes)
+	}
+	if m.work_date != nil {
+		fields = append(fields, worklog.FieldWorkDate)
+	}
+	if m.note != nil {
+		fields = append(fields, worklog.FieldNote)
+	}
+	if m.project_code != nil {
+		fields = append(fields, worklog.FieldProjectCode)
+	}
+	if m.wbs_code != nil {
+		fields = append(fields, worklog.FieldWbsCode)
+	}
+	if m.grade_code != nil {
+		fields = append(fields, worklog.FieldGradeCode)
+	}
+	if m.source != nil {
+		fields = append(fields, worklog.FieldSource)
+	}
+	if m.reversal_of != nil {
+		fields = append(fields, worklog.FieldReversalOf)
+	}
+	if m.created_at != nil {
+		fields = append(fields, worklog.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *WorkLogMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case worklog.FieldOrganizationID:
+		return m.OrganizationID()
+	case worklog.FieldWorkItemID:
+		return m.WorkItemID()
+	case worklog.FieldAuthorID:
+		return m.AuthorID()
+	case worklog.FieldMinutes:
+		return m.Minutes()
+	case worklog.FieldWorkDate:
+		return m.WorkDate()
+	case worklog.FieldNote:
+		return m.Note()
+	case worklog.FieldProjectCode:
+		return m.ProjectCode()
+	case worklog.FieldWbsCode:
+		return m.WbsCode()
+	case worklog.FieldGradeCode:
+		return m.GradeCode()
+	case worklog.FieldSource:
+		return m.Source()
+	case worklog.FieldReversalOf:
+		return m.ReversalOf()
+	case worklog.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *WorkLogMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case worklog.FieldOrganizationID:
+		return m.OldOrganizationID(ctx)
+	case worklog.FieldWorkItemID:
+		return m.OldWorkItemID(ctx)
+	case worklog.FieldAuthorID:
+		return m.OldAuthorID(ctx)
+	case worklog.FieldMinutes:
+		return m.OldMinutes(ctx)
+	case worklog.FieldWorkDate:
+		return m.OldWorkDate(ctx)
+	case worklog.FieldNote:
+		return m.OldNote(ctx)
+	case worklog.FieldProjectCode:
+		return m.OldProjectCode(ctx)
+	case worklog.FieldWbsCode:
+		return m.OldWbsCode(ctx)
+	case worklog.FieldGradeCode:
+		return m.OldGradeCode(ctx)
+	case worklog.FieldSource:
+		return m.OldSource(ctx)
+	case worklog.FieldReversalOf:
+		return m.OldReversalOf(ctx)
+	case worklog.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown WorkLog field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WorkLogMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case worklog.FieldOrganizationID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOrganizationID(v)
+		return nil
+	case worklog.FieldWorkItemID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWorkItemID(v)
+		return nil
+	case worklog.FieldAuthorID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAuthorID(v)
+		return nil
+	case worklog.FieldMinutes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMinutes(v)
+		return nil
+	case worklog.FieldWorkDate:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWorkDate(v)
+		return nil
+	case worklog.FieldNote:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNote(v)
+		return nil
+	case worklog.FieldProjectCode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectCode(v)
+		return nil
+	case worklog.FieldWbsCode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWbsCode(v)
+		return nil
+	case worklog.FieldGradeCode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGradeCode(v)
+		return nil
+	case worklog.FieldSource:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSource(v)
+		return nil
+	case worklog.FieldReversalOf:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReversalOf(v)
+		return nil
+	case worklog.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown WorkLog field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *WorkLogMutation) AddedFields() []string {
+	var fields []string
+	if m.addminutes != nil {
+		fields = append(fields, worklog.FieldMinutes)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *WorkLogMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case worklog.FieldMinutes:
+		return m.AddedMinutes()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WorkLogMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case worklog.FieldMinutes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMinutes(v)
+		return nil
+	}
+	return fmt.Errorf("unknown WorkLog numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *WorkLogMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(worklog.FieldNote) {
+		fields = append(fields, worklog.FieldNote)
+	}
+	if m.FieldCleared(worklog.FieldProjectCode) {
+		fields = append(fields, worklog.FieldProjectCode)
+	}
+	if m.FieldCleared(worklog.FieldWbsCode) {
+		fields = append(fields, worklog.FieldWbsCode)
+	}
+	if m.FieldCleared(worklog.FieldGradeCode) {
+		fields = append(fields, worklog.FieldGradeCode)
+	}
+	if m.FieldCleared(worklog.FieldReversalOf) {
+		fields = append(fields, worklog.FieldReversalOf)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *WorkLogMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *WorkLogMutation) ClearField(name string) error {
+	switch name {
+	case worklog.FieldNote:
+		m.ClearNote()
+		return nil
+	case worklog.FieldProjectCode:
+		m.ClearProjectCode()
+		return nil
+	case worklog.FieldWbsCode:
+		m.ClearWbsCode()
+		return nil
+	case worklog.FieldGradeCode:
+		m.ClearGradeCode()
+		return nil
+	case worklog.FieldReversalOf:
+		m.ClearReversalOf()
+		return nil
+	}
+	return fmt.Errorf("unknown WorkLog nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *WorkLogMutation) ResetField(name string) error {
+	switch name {
+	case worklog.FieldOrganizationID:
+		m.ResetOrganizationID()
+		return nil
+	case worklog.FieldWorkItemID:
+		m.ResetWorkItemID()
+		return nil
+	case worklog.FieldAuthorID:
+		m.ResetAuthorID()
+		return nil
+	case worklog.FieldMinutes:
+		m.ResetMinutes()
+		return nil
+	case worklog.FieldWorkDate:
+		m.ResetWorkDate()
+		return nil
+	case worklog.FieldNote:
+		m.ResetNote()
+		return nil
+	case worklog.FieldProjectCode:
+		m.ResetProjectCode()
+		return nil
+	case worklog.FieldWbsCode:
+		m.ResetWbsCode()
+		return nil
+	case worklog.FieldGradeCode:
+		m.ResetGradeCode()
+		return nil
+	case worklog.FieldSource:
+		m.ResetSource()
+		return nil
+	case worklog.FieldReversalOf:
+		m.ResetReversalOf()
+		return nil
+	case worklog.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown WorkLog field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *WorkLogMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *WorkLogMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *WorkLogMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *WorkLogMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *WorkLogMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *WorkLogMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *WorkLogMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown WorkLog unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *WorkLogMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown WorkLog edge %s", name)
 }

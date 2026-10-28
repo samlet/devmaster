@@ -17,6 +17,7 @@ var serviceDescs = []grpc.ServiceDesc{
 	devv1.SprintService_ServiceDesc,
 	devv1.BoardService_ServiceDesc,
 	devv1.VersionService_ServiceDesc,
+	devv1.WorkLogService_ServiceDesc,
 	devv1.SystemService_ServiceDesc,
 }
 

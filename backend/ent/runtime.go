@@ -14,14 +14,17 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/ent/product"
 	"github.com/xiaofeiwu/devmaster/backend/ent/productcounter"
 	"github.com/xiaofeiwu/devmaster/backend/ent/releaserecord"
+	"github.com/xiaofeiwu/devmaster/backend/ent/reposynccursor"
 	"github.com/xiaofeiwu/devmaster/backend/ent/schema"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprint"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintscopeevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintsnapshot"
 	"github.com/xiaofeiwu/devmaster/backend/ent/version"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitem"
+	"github.com/xiaofeiwu/devmaster/backend/ent/workitemcommit"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemlink"
+	"github.com/xiaofeiwu/devmaster/backend/ent/worklog"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -390,6 +393,36 @@ func init() {
 	releaserecordDescID := releaserecordFields[0].Descriptor()
 	// releaserecord.DefaultID holds the default value on creation for the id field.
 	releaserecord.DefaultID = releaserecordDescID.Default.(func() uuid.UUID)
+	reposynccursorFields := schema.RepoSyncCursor{}.Fields()
+	_ = reposynccursorFields
+	// reposynccursorDescRepo is the schema descriptor for repo field.
+	reposynccursorDescRepo := reposynccursorFields[1].Descriptor()
+	// reposynccursor.RepoValidator is a validator for the "repo" field. It is called by the builders before save.
+	reposynccursor.RepoValidator = func() func(string) error {
+		validators := reposynccursorDescRepo.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(repo string) error {
+			for _, fn := range fns {
+				if err := fn(repo); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// reposynccursorDescLastSha is the schema descriptor for last_sha field.
+	reposynccursorDescLastSha := reposynccursorFields[3].Descriptor()
+	// reposynccursor.LastShaValidator is a validator for the "last_sha" field. It is called by the builders before save.
+	reposynccursor.LastShaValidator = reposynccursorDescLastSha.Validators[0].(func(string) error)
+	// reposynccursorDescUpdatedAt is the schema descriptor for updated_at field.
+	reposynccursorDescUpdatedAt := reposynccursorFields[4].Descriptor()
+	// reposynccursor.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	reposynccursor.DefaultUpdatedAt = reposynccursorDescUpdatedAt.Default.(func() time.Time)
+	// reposynccursor.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	reposynccursor.UpdateDefaultUpdatedAt = reposynccursorDescUpdatedAt.UpdateDefault.(func() time.Time)
 	sprintFields := schema.Sprint{}.Fields()
 	_ = sprintFields
 	// sprintDescName is the schema descriptor for name field.
@@ -700,6 +733,64 @@ func init() {
 	workitemDescID := workitemFields[0].Descriptor()
 	// workitem.DefaultID holds the default value on creation for the id field.
 	workitem.DefaultID = workitemDescID.Default.(func() uuid.UUID)
+	workitemcommitFields := schema.WorkItemCommit{}.Fields()
+	_ = workitemcommitFields
+	// workitemcommitDescRepo is the schema descriptor for repo field.
+	workitemcommitDescRepo := workitemcommitFields[3].Descriptor()
+	// workitemcommit.RepoValidator is a validator for the "repo" field. It is called by the builders before save.
+	workitemcommit.RepoValidator = func() func(string) error {
+		validators := workitemcommitDescRepo.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(repo string) error {
+			for _, fn := range fns {
+				if err := fn(repo); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// workitemcommitDescBranch is the schema descriptor for branch field.
+	workitemcommitDescBranch := workitemcommitFields[4].Descriptor()
+	// workitemcommit.BranchValidator is a validator for the "branch" field. It is called by the builders before save.
+	workitemcommit.BranchValidator = workitemcommitDescBranch.Validators[0].(func(string) error)
+	// workitemcommitDescCommitSha is the schema descriptor for commit_sha field.
+	workitemcommitDescCommitSha := workitemcommitFields[5].Descriptor()
+	// workitemcommit.CommitShaValidator is a validator for the "commit_sha" field. It is called by the builders before save.
+	workitemcommit.CommitShaValidator = func() func(string) error {
+		validators := workitemcommitDescCommitSha.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(commit_sha string) error {
+			for _, fn := range fns {
+				if err := fn(commit_sha); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// workitemcommitDescPrState is the schema descriptor for pr_state field.
+	workitemcommitDescPrState := workitemcommitFields[7].Descriptor()
+	// workitemcommit.PrStateValidator is a validator for the "pr_state" field. It is called by the builders before save.
+	workitemcommit.PrStateValidator = workitemcommitDescPrState.Validators[0].(func(string) error)
+	// workitemcommitDescAuthorID is the schema descriptor for author_id field.
+	workitemcommitDescAuthorID := workitemcommitFields[9].Descriptor()
+	// workitemcommit.AuthorIDValidator is a validator for the "author_id" field. It is called by the builders before save.
+	workitemcommit.AuthorIDValidator = workitemcommitDescAuthorID.Validators[0].(func(string) error)
+	// workitemcommitDescCreatedAt is the schema descriptor for created_at field.
+	workitemcommitDescCreatedAt := workitemcommitFields[10].Descriptor()
+	// workitemcommit.DefaultCreatedAt holds the default value on creation for the created_at field.
+	workitemcommit.DefaultCreatedAt = workitemcommitDescCreatedAt.Default.(func() time.Time)
+	// workitemcommitDescID is the schema descriptor for id field.
+	workitemcommitDescID := workitemcommitFields[0].Descriptor()
+	// workitemcommit.DefaultID holds the default value on creation for the id field.
+	workitemcommit.DefaultID = workitemcommitDescID.Default.(func() uuid.UUID)
 	workitemeventFields := schema.WorkItemEvent{}.Fields()
 	_ = workitemeventFields
 	// workitemeventDescEventType is the schema descriptor for event_type field.
@@ -768,4 +859,50 @@ func init() {
 	workitemlinkDescID := workitemlinkFields[0].Descriptor()
 	// workitemlink.DefaultID holds the default value on creation for the id field.
 	workitemlink.DefaultID = workitemlinkDescID.Default.(func() uuid.UUID)
+	worklogFields := schema.WorkLog{}.Fields()
+	_ = worklogFields
+	// worklogDescAuthorID is the schema descriptor for author_id field.
+	worklogDescAuthorID := worklogFields[3].Descriptor()
+	// worklog.AuthorIDValidator is a validator for the "author_id" field. It is called by the builders before save.
+	worklog.AuthorIDValidator = func() func(string) error {
+		validators := worklogDescAuthorID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(author_id string) error {
+			for _, fn := range fns {
+				if err := fn(author_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// worklogDescProjectCode is the schema descriptor for project_code field.
+	worklogDescProjectCode := worklogFields[7].Descriptor()
+	// worklog.ProjectCodeValidator is a validator for the "project_code" field. It is called by the builders before save.
+	worklog.ProjectCodeValidator = worklogDescProjectCode.Validators[0].(func(string) error)
+	// worklogDescWbsCode is the schema descriptor for wbs_code field.
+	worklogDescWbsCode := worklogFields[8].Descriptor()
+	// worklog.WbsCodeValidator is a validator for the "wbs_code" field. It is called by the builders before save.
+	worklog.WbsCodeValidator = worklogDescWbsCode.Validators[0].(func(string) error)
+	// worklogDescGradeCode is the schema descriptor for grade_code field.
+	worklogDescGradeCode := worklogFields[9].Descriptor()
+	// worklog.GradeCodeValidator is a validator for the "grade_code" field. It is called by the builders before save.
+	worklog.GradeCodeValidator = worklogDescGradeCode.Validators[0].(func(string) error)
+	// worklogDescSource is the schema descriptor for source field.
+	worklogDescSource := worklogFields[10].Descriptor()
+	// worklog.DefaultSource holds the default value on creation for the source field.
+	worklog.DefaultSource = worklogDescSource.Default.(string)
+	// worklog.SourceValidator is a validator for the "source" field. It is called by the builders before save.
+	worklog.SourceValidator = worklogDescSource.Validators[0].(func(string) error)
+	// worklogDescCreatedAt is the schema descriptor for created_at field.
+	worklogDescCreatedAt := worklogFields[12].Descriptor()
+	// worklog.DefaultCreatedAt holds the default value on creation for the created_at field.
+	worklog.DefaultCreatedAt = worklogDescCreatedAt.Default.(func() time.Time)
+	// worklogDescID is the schema descriptor for id field.
+	worklogDescID := worklogFields[0].Descriptor()
+	// worklog.DefaultID holds the default value on creation for the id field.
+	worklog.DefaultID = worklogDescID.Default.(func() uuid.UUID)
 }

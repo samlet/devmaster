@@ -73,4 +73,7 @@ gitea:
   token: ""
   owner: meshadmin
   repo: hosp
+  # 与 Gitea webhook 配置里的 secret 一致；失败返回 401。
+  webhook_secret: devmaster-dev-secret
+  organization_id: 00000000-0000-0000-0000-000000000001
 

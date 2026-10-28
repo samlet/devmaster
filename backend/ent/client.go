@@ -23,13 +23,16 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/ent/product"
 	"github.com/xiaofeiwu/devmaster/backend/ent/productcounter"
 	"github.com/xiaofeiwu/devmaster/backend/ent/releaserecord"
+	"github.com/xiaofeiwu/devmaster/backend/ent/reposynccursor"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprint"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintscopeevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintsnapshot"
 	"github.com/xiaofeiwu/devmaster/backend/ent/version"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitem"
+	"github.com/xiaofeiwu/devmaster/backend/ent/workitemcommit"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemlink"
+	"github.com/xiaofeiwu/devmaster/backend/ent/worklog"
 )
 
 // Client is the client that holds all ent builders.
@@ -53,6 +56,8 @@ type Client struct {
 	ProductCounter *ProductCounterClient
 	// ReleaseRecord is the client for interacting with the ReleaseRecord builders.
 	ReleaseRecord *ReleaseRecordClient
+	// RepoSyncCursor is the client for interacting with the RepoSyncCursor builders.
+	RepoSyncCursor *RepoSyncCursorClient
 	// Sprint is the client for interacting with the Sprint builders.
 	Sprint *SprintClient
 	// SprintScopeEvent is the client for interacting with the SprintScopeEvent builders.
@@ -63,10 +68,14 @@ type Client struct {
 	Version *VersionClient
 	// WorkItem is the client for interacting with the WorkItem builders.
 	WorkItem *WorkItemClient
+	// WorkItemCommit is the client for interacting with the WorkItemCommit builders.
+	WorkItemCommit *WorkItemCommitClient
 	// WorkItemEvent is the client for interacting with the WorkItemEvent builders.
 	WorkItemEvent *WorkItemEventClient
 	// WorkItemLink is the client for interacting with the WorkItemLink builders.
 	WorkItemLink *WorkItemLinkClient
+	// WorkLog is the client for interacting with the WorkLog builders.
+	WorkLog *WorkLogClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -86,13 +95,16 @@ func (c *Client) init() {
 	c.Product = NewProductClient(c.config)
 	c.ProductCounter = NewProductCounterClient(c.config)
 	c.ReleaseRecord = NewReleaseRecordClient(c.config)
+	c.RepoSyncCursor = NewRepoSyncCursorClient(c.config)
 	c.Sprint = NewSprintClient(c.config)
 	c.SprintScopeEvent = NewSprintScopeEventClient(c.config)
 	c.SprintSnapshot = NewSprintSnapshotClient(c.config)
 	c.Version = NewVersionClient(c.config)
 	c.WorkItem = NewWorkItemClient(c.config)
+	c.WorkItemCommit = NewWorkItemCommitClient(c.config)
 	c.WorkItemEvent = NewWorkItemEventClient(c.config)
 	c.WorkItemLink = NewWorkItemLinkClient(c.config)
+	c.WorkLog = NewWorkLogClient(c.config)
 }
 
 type (
@@ -193,13 +205,16 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Product:          NewProductClient(cfg),
 		ProductCounter:   NewProductCounterClient(cfg),
 		ReleaseRecord:    NewReleaseRecordClient(cfg),
+		RepoSyncCursor:   NewRepoSyncCursorClient(cfg),
 		Sprint:           NewSprintClient(cfg),
 		SprintScopeEvent: NewSprintScopeEventClient(cfg),
 		SprintSnapshot:   NewSprintSnapshotClient(cfg),
 		Version:          NewVersionClient(cfg),
 		WorkItem:         NewWorkItemClient(cfg),
+		WorkItemCommit:   NewWorkItemCommitClient(cfg),
 		WorkItemEvent:    NewWorkItemEventClient(cfg),
 		WorkItemLink:     NewWorkItemLinkClient(cfg),
+		WorkLog:          NewWorkLogClient(cfg),
 	}, nil
 }
 
@@ -227,13 +242,16 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Product:          NewProductClient(cfg),
 		ProductCounter:   NewProductCounterClient(cfg),
 		ReleaseRecord:    NewReleaseRecordClient(cfg),
+		RepoSyncCursor:   NewRepoSyncCursorClient(cfg),
 		Sprint:           NewSprintClient(cfg),
 		SprintScopeEvent: NewSprintScopeEventClient(cfg),
 		SprintSnapshot:   NewSprintSnapshotClient(cfg),
 		Version:          NewVersionClient(cfg),
 		WorkItem:         NewWorkItemClient(cfg),
+		WorkItemCommit:   NewWorkItemCommitClient(cfg),
 		WorkItemEvent:    NewWorkItemEventClient(cfg),
 		WorkItemLink:     NewWorkItemLinkClient(cfg),
+		WorkLog:          NewWorkLogClient(cfg),
 	}, nil
 }
 
@@ -264,8 +282,9 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.Board, c.Comment, c.IdempotencyKey, c.InboxEvent, c.OutboxEvent, c.Product,
-		c.ProductCounter, c.ReleaseRecord, c.Sprint, c.SprintScopeEvent,
-		c.SprintSnapshot, c.Version, c.WorkItem, c.WorkItemEvent, c.WorkItemLink,
+		c.ProductCounter, c.ReleaseRecord, c.RepoSyncCursor, c.Sprint,
+		c.SprintScopeEvent, c.SprintSnapshot, c.Version, c.WorkItem, c.WorkItemCommit,
+		c.WorkItemEvent, c.WorkItemLink, c.WorkLog,
 	} {
 		n.Use(hooks...)
 	}
@@ -276,8 +295,9 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.Board, c.Comment, c.IdempotencyKey, c.InboxEvent, c.OutboxEvent, c.Product,
-		c.ProductCounter, c.ReleaseRecord, c.Sprint, c.SprintScopeEvent,
-		c.SprintSnapshot, c.Version, c.WorkItem, c.WorkItemEvent, c.WorkItemLink,
+		c.ProductCounter, c.ReleaseRecord, c.RepoSyncCursor, c.Sprint,
+		c.SprintScopeEvent, c.SprintSnapshot, c.Version, c.WorkItem, c.WorkItemCommit,
+		c.WorkItemEvent, c.WorkItemLink, c.WorkLog,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -302,6 +322,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ProductCounter.mutate(ctx, m)
 	case *ReleaseRecordMutation:
 		return c.ReleaseRecord.mutate(ctx, m)
+	case *RepoSyncCursorMutation:
+		return c.RepoSyncCursor.mutate(ctx, m)
 	case *SprintMutation:
 		return c.Sprint.mutate(ctx, m)
 	case *SprintScopeEventMutation:
@@ -312,10 +334,14 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Version.mutate(ctx, m)
 	case *WorkItemMutation:
 		return c.WorkItem.mutate(ctx, m)
+	case *WorkItemCommitMutation:
+		return c.WorkItemCommit.mutate(ctx, m)
 	case *WorkItemEventMutation:
 		return c.WorkItemEvent.mutate(ctx, m)
 	case *WorkItemLinkMutation:
 		return c.WorkItemLink.mutate(ctx, m)
+	case *WorkLogMutation:
+		return c.WorkLog.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -1385,6 +1411,139 @@ func (c *ReleaseRecordClient) mutate(ctx context.Context, m *ReleaseRecordMutati
 	}
 }
 
+// RepoSyncCursorClient is a client for the RepoSyncCursor schema.
+type RepoSyncCursorClient struct {
+	config
+}
+
+// NewRepoSyncCursorClient returns a client for the RepoSyncCursor from the given config.
+func NewRepoSyncCursorClient(c config) *RepoSyncCursorClient {
+	return &RepoSyncCursorClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `reposynccursor.Hooks(f(g(h())))`.
+func (c *RepoSyncCursorClient) Use(hooks ...Hook) {
+	c.hooks.RepoSyncCursor = append(c.hooks.RepoSyncCursor, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `reposynccursor.Intercept(f(g(h())))`.
+func (c *RepoSyncCursorClient) Intercept(interceptors ...Interceptor) {
+	c.inters.RepoSyncCursor = append(c.inters.RepoSyncCursor, interceptors...)
+}
+
+// Create returns a builder for creating a RepoSyncCursor entity.
+func (c *RepoSyncCursorClient) Create() *RepoSyncCursorCreate {
+	mutation := newRepoSyncCursorMutation(c.config, OpCreate)
+	return &RepoSyncCursorCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of RepoSyncCursor entities.
+func (c *RepoSyncCursorClient) CreateBulk(builders ...*RepoSyncCursorCreate) *RepoSyncCursorCreateBulk {
+	return &RepoSyncCursorCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *RepoSyncCursorClient) MapCreateBulk(slice any, setFunc func(*RepoSyncCursorCreate, int)) *RepoSyncCursorCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &RepoSyncCursorCreateBulk{err: fmt.Errorf("calling to RepoSyncCursorClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*RepoSyncCursorCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &RepoSyncCursorCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for RepoSyncCursor.
+func (c *RepoSyncCursorClient) Update() *RepoSyncCursorUpdate {
+	mutation := newRepoSyncCursorMutation(c.config, OpUpdate)
+	return &RepoSyncCursorUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *RepoSyncCursorClient) UpdateOne(_m *RepoSyncCursor) *RepoSyncCursorUpdateOne {
+	mutation := newRepoSyncCursorMutation(c.config, OpUpdateOne, withRepoSyncCursor(_m))
+	return &RepoSyncCursorUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *RepoSyncCursorClient) UpdateOneID(id int) *RepoSyncCursorUpdateOne {
+	mutation := newRepoSyncCursorMutation(c.config, OpUpdateOne, withRepoSyncCursorID(id))
+	return &RepoSyncCursorUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for RepoSyncCursor.
+func (c *RepoSyncCursorClient) Delete() *RepoSyncCursorDelete {
+	mutation := newRepoSyncCursorMutation(c.config, OpDelete)
+	return &RepoSyncCursorDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *RepoSyncCursorClient) DeleteOne(_m *RepoSyncCursor) *RepoSyncCursorDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *RepoSyncCursorClient) DeleteOneID(id int) *RepoSyncCursorDeleteOne {
+	builder := c.Delete().Where(reposynccursor.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &RepoSyncCursorDeleteOne{builder}
+}
+
+// Query returns a query builder for RepoSyncCursor.
+func (c *RepoSyncCursorClient) Query() *RepoSyncCursorQuery {
+	return &RepoSyncCursorQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeRepoSyncCursor},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a RepoSyncCursor entity by its id.
+func (c *RepoSyncCursorClient) Get(ctx context.Context, id int) (*RepoSyncCursor, error) {
+	return c.Query().Where(reposynccursor.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *RepoSyncCursorClient) GetX(ctx context.Context, id int) *RepoSyncCursor {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *RepoSyncCursorClient) Hooks() []Hook {
+	return c.hooks.RepoSyncCursor
+}
+
+// Interceptors returns the client interceptors.
+func (c *RepoSyncCursorClient) Interceptors() []Interceptor {
+	return c.inters.RepoSyncCursor
+}
+
+func (c *RepoSyncCursorClient) mutate(ctx context.Context, m *RepoSyncCursorMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&RepoSyncCursorCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&RepoSyncCursorUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&RepoSyncCursorUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&RepoSyncCursorDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown RepoSyncCursor mutation op: %q", m.Op())
+	}
+}
+
 // SprintClient is a client for the Sprint schema.
 type SprintClient struct {
 	config
@@ -2050,6 +2209,139 @@ func (c *WorkItemClient) mutate(ctx context.Context, m *WorkItemMutation) (Value
 	}
 }
 
+// WorkItemCommitClient is a client for the WorkItemCommit schema.
+type WorkItemCommitClient struct {
+	config
+}
+
+// NewWorkItemCommitClient returns a client for the WorkItemCommit from the given config.
+func NewWorkItemCommitClient(c config) *WorkItemCommitClient {
+	return &WorkItemCommitClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `workitemcommit.Hooks(f(g(h())))`.
+func (c *WorkItemCommitClient) Use(hooks ...Hook) {
+	c.hooks.WorkItemCommit = append(c.hooks.WorkItemCommit, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `workitemcommit.Intercept(f(g(h())))`.
+func (c *WorkItemCommitClient) Intercept(interceptors ...Interceptor) {
+	c.inters.WorkItemCommit = append(c.inters.WorkItemCommit, interceptors...)
+}
+
+// Create returns a builder for creating a WorkItemCommit entity.
+func (c *WorkItemCommitClient) Create() *WorkItemCommitCreate {
+	mutation := newWorkItemCommitMutation(c.config, OpCreate)
+	return &WorkItemCommitCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of WorkItemCommit entities.
+func (c *WorkItemCommitClient) CreateBulk(builders ...*WorkItemCommitCreate) *WorkItemCommitCreateBulk {
+	return &WorkItemCommitCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *WorkItemCommitClient) MapCreateBulk(slice any, setFunc func(*WorkItemCommitCreate, int)) *WorkItemCommitCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &WorkItemCommitCreateBulk{err: fmt.Errorf("calling to WorkItemCommitClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*WorkItemCommitCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &WorkItemCommitCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for WorkItemCommit.
+func (c *WorkItemCommitClient) Update() *WorkItemCommitUpdate {
+	mutation := newWorkItemCommitMutation(c.config, OpUpdate)
+	return &WorkItemCommitUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *WorkItemCommitClient) UpdateOne(_m *WorkItemCommit) *WorkItemCommitUpdateOne {
+	mutation := newWorkItemCommitMutation(c.config, OpUpdateOne, withWorkItemCommit(_m))
+	return &WorkItemCommitUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *WorkItemCommitClient) UpdateOneID(id uuid.UUID) *WorkItemCommitUpdateOne {
+	mutation := newWorkItemCommitMutation(c.config, OpUpdateOne, withWorkItemCommitID(id))
+	return &WorkItemCommitUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for WorkItemCommit.
+func (c *WorkItemCommitClient) Delete() *WorkItemCommitDelete {
+	mutation := newWorkItemCommitMutation(c.config, OpDelete)
+	return &WorkItemCommitDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *WorkItemCommitClient) DeleteOne(_m *WorkItemCommit) *WorkItemCommitDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *WorkItemCommitClient) DeleteOneID(id uuid.UUID) *WorkItemCommitDeleteOne {
+	builder := c.Delete().Where(workitemcommit.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &WorkItemCommitDeleteOne{builder}
+}
+
+// Query returns a query builder for WorkItemCommit.
+func (c *WorkItemCommitClient) Query() *WorkItemCommitQuery {
+	return &WorkItemCommitQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeWorkItemCommit},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a WorkItemCommit entity by its id.
+func (c *WorkItemCommitClient) Get(ctx context.Context, id uuid.UUID) (*WorkItemCommit, error) {
+	return c.Query().Where(workitemcommit.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *WorkItemCommitClient) GetX(ctx context.Context, id uuid.UUID) *WorkItemCommit {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *WorkItemCommitClient) Hooks() []Hook {
+	return c.hooks.WorkItemCommit
+}
+
+// Interceptors returns the client interceptors.
+func (c *WorkItemCommitClient) Interceptors() []Interceptor {
+	return c.inters.WorkItemCommit
+}
+
+func (c *WorkItemCommitClient) mutate(ctx context.Context, m *WorkItemCommitMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&WorkItemCommitCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&WorkItemCommitUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&WorkItemCommitUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&WorkItemCommitDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown WorkItemCommit mutation op: %q", m.Op())
+	}
+}
+
 // WorkItemEventClient is a client for the WorkItemEvent schema.
 type WorkItemEventClient struct {
 	config
@@ -2316,16 +2608,151 @@ func (c *WorkItemLinkClient) mutate(ctx context.Context, m *WorkItemLinkMutation
 	}
 }
 
+// WorkLogClient is a client for the WorkLog schema.
+type WorkLogClient struct {
+	config
+}
+
+// NewWorkLogClient returns a client for the WorkLog from the given config.
+func NewWorkLogClient(c config) *WorkLogClient {
+	return &WorkLogClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `worklog.Hooks(f(g(h())))`.
+func (c *WorkLogClient) Use(hooks ...Hook) {
+	c.hooks.WorkLog = append(c.hooks.WorkLog, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `worklog.Intercept(f(g(h())))`.
+func (c *WorkLogClient) Intercept(interceptors ...Interceptor) {
+	c.inters.WorkLog = append(c.inters.WorkLog, interceptors...)
+}
+
+// Create returns a builder for creating a WorkLog entity.
+func (c *WorkLogClient) Create() *WorkLogCreate {
+	mutation := newWorkLogMutation(c.config, OpCreate)
+	return &WorkLogCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of WorkLog entities.
+func (c *WorkLogClient) CreateBulk(builders ...*WorkLogCreate) *WorkLogCreateBulk {
+	return &WorkLogCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *WorkLogClient) MapCreateBulk(slice any, setFunc func(*WorkLogCreate, int)) *WorkLogCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &WorkLogCreateBulk{err: fmt.Errorf("calling to WorkLogClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*WorkLogCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &WorkLogCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for WorkLog.
+func (c *WorkLogClient) Update() *WorkLogUpdate {
+	mutation := newWorkLogMutation(c.config, OpUpdate)
+	return &WorkLogUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *WorkLogClient) UpdateOne(_m *WorkLog) *WorkLogUpdateOne {
+	mutation := newWorkLogMutation(c.config, OpUpdateOne, withWorkLog(_m))
+	return &WorkLogUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *WorkLogClient) UpdateOneID(id uuid.UUID) *WorkLogUpdateOne {
+	mutation := newWorkLogMutation(c.config, OpUpdateOne, withWorkLogID(id))
+	return &WorkLogUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for WorkLog.
+func (c *WorkLogClient) Delete() *WorkLogDelete {
+	mutation := newWorkLogMutation(c.config, OpDelete)
+	return &WorkLogDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *WorkLogClient) DeleteOne(_m *WorkLog) *WorkLogDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *WorkLogClient) DeleteOneID(id uuid.UUID) *WorkLogDeleteOne {
+	builder := c.Delete().Where(worklog.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &WorkLogDeleteOne{builder}
+}
+
+// Query returns a query builder for WorkLog.
+func (c *WorkLogClient) Query() *WorkLogQuery {
+	return &WorkLogQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeWorkLog},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a WorkLog entity by its id.
+func (c *WorkLogClient) Get(ctx context.Context, id uuid.UUID) (*WorkLog, error) {
+	return c.Query().Where(worklog.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *WorkLogClient) GetX(ctx context.Context, id uuid.UUID) *WorkLog {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *WorkLogClient) Hooks() []Hook {
+	return c.hooks.WorkLog
+}
+
+// Interceptors returns the client interceptors.
+func (c *WorkLogClient) Interceptors() []Interceptor {
+	return c.inters.WorkLog
+}
+
+func (c *WorkLogClient) mutate(ctx context.Context, m *WorkLogMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&WorkLogCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&WorkLogUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&WorkLogUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&WorkLogDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown WorkLog mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
 		Board, Comment, IdempotencyKey, InboxEvent, OutboxEvent, Product,
-		ProductCounter, ReleaseRecord, Sprint, SprintScopeEvent, SprintSnapshot,
-		Version, WorkItem, WorkItemEvent, WorkItemLink []ent.Hook
+		ProductCounter, ReleaseRecord, RepoSyncCursor, Sprint, SprintScopeEvent,
+		SprintSnapshot, Version, WorkItem, WorkItemCommit, WorkItemEvent, WorkItemLink,
+		WorkLog []ent.Hook
 	}
 	inters struct {
 		Board, Comment, IdempotencyKey, InboxEvent, OutboxEvent, Product,
-		ProductCounter, ReleaseRecord, Sprint, SprintScopeEvent, SprintSnapshot,
-		Version, WorkItem, WorkItemEvent, WorkItemLink []ent.Interceptor
+		ProductCounter, ReleaseRecord, RepoSyncCursor, Sprint, SprintScopeEvent,
+		SprintSnapshot, Version, WorkItem, WorkItemCommit, WorkItemEvent, WorkItemLink,
+		WorkLog []ent.Interceptor
 	}
 )

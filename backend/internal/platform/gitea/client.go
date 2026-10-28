@@ -68,3 +68,67 @@ func truncate(value string, limit int) string {
 	}
 	return value[:limit] + "..."
 }
+
+type Commit struct {
+	SHA         string
+	Message     string
+	CommittedAt time.Time
+	AuthorID    string
+}
+
+type apiCommit struct {
+	SHA    string `json:"sha"`
+	Commit struct {
+		Message string `json:"message"`
+		Author  struct {
+			Date time.Time `json:"date"`
+		} `json:"author"`
+	} `json:"commit"`
+	Author struct {
+		Login string `json:"login"`
+	} `json:"author"`
+}
+
+// ListCommits 拉取仓库提交（对账用）。Gitea 的 limit 上限 100。
+func (c *Client) ListCommits(ctx context.Context, owner, repo string, since time.Time, page, limit int) ([]Commit, error) {
+	if strings.TrimSpace(c.cfg.Token) == "" {
+		return nil, fmt.Errorf("gitea is not configured (token)")
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
+	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/commits?page=%d&limit=%d",
+		strings.TrimRight(c.cfg.BaseURL, "/"), owner, repo, page, limit)
+	if !since.IsZero() {
+		url += "&since=" + since.UTC().Format(time.RFC3339)
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Authorization", "token "+c.cfg.Token)
+
+	response, err := c.http.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("list commits: %w", err)
+	}
+	defer response.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(response.Body, 5<<20))
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("list commits returned %d: %s", response.StatusCode, truncate(string(body), 300))
+	}
+	var raw []apiCommit
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("decode commits: %w", err)
+	}
+	out := make([]Commit, 0, len(raw))
+	for _, item := range raw {
+		out = append(out, Commit{
+			SHA:         item.SHA,
+			Message:     item.Commit.Message,
+			CommittedAt: item.Commit.Author.Date,
+			AuthorID:    item.Author.Login,
+		})
+	}
+	return out, nil
+}
