@@ -93,6 +93,21 @@ func (c *Client) ReleaseFailed(ctx context.Context, versionID, version, reason s
 	})
 }
 
+// ReleaseApprovalPending 是催办：发布已提交但审批还没结论。
+// dedupe_key 固定到版本级，notify 侧不会因为工作流多轮提醒而重复轰炸。
+func (c *Client) ReleaseApprovalPending(ctx context.Context, versionID, version, waited, threshold, submittedBy string) error {
+	return c.Publish(ctx, Intent{
+		Template:  "release.approval_pending",
+		Category:  "transactional",
+		DedupeKey: "devmaster:release:" + versionID + ":approval-pending",
+		Params: map[string]any{
+			"version": version, "version_id": versionID,
+			"waited": waited, "threshold": threshold, "submitted_by": submittedBy,
+		},
+		Metadata: map[string]string{"version_id": versionID},
+	})
+}
+
 func (c *Client) ReleasePublished(ctx context.Context, versionID, version, tag string) error {
 	return c.Publish(ctx, Intent{
 		Template:  "release.published",

@@ -119,6 +119,9 @@ type NotifyConfig struct {
 	NATSURL     string `yaml:"nats_url"`
 	Tenant      string `yaml:"tenant"`
 	RecipientID string `yaml:"recipient_id"`
+	// ApprovalReminderAfter 是待审批催办阈值：审批等待超过它就发一次提醒。
+	// 必须小于 approver.poll_timeout，否则到点先超时、提醒永远发不出来。
+	ApprovalReminderAfter time.Duration `yaml:"approval_reminder_after"`
 }
 
 // ArtifactConfig 是 artifact（内容与证据仓）的接入参数。
@@ -204,10 +207,11 @@ func Default() Config {
 			PollTimeout:  30 * time.Minute,
 		},
 		Notify: NotifyConfig{
-			Enabled:     false,
-			NATSURL:     "nats://127.0.0.1:4222",
-			Tenant:      "devmaster",
-			RecipientID: "team:devmaster",
+			Enabled:               false,
+			NATSURL:               "nats://127.0.0.1:4222",
+			Tenant:                "devmaster",
+			RecipientID:           "team:devmaster",
+			ApprovalReminderAfter: time.Hour,
 		},
 		Gitea: GiteaConfig{
 			BaseURL:        "http://127.0.0.1:3123",
@@ -274,6 +278,7 @@ func applyEnv(cfg *Config) {
 	setString(&cfg.Notify.NATSURL, "DEVMASTER_NOTIFY_NATS_URL")
 	setString(&cfg.Notify.Tenant, "DEVMASTER_NOTIFY_TENANT")
 	setString(&cfg.Notify.RecipientID, "DEVMASTER_NOTIFY_RECIPIENT_ID")
+	setDuration(&cfg.Notify.ApprovalReminderAfter, "DEVMASTER_NOTIFY_APPROVAL_REMINDER_AFTER")
 	setBool(&cfg.Auth.Enabled, "DEVMASTER_AUTH_ENABLED")
 	setString(&cfg.Auth.Issuer, "DEVMASTER_AUTH_ISSUER")
 	setString(&cfg.Auth.Audience, "DEVMASTER_AUTH_AUDIENCE")
@@ -342,6 +347,14 @@ func setString(target *string, key string) {
 func setInt(target *int, key string) {
 	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 		if parsed, err := strconv.Atoi(value); err == nil {
+			*target = parsed
+		}
+	}
+}
+
+func setDuration(target *time.Duration, key string) {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		if parsed, err := time.ParseDuration(value); err == nil {
 			*target = parsed
 		}
 	}

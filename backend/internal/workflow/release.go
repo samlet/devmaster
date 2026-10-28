@@ -28,6 +28,9 @@ type ReleaseInput struct {
 	SubmittedBy    string        `json:"submitted_by"`
 	PollInterval   time.Duration `json:"poll_interval"`
 	PollTimeout    time.Duration `json:"poll_timeout"`
+	// ReminderAfter 是催办阈值：审批等待超过它就发一次待审批提醒。
+	// 0 表示默认 1h；不小于 PollTimeout 时压到 PollTimeout/2。
+	ReminderAfter time.Duration `json:"reminder_after"`
 }
 
 type ReleaseInfo struct {
@@ -75,7 +78,17 @@ func ReleaseWorkflow(ctx workflow.Context, input ReleaseInput) error {
 	if pollTimeout <= 0 {
 		pollTimeout = 24 * time.Hour
 	}
-	deadline := workflow.Now(ctx).Add(pollTimeout)
+	// 催办阈值必须小于整体超时，否则提醒永远不会发出来（到点先超时了）。
+	reminderAfter := input.ReminderAfter
+	if reminderAfter <= 0 {
+		reminderAfter = time.Hour
+	}
+	if reminderAfter >= pollTimeout {
+		reminderAfter = pollTimeout / 2
+	}
+	startedAt := workflow.Now(ctx)
+	deadline := startedAt.Add(pollTimeout)
+	reminded := false
 
 	var result ApprovalResult
 	approved := false
@@ -98,8 +111,19 @@ func ReleaseWorkflow(ctx workflow.Context, input ReleaseInput) error {
 		case "REJECTED", "FAILED", "CANCELLED":
 			return failRelease(ctx, input, "approval "+result.Status)
 		default:
-			if workflow.Now(ctx).After(deadline) {
-				return failRelease(ctx, input, "approval timed out")
+			now := workflow.Now(ctx)
+			waited := now.Sub(startedAt).Round(time.Minute)
+			if now.After(deadline) {
+				return failRelease(ctx, input, fmt.Sprintf("approval timed out after %s", waited))
+			}
+			// 只催一次：反复催办会让审批人对整个通知通道脱敏，比不催更糟。
+			if !reminded && now.Sub(startedAt) >= reminderAfter {
+				reminded = true
+				if err := workflow.ExecuteActivity(ctx, "NotifyApprovalPending",
+					input, info, waited.String(), reminderAfter.String()).Get(ctx, nil); err != nil {
+					// 催办失败不改变审批事实，记一笔继续轮询。
+					workflow.GetLogger(ctx).Warn("approval reminder failed", "error", err.Error())
+				}
 			}
 			workflow.Sleep(ctx, pollInterval)
 		}
@@ -199,6 +223,14 @@ func (a *Activities) PollReleaseApproval(ctx context.Context, instanceID string)
 		result.ApproverID = approver.ApproverFromEvents(events)
 	}
 	return result, nil
+}
+
+// NotifyApprovalPending 发一次待审批催办。通知是旁路：未启用时直接返回。
+func (a *Activities) NotifyApprovalPending(ctx context.Context, input ReleaseInput, info ReleaseInfo, waited, threshold string) error {
+	if a.Notifier == nil {
+		return nil
+	}
+	return a.Notifier.ReleaseApprovalPending(ctx, input.VersionID.String(), info.VersionName, waited, threshold, input.SubmittedBy)
 }
 
 func (a *Activities) ApproveRelease(ctx context.Context, input ReleaseInput, approverID string) error {

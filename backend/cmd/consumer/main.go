@@ -178,6 +178,7 @@ func (h *releaseHandler) Handle(ctx context.Context, raw []byte) error {
 		SubmittedBy:    payload.SubmittedBy,
 		PollInterval:   h.cfg.Approver.PollInterval,
 		PollTimeout:    h.cfg.Approver.PollTimeout,
+		ReminderAfter:  h.cfg.Notify.ApprovalReminderAfter,
 	}
 	options := client.StartWorkflowOptions{
 		ID:                    "release-" + releaseID.String(),

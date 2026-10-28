@@ -39,9 +39,13 @@ func PingWorkflow(ctx workflow.Context) (PingResult, error) {
 }
 
 // Notifier 是发布通知端口；nil 表示未启用。
+//
+// 通知是旁路：实现方返回错误只记日志，不改变发布结果。
 type Notifier interface {
 	ReleaseFailed(ctx context.Context, versionID, version, reason string) error
 	ReleasePublished(ctx context.Context, versionID, version, tag string) error
+	// ReleaseApprovalPending 是催办：waited/threshold 都是人可读时长（如 "1h30m0s"）。
+	ReleaseApprovalPending(ctx context.Context, versionID, version, waited, threshold, submittedBy string) error
 }
 
 type Activities struct {

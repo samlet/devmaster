@@ -66,7 +66,8 @@ Workflow ID: release-{version_id}-{release_record_id}
   │     tag 已存在且指向同一 commit → 视为成功（幂等）
   │
   ├─ Activity SealEvidence(record_id)
-  │     发布说明 + 提交范围 → artifact 固定版本 → evidence_ref 写回
+  │     证据文本（版本/提交范围/工作项数/提交人/审批人）→ artifact 固定版本
+  │     → 回读校验 SHA-256 → evidence_ref 写回
   │
   └─ Activity Publish(record_id)
         release_records=PUBLISHED, versions=RELEASED（同事务）+ outbox E6
@@ -83,6 +84,7 @@ Workflow ID: release-{version_id}-{release_record_id}
 | `MarkApproved` | 10s | 5 次 | 状态迁移，CAS 幂等 |
 | `CreateTag` | 15s | 5 次 | tag 已存在视为成功 |
 | `SealEvidence` | 30s | 5 次 | artifact 幂等键带载荷指纹 |
+| `NotifyApprovalPending` | 10s | 5 次 | 催办只发一次；失败不改变审批事实 |
 | `Publish` | 10s | 5 次 | 同事务写版本与 outbox，天然幂等 |
 
 **整体超时**：`WorkflowExecutionTimeout=48h`（审批 24h + 后续步骤余量）。
