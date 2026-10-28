@@ -14,7 +14,7 @@ HTTP_PORT ?= 8291
 
 .PHONY: help tools proto proto-check db-create migrate migrate-test migrate-status \
         run relay worker consumer dev web-install web-dev web-build web-check \
-        seed-check seed-dataset reconcile snapshot gitea-reconcile approver-bootstrap version-gate test-version-gate perf-baseline test test-integration lint build check clean
+        seed-check seed-dataset reconcile snapshot report-snapshot gitea-reconcile approver-bootstrap version-gate test-version-gate perf-baseline test test-integration lint build check clean
 
 help:
 	@echo "make tools            检查 go / buf / atlas"
@@ -41,6 +41,7 @@ help:
 	@echo "make version-gate     部署前置校验（PRODUCT/VERSION）"
 	@echo "make test-version-gate 版本门禁验收（需 server 在跑）"
 	@echo "make perf-baseline    10 万项报表 P95 基线（需 server 在跑）"
+	@echo "make report-snapshot  固化报表日快照（DAYS=1 日报 / DAYS=60 回填）"
 	@echo "make test             buf lint + go test"
 	@echo "make test-integration 真连 PG 的集成测试（-p 1）"
 	@echo "make lint             go vet + buf lint"
@@ -141,6 +142,10 @@ version-gate:
 
 test-version-gate:
 	./scripts/test-version-gate.sh
+
+REPORT_SNAPSHOT_DAYS ?= 1
+report-snapshot:
+	cd backend && go run ./cmd/report-snapshot -organization-id $(ORGANIZATION_ID) -days $(REPORT_SNAPSHOT_DAYS) -config configs/local.example.yaml
 
 PERF_ITEMS ?= 100000
 perf-baseline:

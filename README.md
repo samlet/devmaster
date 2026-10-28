@@ -3,9 +3,9 @@
 面向软件研发的执行事实源：**工作项、冲刺、版本、工时**。参考 Jira 的任务/缺陷/冲刺/版本迭代
 四件套，但只保留其中可被核算的部分，并把它们接进生态的项目与财务链路。
 
-**当前状态：M6 报表 API 已落地（2026-10-28）。** 周期时间 / 吞吐 / 累积流图 / 团队负载
-四个接口与 10 万项基线工具；周期时间与团队负载达标，吞吐/CFD 在 10 万项下仍超 300ms
-（见 docs/01 M6 状态）。口径见 [docs/05](docs/05-指标与报表口径.md)。
+**当前状态：M6 报表已落地（2026-10-28）。** 周期时间 / 吞吐 / 累积流图 / 团队负载
+四个接口 + 日快照表，10 万项实测四项均 < 300ms。口径见
+[docs/05](docs/05-指标与报表口径.md)。
 评估与裁决见 [docs/01](docs/01-方案评估与关键决策.md)，分期见 [docs/01 §8](docs/01-方案评估与关键决策.md)。
 
 ## 定位
@@ -59,6 +59,7 @@ make gitea-reconcile     # Gitea 提交对账（补齐 webhook 漏掉的关联�
 make version-gate PRODUCT=HOSP VERSION=1.0.0   # 部署前置校验
 make test-version-gate   # 门禁验收：已发布放行、不存在拒绝（需 server 在跑）
 make perf-baseline       # 10 万项报表 P95 基线（需 server 在跑）
+make report-snapshot     # 固化报表日快照（DAYS=1 日报 / DAYS=60 回填）
 ```
 
 发布需要 approver（API `:18090`）与 Gitea（`:3123`）在跑；Gitea 令牌通过

@@ -47,6 +47,9 @@ type Repository interface {
 	Throughput(ctx context.Context, organizationID uuid.UUID, productID *uuid.UUID, from, to time.Time) ([]ThroughputBucket, error)
 	TeamLoad(ctx context.Context, organizationID uuid.UUID, productID *uuid.UUID) ([]LoadRow, error)
 	CFD(ctx context.Context, organizationID uuid.UUID, productID *uuid.UUID, from, to time.Time) ([]CFDPoint, error)
+	CFDLive(ctx context.Context, organizationID uuid.UUID, productID *uuid.UUID, from, to time.Time) ([]CFDPoint, error)
+	CompletedDaily(ctx context.Context, organizationID, productID uuid.UUID, from, to time.Time) (map[string]map[string]int, error)
+	UpsertSnapshot(ctx context.Context, organizationID, productID uuid.UUID, point CFDPoint, completed map[string]int) error
 }
 
 type CycleSummary struct {
@@ -108,6 +111,29 @@ func (s *Service) CFD(ctx context.Context, actor Actor, productID *uuid.UUID, fr
 		return nil, apperr.Invalid("range", "cumulative flow supports at most 90 days")
 	}
 	return s.repo.CFD(ctx, actor.OrganizationID, productID, from, to)
+}
+
+// SnapshotRange 把区间内的每日存量与完成数固化成快照。
+// 日报只跑当天；回填/压测可传更长区间。
+func (s *Service) SnapshotRange(ctx context.Context, actor Actor, productID uuid.UUID, from, to time.Time) (int, error) {
+	if err := validateRange(from, to); err != nil {
+		return 0, err
+	}
+	points, err := s.repo.CFDLive(ctx, actor.OrganizationID, &productID, from, to)
+	if err != nil {
+		return 0, err
+	}
+	completed, err := s.repo.CompletedDaily(ctx, actor.OrganizationID, productID, from, to)
+	if err != nil {
+		return 0, err
+	}
+	for _, point := range points {
+		if err := s.repo.UpsertSnapshot(ctx, actor.OrganizationID, productID, point,
+			completed[point.Date.Format("2006-01-02")]); err != nil {
+			return 0, err
+		}
+	}
+	return len(points), nil
 }
 
 func validateRange(from, to time.Time) error {

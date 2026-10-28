@@ -20,6 +20,8 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/config"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/database"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/logging"
+	reportpostgres "github.com/xiaofeiwu/devmaster/backend/internal/report/adapter/postgres"
+	reportapp "github.com/xiaofeiwu/devmaster/backend/internal/report/application"
 )
 
 const perfProductID = "7e000000-0000-4000-8000-000000000001"
@@ -62,6 +64,13 @@ func run() error {
 		return err
 	}
 	fmt.Printf("已造数：%d 个工作项\n", *items)
+	// 生产上 CFD/吞吐读日快照；压测也先把快照固化，再测读路径。
+	reportService := reportapp.NewService(reportpostgres.NewRepository(db))
+	actor := reportapp.Actor{Subject: "perf", OrganizationID: org}
+	snapshotFrom := time.Now().UTC().AddDate(0, 0, -60)
+	if _, err := reportService.SnapshotRange(ctx, actor, uuid.MustParse(perfProductID), snapshotFrom, time.Now().UTC()); err != nil {
+		return fmt.Errorf("snapshot perf product: %w", err)
+	}
 	if *cleanup {
 		defer func() {
 			if err := clean(context.Background(), *ownerDSN, org); err != nil {
@@ -72,11 +81,13 @@ func run() error {
 		}()
 	}
 
+	// 带上 product_id：生产上报表都按产品看，CFD/吞吐的快照路径也需要产品维度。
+	productQuery := "product_id=" + perfProductID
 	endpoints := []string{
-		"/api/reports/cycle-time?days=30",
-		"/api/reports/team-load",
-		"/api/reports/throughput?weeks=12",
-		"/api/reports/cfd?days=14",
+		"/api/reports/cycle-time?days=30&" + productQuery,
+		"/api/reports/team-load?" + productQuery,
+		"/api/reports/throughput?weeks=12&" + productQuery,
+		"/api/reports/cfd?days=14&" + productQuery,
 	}
 	failed := false
 	for _, endpoint := range endpoints {
