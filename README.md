@@ -3,9 +3,9 @@
 面向软件研发的执行事实源：**工作项、冲刺、版本、工时**。参考 Jira 的任务/缺陷/冲刺/版本迭代
 四件套，但只保留其中可被核算的部分，并把它们接进生态的项目与财务链路。
 
-**当前状态：M5 devmaster 侧收口完成（2026-10-28）。** 已交付版本注册表 `CheckVersion`
-与部署前置校验参考客户端；PPM LABOR 投影、Gitea 关联、工时链路均已实测。
-it-solution 的 `CreateDeployment` 钩子尚未接入（需要改其仓并跑它的门禁）。
+**当前状态：M5 集成收口完成（2026-10-28）。** 版本注册表 `CheckVersion` 已接入
+it-solution 的 `CreateDeployment` 前置校验（fail_closed / fail_open_with_flag 两策略实测）；
+PPM LABOR、Gitea 关联、工时链路均已实测。
 评估与裁决见 [docs/01](docs/01-方案评估与关键决策.md)，分期见 [docs/01 §8](docs/01-方案评估与关键决策.md)。
 
 ## 定位
