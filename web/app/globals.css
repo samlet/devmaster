@@ -138,7 +138,9 @@ td.muted {
 }
 
 /* 发布表单：一行放得下三个字段 + 按钮，窄屏自动换行。 */
-.release-form {
+.release-form,
+.create-form,
+.edit-form {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -147,7 +149,9 @@ td.muted {
   padding: 16px;
 }
 
-.release-form label {
+.release-form label,
+.create-form label,
+.edit-form label {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -156,7 +160,11 @@ td.muted {
 }
 
 .release-form input,
-.release-form select {
+.release-form select,
+.create-form input,
+.create-form select,
+.edit-form input,
+.edit-form select {
   height: 34px;
   padding: 0 10px;
   border: 1px solid var(--border);
@@ -165,6 +173,37 @@ td.muted {
   color: var(--text);
   font-size: 13px;
   min-width: 180px;
+}
+
+/* 新建/编辑折叠块：默认收起，空列表时新建自动展开。 */
+.create-work-item {
+  padding: 12px 16px;
+}
+
+.create-work-item summary,
+.row-edit summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  user-select: none;
+}
+
+.create-work-item summary {
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.row-edit {
+  margin-bottom: 6px;
+}
+
+.row-edit .edit-form {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
 }
 
 /* 行内流转表单：表格里放得下，窄屏自动换行。 */
@@ -198,7 +237,9 @@ td.muted {
   border-color: var(--text);
 }
 
-.release-form button {
+.release-form button,
+.create-form button,
+.edit-form button {
   height: 34px;
   padding: 0 16px;
   border: 1px solid var(--text);

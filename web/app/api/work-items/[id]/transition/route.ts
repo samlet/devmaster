@@ -36,7 +36,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!to) {
     backTo(returnTo, "error", "请选择目标状态");
   }
-  if (!Number.isInteger(expectedVersion) || expectedVersion <= 0) {
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 0) {
     backTo(returnTo, "error", "缺少工作项版本，请刷新页面后重试");
   }
 

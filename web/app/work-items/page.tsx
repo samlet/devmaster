@@ -19,6 +19,8 @@ type WorkItem = {
   next_statuses: string[];
 };
 
+type Product = { id: string; key: string; name: string };
+
 type WorkItemList = {
   items: WorkItem[];
   total: number;
@@ -41,6 +43,8 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "已取消",
 };
 
+const PRIORITY_VALUES: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
+
 const RESOLUTION_LABELS: Record<string, string> = {
   FIXED: "已修复",
   WONTFIX: "不修复",
@@ -57,6 +61,20 @@ const TYPE_LABELS: Record<string, string> = {
   BUG: "缺陷",
   SUBTASK: "子任务",
 };
+
+async function loadProducts(): Promise<Product[]> {
+  try {
+    const response = await fetch(`${API_URL}/api/products?limit=50`, { cache: "no-store" });
+    if (!response.ok) {
+      return [];
+    }
+    const payload = (await response.json()) as { items?: Product[] };
+    return payload.items ?? [];
+  } catch {
+    // 产品列表取不到不该挡住工作项列表：新建表单会退化成没有产品可选。
+    return [];
+  }
+}
 
 async function loadWorkItems(status: string, query: string): Promise<{ data?: WorkItemList; error?: string }> {
   const params = new URLSearchParams();
@@ -76,7 +94,14 @@ async function loadWorkItems(status: string, query: string): Promise<{ data?: Wo
 export default async function WorkItemsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; error?: string; transitioned?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    q?: string;
+    error?: string;
+    transitioned?: string;
+    created?: string;
+    updated?: string;
+  }>;
 }) {
   const params = await searchParams;
   const status = (params.status ?? "").toUpperCase();
@@ -85,6 +110,7 @@ export default async function WorkItemsPage({
   const returnTo = `/work-items?${new URLSearchParams({ ...(status ? { status } : {}), ...(query ? { q: query } : {}) }).toString()}`;
   const { data, error } = await loadWorkItems(status, query);
   const items = data?.items ?? [];
+  const products = await loadProducts();
 
   return (
     <main>
@@ -112,7 +138,57 @@ export default async function WorkItemsPage({
           <br />
           请确认后端已启动（<code>make run</code>）。
         </p>
-      ) : (
+      ) : null}
+
+      <details className="card create-work-item" open={items.length === 0}>
+          <summary>新建工作项</summary>
+          {products.length === 0 ? (
+            <p className="muted">没有可用的产品，先在「产品」页确认数据。</p>
+          ) : (
+            <form className="create-form" action="/api/work-items" method="post">
+              <input type="hidden" name="return_to" value={returnTo} />
+              <label>
+                产品
+                <select name="product_id" defaultValue={products[0].id}>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.key} · {product.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                类型
+                <select name="type" defaultValue="TASK">
+                  <option value="STORY">需求</option>
+                  <option value="TASK">任务</option>
+                  <option value="BUG">缺陷</option>
+                  <option value="SUBTASK">子任务</option>
+                  <option value="EPIC">史诗</option>
+                </select>
+              </label>
+              <label>
+                标题
+                <input name="title" placeholder="一句话说清要做什么" required size={28} />
+              </label>
+              <label>
+                优先级
+                <select name="priority" defaultValue="2">
+                  <option value="0">P0</option>
+                  <option value="1">P1</option>
+                  <option value="2">P2</option>
+                  <option value="3">P3</option>
+                </select>
+              </label>
+              <label>
+                经办人
+                <input name="assignee_id" placeholder="可选" size={12} />
+              </label>
+              <button type="submit">创建</button>
+            </form>
+          )}
+        </details>
+
         <div className="card">
           {items.length === 0 ? (
             <div className="empty">没有匹配的工作项。</div>
@@ -145,6 +221,23 @@ export default async function WorkItemsPage({
                     <td className="muted">{item.assignee_id || "—"}</td>
                     <td className="muted">{new Date(item.updated_at).toLocaleString("zh-CN")}</td>
                     <td>
+                      <details className="row-edit">
+                        <summary>编辑</summary>
+                        <form className="edit-form" action={`/api/work-items/${item.id}`} method="post">
+                          <input type="hidden" name="return_to" value={returnTo} />
+                          <input type="hidden" name="expected_version" value={item.version} />
+                          <input name="title" defaultValue={item.title} size={24} required />
+                          <select name="priority" defaultValue={String(PRIORITY_VALUES[item.priority] ?? 2)}>
+                            <option value="0">P0</option>
+                            <option value="1">P1</option>
+                            <option value="2">P2</option>
+                            <option value="3">P3</option>
+                          </select>
+                          <input name="assignee_id" defaultValue={item.assignee_id} placeholder="经办人" size={12} />
+                          <input name="description_md" defaultValue="" placeholder="描述（留空表示清空）" size={20} />
+                          <button type="submit">保存</button>
+                        </form>
+                      </details>
                       {item.next_statuses.length === 0 ? (
                         <span className="muted">—</span>
                       ) : (
@@ -183,10 +276,9 @@ export default async function WorkItemsPage({
             </table>
           )}
         </div>
-      )}
 
       <footer className="page">
-        <span>只读控制台 · M1 工作项</span>
+        <span>M1 工作项 · 可新建、编辑与流转</span>
         <span>{data ? `共 ${data.total} 条` : ""}</span>
       </footer>
     </main>

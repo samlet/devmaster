@@ -48,8 +48,11 @@ type WorkItemReader interface {
 	List(ctx context.Context, actor workitemapplication.Actor, filter workitemapplication.ListFilter) ([]workitemdomain.WorkItem, int, error)
 }
 
-// WorkItemWriter 是工作项状态流转的写端口。
+// WorkItemWriter 是工作项的写端口：创建、编辑、指派、流转。
 type WorkItemWriter interface {
+	Create(ctx context.Context, actor workitemapplication.Actor, cmd workitemapplication.CreateCommand) (workitemdomain.WorkItem, error)
+	Update(ctx context.Context, actor workitemapplication.Actor, cmd workitemapplication.UpdateCommand) (workitemdomain.WorkItem, error)
+	Assign(ctx context.Context, actor workitemapplication.Actor, cmd workitemapplication.AssignCommand) (workitemdomain.WorkItem, error)
 	Transition(ctx context.Context, actor workitemapplication.Actor, cmd workitemapplication.TransitionCommand) (workitemdomain.WorkItem, error)
 }
 
@@ -147,6 +150,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/metrics", s.metrics.Handler())
 	mux.HandleFunc("/api/products", s.handleProducts)
 	mux.HandleFunc("/api/work-items", s.handleWorkItems)
+	mux.HandleFunc("POST /api/work-items", s.handleCreateWorkItem)
+	mux.HandleFunc("PATCH /api/work-items/{id}", s.handleUpdateWorkItem)
 	mux.HandleFunc("/api/work-items/{id}/transition", s.handleTransitionWorkItem)
 	mux.HandleFunc("/api/sprints", s.handleSprints)
 	mux.HandleFunc("/api/board", s.handleBoard)
@@ -871,6 +876,216 @@ func (s *Server) handleResolveSubject(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"found": found, "anchor_id": anchorID})
 }
 
+// handleCreateWorkItem 从控制台建工作项。
+//
+// key 与 rank 由 repo.ReserveIdentity 分配，reporter 取自签名覆盖的 actor：
+// 这两件事都不能由客户端决定，否则谁都能把工作项挂到别人名下。
+func (s *Server) handleCreateWorkItem(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 64<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	var payload struct {
+		ProductID   string `json:"product_id"`
+		Type        string `json:"type"`
+		Title       string `json:"title"`
+		Description string `json:"description_md"`
+		Priority    *int   `json:"priority"`
+		AssigneeID  string `json:"assignee_id"`
+		VersionID   string `json:"version_id"`
+		Actor       string `json:"actor"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	productID, err := uuid.Parse(strings.TrimSpace(payload.ProductID))
+	if err != nil {
+		http.Error(w, "product_id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	itemType, err := workitemdomain.ParseType(payload.Type)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	title := strings.TrimSpace(payload.Title)
+	if title == "" {
+		http.Error(w, "title is required", http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(payload.Actor)
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	// 默认 P2：建单时多数人不关心优先级，逼他们选只会得到一个随手选的值。
+	priority := workitemdomain.PriorityP2
+	if payload.Priority != nil {
+		priority, err = workitemdomain.ParsePriority(int16(*payload.Priority))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	cmd := workitemapplication.CreateCommand{
+		ProductID:     productID,
+		Type:          itemType,
+		Title:         title,
+		DescriptionMD: strings.TrimSpace(payload.Description),
+		Priority:      priority,
+	}
+	if assignee := strings.TrimSpace(payload.AssigneeID); assignee != "" {
+		cmd.AssigneeID = &assignee
+	}
+	if raw := strings.TrimSpace(payload.VersionID); raw != "" {
+		versionID, parseErr := uuid.Parse(raw)
+		if parseErr != nil {
+			http.Error(w, "version_id must be a valid UUID", http.StatusBadRequest)
+			return
+		}
+		cmd.VersionID = &versionID
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	item, err := s.workItemsW.Create(r.Context(), workitemapplication.Actor{
+		Subject: actor, OrganizationID: organizationID,
+	}, cmd)
+	if err != nil {
+		s.writeAppError(w, "create work item failed", err)
+		return
+	}
+	s.logger.Info("work item created via console",
+		slog.String("work_item_id", item.ID.String()),
+		slog.String("key", item.Key),
+		slog.String("actor", actor))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id":      item.ID.String(),
+		"key":     item.Key,
+		"status":  string(item.Status),
+		"version": int32(item.Version),
+	})
+}
+
+// handleUpdateWorkItem 编辑标题/优先级/描述，并可改经办人。
+//
+// 经办人走 Assign 而不是 Update：领域里指派是独立动作（有自己的守卫与事件），
+// 塞进 UpdateFields 会把两件事的审计混在一起。这里按顺序调两次，
+// 第二次用第一次返回的版本——两次写都必须过 CAS。
+func (s *Server) handleUpdateWorkItem(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 64<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	workItemID, err := uuid.Parse(strings.TrimSpace(r.PathValue("id")))
+	if err != nil {
+		http.Error(w, "work item id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	var payload struct {
+		// 指针：新建的工作项版本就是 0，用 int 无法区分「没传」和「传了 0」。
+		ExpectedVersion *int    `json:"expected_version"`
+		Title           *string `json:"title"`
+		Description     *string `json:"description_md"`
+		Priority        *int    `json:"priority"`
+		// AssigneeID 显式给出才处理：空串表示取消指派，缺省表示不动。
+		AssigneeID *string `json:"assignee_id"`
+		Actor      string  `json:"actor"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(payload.Actor)
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	if payload.ExpectedVersion == nil {
+		http.Error(w, "expected_version is required", http.StatusBadRequest)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	actorRef := workitemapplication.Actor{Subject: actor, OrganizationID: organizationID}
+
+	fields := workitemdomain.UpdateFields{}
+	if payload.Title != nil {
+		fields.Title = payload.Title
+	}
+	if payload.Description != nil {
+		fields.DescriptionMD = payload.Description
+	}
+	if payload.Priority != nil {
+		priority, parseErr := workitemdomain.ParsePriority(int16(*payload.Priority))
+		if parseErr != nil {
+			http.Error(w, parseErr.Error(), http.StatusBadRequest)
+			return
+		}
+		fields.Priority = &priority
+	}
+
+	item, err := s.workItemsW.Update(r.Context(), actorRef, workitemapplication.UpdateCommand{
+		WorkItemID:      workItemID,
+		ExpectedVersion: *payload.ExpectedVersion,
+		Fields:          fields,
+	})
+	if err != nil {
+		s.writeAppError(w, "update work item failed", err)
+		return
+	}
+	if payload.AssigneeID != nil {
+		var assignee *string
+		if trimmed := strings.TrimSpace(*payload.AssigneeID); trimmed != "" {
+			assignee = &trimmed
+		}
+		item, err = s.workItemsW.Assign(r.Context(), actorRef, workitemapplication.AssignCommand{
+			WorkItemID:      workItemID,
+			AssigneeID:      assignee,
+			ExpectedVersion: int(item.Version),
+		})
+		if err != nil {
+			s.writeAppError(w, "assign work item failed", err)
+			return
+		}
+	}
+	s.logger.Info("work item updated via console",
+		slog.String("work_item_id", workItemID.String()),
+		slog.String("actor", actor))
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id":      item.ID.String(),
+		"status":  string(item.Status),
+		"version": int32(item.Version),
+	})
+}
+
 // handleTransitionWorkItem 是控制台的第二个写端点：工作项状态流转。
 //
 // 与提交发布同一条 BFF 签名通道。actor 与角色放在 body 里而不是 header：
@@ -900,7 +1115,7 @@ func (s *Server) handleTransitionWorkItem(w http.ResponseWriter, r *http.Request
 		Comment         string   `json:"comment"`
 		Actor           string   `json:"actor"`
 		ActorRoles      []string `json:"actor_roles"`
-		ExpectedVersion int      `json:"expected_version"`
+		ExpectedVersion *int     `json:"expected_version"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		http.Error(w, "invalid json body", http.StatusBadRequest)
@@ -916,7 +1131,7 @@ func (s *Server) handleTransitionWorkItem(w http.ResponseWriter, r *http.Request
 		http.Error(w, "actor is required", http.StatusBadRequest)
 		return
 	}
-	if payload.ExpectedVersion <= 0 {
+	if payload.ExpectedVersion == nil {
 		http.Error(w, "expected_version is required", http.StatusBadRequest)
 		return
 	}
@@ -924,7 +1139,7 @@ func (s *Server) handleTransitionWorkItem(w http.ResponseWriter, r *http.Request
 		WorkItemID:      workItemID,
 		To:              to,
 		Comment:         strings.TrimSpace(payload.Comment),
-		ExpectedVersion: payload.ExpectedVersion,
+		ExpectedVersion: *payload.ExpectedVersion,
 	}
 	if raw := strings.TrimSpace(payload.Resolution); raw != "" {
 		resolution, parseErr := workitemdomain.ParseResolution(raw)

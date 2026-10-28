@@ -101,7 +101,7 @@ grpcurl -plaintext -d '{"options":{"idempotency_key":"p-1"},"key":"hosp","name":
 | `worker` | Temporal worker（Ping + ReleaseWorkflow） | 无 |
 | `consumer` | 消费 `release.submitted` 起发布工作流（inbox 幂等） | 无 |
 | `gitea-reconcile` | 每日对账（一次性/cron） | 无 |
-| `web` | Next.js 控制台（产品 / 工作项 / 看板 / 版本 / 收件箱；可流转工作项、提交发布） | `:3031` |
+| `web` | Next.js 控制台（产品 / 工作项 / 看板 / 版本 / 收件箱；可新建与编辑工作项、流转状态、提交发布） | `:3031` |
 | Keycloak | 控制台登录用的 IdP（`devmaster` realm） | `:18281` |
 | `importer` | 数据包导入（一次性，`make seed-dataset`） | 无 |
 | `reconcile` | 事件折叠对账（一次性，`make reconcile`） | 无 |
