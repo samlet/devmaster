@@ -39,7 +39,7 @@ func (r *Repository) CycleSamples(ctx context.Context, organizationID uuid.UUID,
 		args := []any{organizationID, from, to}
 		if productID != nil {
 			args = append(args, *productID)
-			query += fmt.Sprintf(" AND w.product_id = $%d", len(args))
+			query += fmt.Sprintf(" AND e.product_id = $%d", len(args))
 		}
 		query += `
 				 GROUP BY w.id, w.type, w.created_at
@@ -79,7 +79,7 @@ func (r *Repository) Throughput(ctx context.Context, organizationID uuid.UUID, p
 		args := []any{organizationID, from, to}
 		if productID != nil {
 			args = append(args, *productID)
-			query += fmt.Sprintf(" AND w.product_id = $%d", len(args))
+			query += fmt.Sprintf(" AND e.product_id = $%d", len(args))
 		}
 		query += `
 				 GROUP BY w.id, w.type
@@ -189,13 +189,12 @@ func (r *Repository) CFD(ctx context.Context, organizationID uuid.UUID, productI
 		eventQuery := `
 			SELECT e.occurred_at, e.from_status, e.to_status
 			  FROM work_item_events e
-			  JOIN work_items w ON w.id = e.work_item_id
 			 WHERE e.organization_id = $1 AND e.occurred_at >= $2 AND e.occurred_at <= $3
 			   AND e.to_status IS NOT NULL`
 		eventArgs := []any{organizationID, from, now}
 		if productID != nil {
 			eventArgs = append(eventArgs, *productID)
-			eventQuery += fmt.Sprintf(" AND w.product_id = $%d", len(eventArgs))
+			eventQuery += fmt.Sprintf(" AND e.product_id = $%d", len(eventArgs))
 		}
 		eventQuery += ` ORDER BY e.occurred_at, e.id`
 		eventRows, err := tx.QueryContext(ctx, eventQuery, eventArgs...)
