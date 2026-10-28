@@ -3,9 +3,9 @@
 面向软件研发的执行事实源：**工作项、冲刺、版本、工时**。参考 Jira 的任务/缺陷/冲刺/版本迭代
 四件套，但只保留其中可被核算的部分，并把它们接进生态的项目与财务链路。
 
-**当前状态：M5 集成收口完成（2026-10-28）。** 版本注册表 `CheckVersion` 已接入
-it-solution 的 `CreateDeployment` 前置校验（fail_closed / fail_open_with_flag 两策略实测）；
-PPM LABOR、Gitea 关联、工时链路均已实测。
+**当前状态：M6 报表 API 已落地（2026-10-28）。** 周期时间 / 吞吐 / 累积流图 / 团队负载
+四个接口与 10 万项基线工具；周期时间与团队负载达标，吞吐/CFD 在 10 万项下仍超 300ms
+（见 docs/01 M6 状态）。口径见 [docs/05](docs/05-指标与报表口径.md)。
 评估与裁决见 [docs/01](docs/01-方案评估与关键决策.md)，分期见 [docs/01 §8](docs/01-方案评估与关键决策.md)。
 
 ## 定位
@@ -58,6 +58,7 @@ make approver-bootstrap  # 把发布审批流程定义发布到 approver（首�
 make gitea-reconcile     # Gitea 提交对账（补齐 webhook 漏掉的关联）
 make version-gate PRODUCT=HOSP VERSION=1.0.0   # 部署前置校验
 make test-version-gate   # 门禁验收：已发布放行、不存在拒绝（需 server 在跑）
+make perf-baseline       # 10 万项报表 P95 基线（需 server 在跑）
 ```
 
 发布需要 approver（API `:18090`）与 Gitea（`:3123`）在跑；Gitea 令牌通过
@@ -113,7 +114,7 @@ make web-check         # 前端 tsc --noEmit
 ```text
 backend/
   cmd/            server / relay / worker / consumer / importer / reconcile / snapshot /
-                  gitea-reconcile / version-gate
+                  gitea-reconcile / version-gate / perfbaseline
   internal/
     platform/     config / database / auth / outbox / jetstream / idempotency / observability
     product/      domain / application / adapter/postgres
@@ -123,6 +124,7 @@ backend/
     version/      domain（版本/发布记录/四眼）/ application / adapter/postgres
     gitea/        application（key 解析/关联）/ adapter/postgres
     worklog/      domain（只增不改/更正）/ application / adapter/postgres
+    report/       domain（分位数）/ application / adapter/postgres（SQL 读模型）
     transport/    grpc / http
     workflow/     Temporal 工作流与活动
   ent/schema/     ent schema（迁移才是 DDL 的唯一来源）
@@ -144,7 +146,7 @@ docs/             01 评估 / 02 边界 / 03 架构 / 04 模型 / 06 契约 / 07
 | [04 领域模型与数据设计](docs/04-领域模型与数据设计.md) | 聚合、表结构、状态机、不变量、事件 |
 | [06 集成契约与事件设计](docs/06-集成契约与事件设计.md) | 事件规范、Gitea/PPM/it-solution/approver 契约 |
 | [07 Temporal 工作流设计](docs/07-Temporal工作流设计.md) | 发布、冲刺时钟、缺陷计时、对账 |
-| 05 指标与报表口径 | 待写（当前定义见 02 §3.8） |
+| [05 指标与报表口径](docs/05-指标与报表口径.md) | 周期时间、吞吐、CFD、团队负载、性能基线 |
 | 08 研发计划与里程碑 | 待写（当前见 01 §8） |
 | 09 运维手册 | 待写 |
 

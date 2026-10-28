@@ -25,6 +25,7 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/observability"
 	"github.com/xiaofeiwu/devmaster/backend/internal/product/application"
 	"github.com/xiaofeiwu/devmaster/backend/internal/product/domain"
+	reportapp "github.com/xiaofeiwu/devmaster/backend/internal/report/application"
 	sprintapp "github.com/xiaofeiwu/devmaster/backend/internal/sprint/application"
 	sprintdomain "github.com/xiaofeiwu/devmaster/backend/internal/sprint/domain"
 	versionapp "github.com/xiaofeiwu/devmaster/backend/internal/version/application"
@@ -53,6 +54,13 @@ type VersionReader interface {
 	List(ctx context.Context, actor versionapp.Actor, productID uuid.UUID) ([]versiondomain.Version, error)
 }
 
+type ReportReader interface {
+	CycleTime(ctx context.Context, actor reportapp.Actor, productID *uuid.UUID, from, to time.Time) ([]reportapp.CycleSummary, error)
+	Throughput(ctx context.Context, actor reportapp.Actor, productID *uuid.UUID, from, to time.Time) ([]reportapp.ThroughputBucket, error)
+	TeamLoad(ctx context.Context, actor reportapp.Actor, productID *uuid.UUID) ([]reportapp.LoadRow, error)
+	CFD(ctx context.Context, actor reportapp.Actor, productID *uuid.UUID, from, to time.Time) ([]reportapp.CFDPoint, error)
+}
+
 type GiteaInbound interface {
 	RecordDelivery(ctx context.Context, organizationID uuid.UUID, deliveryID, eventType string, payload []byte) (bool, error)
 	HandlePush(ctx context.Context, organizationID uuid.UUID, repo, branch string, commits []giteaapp.Commit) (int, error)
@@ -65,6 +73,7 @@ type Server struct {
 	sprints     SprintReader
 	board       BoardReader
 	versions    VersionReader
+	reports     ReportReader
 	gitea       GiteaInbound
 	giteaSecret string
 	giteaOrg    uuid.UUID
@@ -76,13 +85,14 @@ type Server struct {
 	defaultOrganizationID uuid.UUID
 }
 
-func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintReader, board BoardReader, versions VersionReader, giteaInbound GiteaInbound, giteaSecret string, giteaOrg uuid.UUID, metrics *observability.Metrics, health observability.Health, logger *slog.Logger, defaultOrganizationID uuid.UUID) *Server {
+func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintReader, board BoardReader, versions VersionReader, reports ReportReader, giteaInbound GiteaInbound, giteaSecret string, giteaOrg uuid.UUID, metrics *observability.Metrics, health observability.Health, logger *slog.Logger, defaultOrganizationID uuid.UUID) *Server {
 	return &Server{
 		products:              products,
 		workItems:             workItems,
 		sprints:               sprints,
 		board:                 board,
 		versions:              versions,
+		reports:               reports,
 		gitea:                 giteaInbound,
 		giteaSecret:           giteaSecret,
 		giteaOrg:              giteaOrg,
@@ -102,6 +112,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/sprints", s.handleSprints)
 	mux.HandleFunc("/api/board", s.handleBoard)
 	mux.HandleFunc("/api/versions", s.handleVersions)
+	mux.HandleFunc("/api/reports/cycle-time", s.handleCycleTime)
+	mux.HandleFunc("/api/reports/throughput", s.handleThroughput)
+	mux.HandleFunc("/api/reports/team-load", s.handleTeamLoad)
+	mux.HandleFunc("/api/reports/cfd", s.handleCFD)
 	mux.HandleFunc("/integrations/gitea/webhook", s.handleGiteaWebhook)
 	return cors(mux)
 }
@@ -646,4 +660,102 @@ func validGiteaSignature(secret string, body []byte, signature string) bool {
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write(body)
 	return hmac.Equal(mac.Sum(nil), provided)
+}
+
+func (s *Server) reportActor(r *http.Request) (reportapp.Actor, *uuid.UUID, error) {
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		return reportapp.Actor{}, nil, err
+	}
+	var productID *uuid.UUID
+	if raw := strings.TrimSpace(r.URL.Query().Get("product_id")); raw != "" {
+		parsed, parseErr := uuid.Parse(raw)
+		if parseErr != nil {
+			return reportapp.Actor{}, nil, errors.New("product_id must be a valid UUID")
+		}
+		productID = &parsed
+	}
+	return reportapp.Actor{Subject: "http-readonly", OrganizationID: organizationID}, productID, nil
+}
+
+func (s *Server) handleCycleTime(w http.ResponseWriter, r *http.Request) {
+	actor, productID, err := s.reportActor(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	days, _ := strconv.Atoi(r.URL.Query().Get("days"))
+	if days <= 0 || days > 365 {
+		days = 30
+	}
+	to := time.Now().UTC()
+	from := to.AddDate(0, 0, -days)
+	summaries, err := s.reports.CycleTime(r.Context(), actor, productID, from, to)
+	if err != nil {
+		s.logger.Error("cycle time report failed", slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"items": summaries})
+}
+
+func (s *Server) handleThroughput(w http.ResponseWriter, r *http.Request) {
+	actor, productID, err := s.reportActor(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	weeks, _ := strconv.Atoi(r.URL.Query().Get("weeks"))
+	if weeks <= 0 || weeks > 52 {
+		weeks = 12
+	}
+	to := time.Now().UTC()
+	from := to.AddDate(0, 0, -weeks*7)
+	buckets, err := s.reports.Throughput(r.Context(), actor, productID, from, to)
+	if err != nil {
+		s.logger.Error("throughput report failed", slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"items": buckets})
+}
+
+func (s *Server) handleTeamLoad(w http.ResponseWriter, r *http.Request) {
+	actor, productID, err := s.reportActor(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	rows, err := s.reports.TeamLoad(r.Context(), actor, productID)
+	if err != nil {
+		s.logger.Error("team load report failed", slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"items": rows})
+}
+
+func (s *Server) handleCFD(w http.ResponseWriter, r *http.Request) {
+	actor, productID, err := s.reportActor(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	days, _ := strconv.Atoi(r.URL.Query().Get("days"))
+	if days <= 0 || days > 90 {
+		days = 14
+	}
+	to := time.Now().UTC()
+	from := to.AddDate(0, 0, -days)
+	points, err := s.reports.CFD(r.Context(), actor, productID, from, to)
+	if err != nil {
+		s.logger.Error("cfd report failed", slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"items": points})
 }

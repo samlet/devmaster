@@ -26,6 +26,8 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/observability"
 	productpostgres "github.com/xiaofeiwu/devmaster/backend/internal/product/adapter/postgres"
 	"github.com/xiaofeiwu/devmaster/backend/internal/product/application"
+	reportpostgres "github.com/xiaofeiwu/devmaster/backend/internal/report/adapter/postgres"
+	reportapplication "github.com/xiaofeiwu/devmaster/backend/internal/report/application"
 	sprintpostgres "github.com/xiaofeiwu/devmaster/backend/internal/sprint/adapter/postgres"
 	sprintapplication "github.com/xiaofeiwu/devmaster/backend/internal/sprint/application"
 	grpctransport "github.com/xiaofeiwu/devmaster/backend/internal/transport/grpc"
@@ -80,6 +82,7 @@ func run() error {
 	boardService := boardapplication.NewService(workItemService, sprintService)
 	versionService := versionapplication.NewService(versionpostgres.NewRepository(db))
 	workLogService := worklogapplication.NewService(worklogpostgres.NewRepository(db))
+	reportService := reportapplication.NewService(reportpostgres.NewRepository(db))
 	giteaService := giteaapplication.NewService(giteapostgres.NewRepository(db))
 	giteaOrg, err := uuid.Parse(cfg.Gitea.OrganizationID)
 	if err != nil {
@@ -121,7 +124,7 @@ func run() error {
 	}
 	httpServer := &http.Server{
 		Addr:    cfg.Server.HTTPAddress,
-		Handler: httptransport.NewServer(productService, workItemService, sprintService, boardService, versionService, giteaService, cfg.Gitea.WebhookSecret, giteaOrg, metrics, health, logger, defaultOrganizationID).Handler(),
+		Handler: httptransport.NewServer(productService, workItemService, sprintService, boardService, versionService, reportService, giteaService, cfg.Gitea.WebhookSecret, giteaOrg, metrics, health, logger, defaultOrganizationID).Handler(),
 	}
 
 	errCh := make(chan error, 2)
