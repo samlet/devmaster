@@ -1,7 +1,12 @@
-// Package http 提供运维面（healthz/metrics）与只读控制台面（/api/*）。
+// Package http 提供运维面（healthz/metrics）、控制台只读面（GET /api/*）
+// 与一个写端点（POST /api/releases）。
 //
-// 只读面刻意不引 gRPC-Web/Connect：M0 的 Next.js 控制台用服务端组件直读 JSON，
-// 少一层协议转换，也少一份生成物。写操作仍然只走 gRPC（带鉴权与幂等）。
+// 读面刻意不引 gRPC-Web/Connect：Next.js 服务端组件直读 JSON，少一层协议转换，
+// 也少一份生成物。
+//
+// 写端点只此一个，用 BFF 签名（HMAC + 时间戳）而不是用户 token：签名证明请求
+// 来自我们自己的 Next 服务，用户身份由 BFF 从会话里取后写进请求体，客户端
+// 无法伪造。其余写操作仍走 gRPC（带完整鉴权与幂等）。
 package http
 
 import (
@@ -22,6 +27,7 @@ import (
 
 	boardapp "github.com/xiaofeiwu/devmaster/backend/internal/board/application"
 	giteaapp "github.com/xiaofeiwu/devmaster/backend/internal/gitea/application"
+	"github.com/xiaofeiwu/devmaster/backend/internal/platform/apperr"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/observability"
 	"github.com/xiaofeiwu/devmaster/backend/internal/product/application"
 	"github.com/xiaofeiwu/devmaster/backend/internal/product/domain"
@@ -54,6 +60,17 @@ type VersionReader interface {
 	List(ctx context.Context, actor versionapp.Actor, productID uuid.UUID) ([]versiondomain.Version, error)
 }
 
+// ReleaseSubmitter 是提交发布的写端口。
+type ReleaseSubmitter interface {
+	SubmitRelease(ctx context.Context, actor versionapp.Actor, cmd versionapp.SubmitReleaseCommand) (versiondomain.ReleaseRecord, error)
+}
+
+// WriterDeps 是写端点的依赖。打包传参：以后加写操作不必再改构造器签名。
+type WriterDeps struct {
+	Releases  ReleaseSubmitter
+	BFFSecret string
+}
+
 type ReportReader interface {
 	CycleTime(ctx context.Context, actor reportapp.Actor, productID *uuid.UUID, from, to time.Time) ([]reportapp.CycleSummary, error)
 	Throughput(ctx context.Context, actor reportapp.Actor, productID *uuid.UUID, from, to time.Time) ([]reportapp.ThroughputBucket, error)
@@ -73,6 +90,8 @@ type Server struct {
 	sprints     SprintReader
 	board       BoardReader
 	versions    VersionReader
+	releases    ReleaseSubmitter
+	bffSecret   string
 	reports     ReportReader
 	gitea       GiteaInbound
 	giteaSecret string
@@ -85,13 +104,15 @@ type Server struct {
 	defaultOrganizationID uuid.UUID
 }
 
-func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintReader, board BoardReader, versions VersionReader, reports ReportReader, giteaInbound GiteaInbound, giteaSecret string, giteaOrg uuid.UUID, metrics *observability.Metrics, health observability.Health, logger *slog.Logger, defaultOrganizationID uuid.UUID) *Server {
+func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintReader, board BoardReader, versions VersionReader, reports ReportReader, giteaInbound GiteaInbound, giteaSecret string, giteaOrg uuid.UUID, metrics *observability.Metrics, health observability.Health, logger *slog.Logger, defaultOrganizationID uuid.UUID, writers WriterDeps) *Server {
 	return &Server{
 		products:              products,
 		workItems:             workItems,
 		sprints:               sprints,
 		board:                 board,
 		versions:              versions,
+		releases:              writers.Releases,
+		bffSecret:             writers.BFFSecret,
 		reports:               reports,
 		gitea:                 giteaInbound,
 		giteaSecret:           giteaSecret,
@@ -112,6 +133,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/sprints", s.handleSprints)
 	mux.HandleFunc("/api/board", s.handleBoard)
 	mux.HandleFunc("/api/versions", s.handleVersions)
+	mux.HandleFunc("/api/releases", s.handleSubmitRelease)
 	mux.HandleFunc("/api/reports/cycle-time", s.handleCycleTime)
 	mux.HandleFunc("/api/reports/throughput", s.handleThroughput)
 	mux.HandleFunc("/api/reports/team-load", s.handleTeamLoad)
@@ -660,6 +682,128 @@ func validGiteaSignature(secret string, body []byte, signature string) bool {
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write(body)
 	return hmac.Equal(mac.Sum(nil), provided)
+}
+
+// handleSubmitRelease 是控制台唯一的写端点：提交一次发布。
+//
+// 校验顺序刻意是「先签名后解析」：未签名的请求连 body 都不读，
+// 不给探测者任何解析反馈。
+func (s *Server) handleSubmitRelease(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 64<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	var payload struct {
+		VersionID   string `json:"version_id"`
+		CommitFrom  string `json:"commit_from"`
+		CommitTo    string `json:"commit_to"`
+		SubmittedBy string `json:"submitted_by"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	versionID, err := uuid.Parse(strings.TrimSpace(payload.VersionID))
+	if err != nil {
+		http.Error(w, "version_id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	submittedBy := strings.TrimSpace(payload.SubmittedBy)
+	if submittedBy == "" {
+		http.Error(w, "submitted_by is required", http.StatusBadRequest)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	cmd := versionapp.SubmitReleaseCommand{VersionID: versionID}
+	if from := strings.TrimSpace(payload.CommitFrom); from != "" {
+		cmd.CommitFrom = &from
+	}
+	if to := strings.TrimSpace(payload.CommitTo); to != "" {
+		cmd.CommitTo = &to
+	}
+	release, err := s.releases.SubmitRelease(r.Context(), versionapp.Actor{
+		Subject: submittedBy, OrganizationID: organizationID,
+	}, cmd)
+	if err != nil {
+		s.writeAppError(w, "submit release failed", err)
+		return
+	}
+	s.logger.Info("release submitted via console",
+		slog.String("release_id", release.ID.String()),
+		slog.String("version_id", versionID.String()),
+		slog.String("submitted_by", submittedBy))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"release_id": release.ID.String(),
+		"status":     string(release.Status),
+	})
+}
+
+// validBFFSignature 校验 Next 服务端的 HMAC 签名。
+//
+// 未配置密钥时一律拒绝：写端点不能有「没配就放行」的降级，
+// 那是把一次配置遗漏变成永久后门。
+func (s *Server) validBFFSignature(r *http.Request, body []byte) bool {
+	if strings.TrimSpace(s.bffSecret) == "" {
+		return false
+	}
+	timestamp := strings.TrimSpace(r.Header.Get("X-BFF-Timestamp"))
+	signature := strings.TrimSpace(r.Header.Get("X-BFF-Signature"))
+	unix, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return false
+	}
+	// 5 分钟窗口：写请求的重放代价比读大得多，时间戳进签名防篡改。
+	if delta := time.Since(time.Unix(unix, 0)); delta > 5*time.Minute || delta < -5*time.Minute {
+		return false
+	}
+	mac := hmac.New(sha256.New, []byte(s.bffSecret))
+	mac.Write([]byte(timestamp))
+	mac.Write([]byte("\n"))
+	mac.Write(body)
+	provided, err := hex.DecodeString(signature)
+	if err != nil || len(provided) == 0 {
+		return false
+	}
+	return hmac.Equal(mac.Sum(nil), provided)
+}
+
+// writeAppError 把领域错误翻译成 HTTP 状态码，语义与 gRPC 面一致。
+func (s *Server) writeAppError(w http.ResponseWriter, logMessage string, err error) {
+	kind, ok := apperr.KindOf(err)
+	if !ok {
+		s.logger.Error(logMessage, slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	switch kind {
+	case apperr.KindInvalid:
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case apperr.KindNotFound:
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case apperr.KindConflict:
+		http.Error(w, err.Error(), http.StatusConflict)
+	case apperr.KindFailedPrecondition:
+		// 422 而不是 400：请求本身合法，是当前状态不允许（如已有在途发布）。
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+	default:
+		s.logger.Error(logMessage, slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) reportActor(r *http.Request) (reportapp.Actor, *uuid.UUID, error) {

@@ -37,7 +37,7 @@ async function getJSON<T>(path: string): Promise<{ data?: T; error?: string }> {
 export default async function VersionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ product_id?: string }>;
+  searchParams: Promise<{ product_id?: string; error?: string; submitted?: string }>;
 }) {
   const params = await searchParams;
   const productsResult = await getJSON<{ items: Product[] }>("/api/products");
@@ -65,13 +65,18 @@ export default async function VersionsPage({
     versionsResult = await getJSON<{ items: Version[] }>(`/api/versions?product_id=${productID}`);
   }
   const versions = versionsResult.data?.items ?? [];
+  // 已发布/已归档/已取消的版本不能再提交；其余状态都可以发起一次发布。
+  const releasable = versions.filter(
+    (version) => !["RELEASED", "ARCHIVED", "CANCELLED"].includes(version.status),
+  );
 
   return (
     <main>
       <header className="page">
         <h1>版本</h1>
         <span className="hint">
-          <a href="/">产品</a> · <a href="/work-items">工作项</a> · <a href="/board">看板</a> · <a href="/reports">报表</a> · devmaster
+          <a href="/">产品</a> · <a href="/work-items">工作项</a> · <a href="/board">看板</a> ·{" "}
+          <a href="/inbox">收件箱</a> · <a href="/reports">报表</a> · devmaster
         </span>
       </header>
 
@@ -85,6 +90,34 @@ export default async function VersionsPage({
         </select>
         <button type="submit">切换</button>
       </form>
+
+      {params.error ? <p className="error">提交失败：{params.error}</p> : null}
+      {params.submitted ? <p className="ok">已提交发布，等待审批。审批通过后会自动打 tag、存证并发布。</p> : null}
+
+      {releasable.length > 0 ? (
+        <form className="card release-form" action="/api/releases" method="post">
+          <input type="hidden" name="product_id" value={productID} />
+          <label>
+            版本
+            <select name="version_id" required defaultValue={releasable[0].id}>
+              {releasable.map((version) => (
+                <option key={version.id} value={version.id}>
+                  {version.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            commit from
+            <input name="commit_from" placeholder="可选，如 abc1234" />
+          </label>
+          <label>
+            commit to
+            <input name="commit_to" placeholder="必填，打 tag 的目标提交" required />
+          </label>
+          <button type="submit">提交发布</button>
+        </form>
+      ) : null}
 
       {versionsResult.error ? (
         <p className="error">读取版本失败：{versionsResult.error}</p>
@@ -128,7 +161,7 @@ export default async function VersionsPage({
       )}
 
       <footer className="page">
-        <span>只读控制台 · M3 版本与发布</span>
+        <span>M3 版本与发布 · 提交后进入审批链</span>
         <span>{versionsResult.data ? `共 ${versions.length} 个版本` : ""}</span>
       </footer>
     </main>

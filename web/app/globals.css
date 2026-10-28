@@ -128,6 +128,56 @@ td.muted {
   border-radius: 6px;
 }
 
+.ok {
+  margin: 0;
+  padding: 16px;
+  border-left: 3px solid var(--ok-text);
+  background: var(--ok-bg);
+  color: var(--ok-text);
+  border-radius: 6px;
+}
+
+/* 发布表单：一行放得下三个字段 + 按钮，窄屏自动换行。 */
+.release-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.release-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.release-form input,
+.release-form select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  min-width: 180px;
+}
+
+.release-form button {
+  height: 34px;
+  padding: 0 16px;
+  border: 1px solid var(--text);
+  border-radius: 6px;
+  background: var(--text);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 footer.page {
   margin-top: 16px;
   color: var(--muted);

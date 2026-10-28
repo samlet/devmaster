@@ -104,7 +104,7 @@ export default async function ReportsPage({
         <h1>报表</h1>
         <span className="hint">
           <a href="/">产品</a> · <a href="/work-items">工作项</a> · <a href="/board">看板</a> ·{" "}
-          <a href="/versions">版本</a> · devmaster
+          <a href="/versions">版本</a> · <a href="/inbox">收件箱</a> · devmaster
         </span>
       </header>
 

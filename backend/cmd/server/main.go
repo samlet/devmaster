@@ -123,8 +123,11 @@ func run() error {
 		},
 	}
 	httpServer := &http.Server{
-		Addr:    cfg.Server.HTTPAddress,
-		Handler: httptransport.NewServer(productService, workItemService, sprintService, boardService, versionService, reportService, giteaService, cfg.Gitea.WebhookSecret, giteaOrg, metrics, health, logger, defaultOrganizationID).Handler(),
+		Addr: cfg.Server.HTTPAddress,
+		Handler: httptransport.NewServer(productService, workItemService, sprintService, boardService, versionService, reportService, giteaService, cfg.Gitea.WebhookSecret, giteaOrg, metrics, health, logger, defaultOrganizationID, httptransport.WriterDeps{
+			Releases:  versionService,
+			BFFSecret: cfg.Integrations.BFFSharedSecret,
+		}).Handler(),
 	}
 
 	errCh := make(chan error, 2)

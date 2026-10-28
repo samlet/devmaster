@@ -3,7 +3,7 @@
 面向软件研发的执行事实源：**工作项、冲刺、版本、工时**。参考 Jira 的任务/缺陷/冲刺/版本迭代
 四件套，但只保留其中可被核算的部分，并把它们接进生态的项目与财务链路。
 
-**当前状态：M6 报表已落地，发布链已闭环（notify + artifact 证据存证，2026-10-28）。**
+**当前状态：M6 报表已落地，发布链已闭环（notify + artifact 证据存证），控制台可直接提交发布并查看收件箱（2026-10-28）。**
 周期时间 / 吞吐 / 累积流图 / 团队负载四个接口 + 日快照表，10 万项实测四项均 < 300ms；
 发布证据由 `SealEvidence` 活动封成 artifact 不可变修订并回读校验字节。口径见
 [docs/05](docs/05-指标与报表口径.md)，存证契约见 [docs/06 §8](docs/06-集成契约与事件设计.md)。
@@ -100,7 +100,7 @@ grpcurl -plaintext -d '{"options":{"idempotency_key":"p-1"},"key":"hosp","name":
 | `worker` | Temporal worker（Ping + ReleaseWorkflow） | 无 |
 | `consumer` | 消费 `release.submitted` 起发布工作流（inbox 幂等） | 无 |
 | `gitea-reconcile` | 每日对账（一次性/cron） | 无 |
-| `web` | Next.js 只读控制台（产品 / 工作项 / 看板 / 版本） | `:3031` |
+| `web` | Next.js 控制台（产品 / 工作项 / 看板 / 版本 / 收件箱；版本页可提交发布） | `:3031` |
 | `importer` | 数据包导入（一次性，`make seed-dataset`） | 无 |
 | `reconcile` | 事件折叠对账（一次性，`make reconcile`） | 无 |
 | `snapshot` | 燃尽快照（一次性/cron，`make snapshot`） | 无 |
@@ -145,7 +145,7 @@ backend/
   migrations/     Atlas 版本化迁移
   configs/        local.example.yaml
 proto/            buf 工作区（dev/v1/*.proto，生成到 backend/gen/go）
-web/              Next.js 只读控制台
+web/              Next.js 控制台（读为主 + 发布提交）
 assets/           数据包规范与走查数据
 docs/             01 评估 / 02 边界 / 03 架构 / 04 模型 / 06 契约 / 07 工作流
 ```
