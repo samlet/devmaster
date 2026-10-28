@@ -12,7 +12,7 @@ MIGRATIONS_DIR := backend/migrations
 GRPC_PORT ?= 50091
 HTTP_PORT ?= 8291
 
-.PHONY: help tools proto proto-check db-create migrate migrate-test migrate-status \
+.PHONY: web-env help tools proto proto-check db-create migrate migrate-test migrate-status \
         run relay worker consumer dev web-install web-dev web-build web-check \
         seed-check seed-dataset reconcile snapshot report-snapshot gitea-reconcile approver-bootstrap version-gate test-version-gate perf-baseline test test-integration lint build check clean
 
@@ -29,6 +29,7 @@ help:
 	@echo "make consumer         消费 release.submitted 起发布工作流"
 	@echo "make dev              server + relay + worker 同起同停"
 	@echo "make web-install      安装前端依赖（pnpm）"
+	@echo "make web-env          生成 web/.env.local（session secret 随机）"
 	@echo "make web-dev          控制台 :3031"
 	@echo "make web-build        控制台生产构建"
 	@echo "make web-check        tsc --noEmit"
@@ -101,10 +102,25 @@ dev:
 web-install:
 	pnpm --dir web install
 
-web-dev:
-	pnpm --dir web dev --port 3031
+# 首次生成 web/.env.local：session secret 随机，其余取本地默认值。
+# 不把密钥写进 Makefile 或仓库——.env.local 已被 gitignore。
+web-env:
+	@if [ ! -f web/.env.local ]; then \
+		{ \
+			echo 'DEVMASTER_API_URL=http://127.0.0.1:8291'; \
+			echo 'DEVMASTER_BFF_SECRET=devmaster-local-bff-secret-0123456789'; \
+			echo "DEVMASTER_SESSION_SECRET=$$(openssl rand -hex 32)"; \
+			echo 'DEVMASTER_OIDC_ISSUER=http://127.0.0.1:18281/realms/devmaster'; \
+			echo 'DEVMASTER_OIDC_CLIENT_ID=devmaster-web'; \
+			echo 'DEVMASTER_OIDC_REDIRECT_URI=http://127.0.0.1:3031/api/auth/callback'; \
+		} > web/.env.local; \
+		echo "已生成 web/.env.local（session secret 为随机值，不进仓库）"; \
+	fi
 
-web-build:
+web-dev: web-env
+	pnpm --dir web dev
+
+web-build: web-env
 	pnpm --dir web build
 
 web-check:

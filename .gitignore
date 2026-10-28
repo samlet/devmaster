@@ -17,3 +17,5 @@ dist/
 backend/configs/local.yaml
 *.env
 !*.env.example
+.env.local
+web/.env.local
