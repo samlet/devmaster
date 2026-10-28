@@ -218,11 +218,32 @@ func (a *Activities) MarkReleaseTagged(ctx context.Context, input ReleaseInput, 
 
 func (a *Activities) PublishRelease(ctx context.Context, input ReleaseInput, evidenceRef string) error {
 	_, err := a.Versions.Publish(ctx, a.workflowActor(input), input.ReleaseID, evidenceRef)
+	if err == nil && a.Notifier != nil {
+		version, getErr := a.Versions.Get(ctx, a.workflowActor(input), input.VersionID)
+		release, releaseErr := a.Versions.GetRelease(ctx, a.workflowActor(input), input.ReleaseID)
+		if getErr == nil && releaseErr == nil {
+			tag := ""
+			if release.Tag != nil {
+				tag = *release.Tag
+			}
+			if notifyErr := a.Notifier.ReleasePublished(ctx, input.VersionID.String(), version.Name, tag); notifyErr != nil && a.Logger != nil {
+				a.Logger.Warn("release published notification failed", "error", notifyErr)
+			}
+		}
+	}
 	return err
 }
 
 func (a *Activities) FailRelease(ctx context.Context, input ReleaseInput, reason string) error {
 	_, err := a.Versions.Fail(ctx, a.workflowActor(input), input.ReleaseID, reason)
+	if err == nil && a.Notifier != nil {
+		// 通知是旁路：失败只记日志，不改发布结果。
+		if version, getErr := a.Versions.Get(ctx, a.workflowActor(input), input.VersionID); getErr == nil {
+			if notifyErr := a.Notifier.ReleaseFailed(ctx, input.VersionID.String(), version.Name, reason); notifyErr != nil && a.Logger != nil {
+				a.Logger.Warn("release failure notification failed", "error", notifyErr)
+			}
+		}
+	}
 	return err
 }
 

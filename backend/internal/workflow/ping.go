@@ -37,11 +37,18 @@ func PingWorkflow(ctx workflow.Context) (PingResult, error) {
 	return result, nil
 }
 
+// Notifier 是发布通知端口；nil 表示未启用。
+type Notifier interface {
+	ReleaseFailed(ctx context.Context, versionID, version, reason string) error
+	ReleasePublished(ctx context.Context, versionID, version, tag string) error
+}
+
 type Activities struct {
 	DB       *database.DB
 	Versions *versionapp.Service
 	Approver *approver.Client
 	Gitea    *gitea.Client
+	Notifier Notifier
 	Logger   *slog.Logger
 }
 

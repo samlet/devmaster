@@ -32,6 +32,7 @@ type Config struct {
 	Outbox       OutboxConfig      `yaml:"outbox"`
 	Approver     ApproverConfig    `yaml:"approver"`
 	Gitea        GiteaConfig       `yaml:"gitea"`
+	Notify       NotifyConfig      `yaml:"notify"`
 	Integrations IntegrationConfig `yaml:"integrations"`
 }
 
@@ -112,6 +113,13 @@ type GiteaConfig struct {
 	OrganizationID string `yaml:"organization_id"`
 }
 
+type NotifyConfig struct {
+	Enabled     bool   `yaml:"enabled"`
+	NATSURL     string `yaml:"nats_url"`
+	Tenant      string `yaml:"tenant"`
+	RecipientID string `yaml:"recipient_id"`
+}
+
 type IntegrationConfig struct {
 	// BFFSharedSecret 是 Next.js BFF 的签名密钥。M0 的只读控制台面不经过它，
 	// 但保留配置位，M1 接入写操作时不再改配置结构。
@@ -174,6 +182,12 @@ func Default() Config {
 			PollInterval: 5 * time.Second,
 			PollTimeout:  30 * time.Minute,
 		},
+		Notify: NotifyConfig{
+			Enabled:     false,
+			NATSURL:     "nats://127.0.0.1:4222",
+			Tenant:      "devmaster",
+			RecipientID: "team:devmaster",
+		},
 		Gitea: GiteaConfig{
 			BaseURL:        "http://127.0.0.1:3123",
 			Owner:          "meshadmin",
@@ -223,6 +237,10 @@ func applyEnv(cfg *Config) {
 	setString(&cfg.Gitea.Repo, "DEVMASTER_GITEA_REPO")
 	setString(&cfg.Gitea.WebhookSecret, "DEVMASTER_GITEA_WEBHOOK_SECRET")
 	setString(&cfg.Gitea.OrganizationID, "DEVMASTER_GITEA_ORGANIZATION_ID")
+	setBool(&cfg.Notify.Enabled, "DEVMASTER_NOTIFY_ENABLED")
+	setString(&cfg.Notify.NATSURL, "DEVMASTER_NOTIFY_NATS_URL")
+	setString(&cfg.Notify.Tenant, "DEVMASTER_NOTIFY_TENANT")
+	setString(&cfg.Notify.RecipientID, "DEVMASTER_NOTIFY_RECIPIENT_ID")
 	setBool(&cfg.Auth.Enabled, "DEVMASTER_AUTH_ENABLED")
 	setString(&cfg.Auth.Issuer, "DEVMASTER_AUTH_ISSUER")
 	setString(&cfg.Auth.Audience, "DEVMASTER_AUTH_AUDIENCE")

@@ -15,6 +15,7 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/database"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/gitea"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/logging"
+	"github.com/xiaofeiwu/devmaster/backend/internal/platform/notify"
 	versionpostgres "github.com/xiaofeiwu/devmaster/backend/internal/version/adapter/postgres"
 	versionapplication "github.com/xiaofeiwu/devmaster/backend/internal/version/application"
 	"github.com/xiaofeiwu/devmaster/backend/internal/workflow"
@@ -60,6 +61,15 @@ func run() error {
 		Approver: approver.New(cfg.Approver),
 		Gitea:    gitea.New(cfg.Gitea),
 		Logger:   logger,
+	}
+	if cfg.Notify.Enabled {
+		notifier, err := notify.New(cfg.Notify)
+		if err != nil {
+			return fmt.Errorf("notify client: %w", err)
+		}
+		defer notifier.Close()
+		activities.Notifier = notifier
+		logger.Info("notify 已接入", slog.String("tenant", cfg.Notify.Tenant))
 	}
 	workerInstance := worker.New(temporalClient, cfg.Temporal.TaskQueue, worker.Options{})
 	workerInstance.RegisterWorkflow(workflow.PingWorkflow)
