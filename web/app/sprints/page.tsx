@@ -270,7 +270,7 @@ export default async function SprintsPage({
               </span>
             ) : null}
           </h2>
-          <div className="card">
+          <div className="card card-pad">
             {burndown.error ? (
               <p className="error">读取燃尽失败：{burndown.error}</p>
             ) : (

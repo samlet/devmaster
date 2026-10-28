@@ -58,6 +58,13 @@ header.page .hint {
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
+  /* 卡片之间留间距：原来相邻卡片完全贴在一起，看起来像一块。 */
+  margin-bottom: 16px;
+}
+
+/* 非表格卡片：内容需要与边框留白。表格卡片不加——表格贴边更紧凑。 */
+.card-pad {
+  padding: 16px;
 }
 
 table {
@@ -120,7 +127,7 @@ td.muted {
 }
 
 .error {
-  margin: 0;
+  margin: 0 0 16px;
   padding: 16px;
   border-left: 3px solid #d92d20;
   background: #fef3f2;
@@ -129,7 +136,7 @@ td.muted {
 }
 
 .ok {
-  margin: 0;
+  margin: 0 0 16px;
   padding: 16px;
   border-left: 3px solid var(--ok-text);
   background: var(--ok-bg);
@@ -175,12 +182,20 @@ td.muted {
   min-width: 180px;
 }
 
+p.hint {
+  margin: 0 0 12px;
+}
+
 /* 快速登录：两个预设账号并排 */
 .quick-login {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
+}
+
+.login-card {
+  padding: 20px;
 }
 
 .login-card h2 {

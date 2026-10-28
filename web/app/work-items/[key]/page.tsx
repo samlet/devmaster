@@ -160,7 +160,7 @@ export default async function WorkItemDetailPage({
       </details>
 
       {item.next_statuses.length > 0 ? (
-        <div className="card">
+        <div className="card card-pad">
           <form
             className="transition-form"
             action={`/api/work-items/${item.key}/transition`}
@@ -192,7 +192,7 @@ export default async function WorkItemDetailPage({
       ) : null}
 
       <h2>评论</h2>
-      <div className="card">
+      <div className="card card-pad">
         {comments.length === 0 ? (
           <div className="empty">还没有评论。第一条评论往往是最有用的上下文。</div>
         ) : (
@@ -216,7 +216,7 @@ export default async function WorkItemDetailPage({
       </div>
 
       <h2>关联</h2>
-      <div className="card">
+      <div className="card card-pad">
         <div className="link-groups">
           <div>
             <h3>出向</h3>
