@@ -65,9 +65,16 @@ type ReleaseSubmitter interface {
 	SubmitRelease(ctx context.Context, actor versionapp.Actor, cmd versionapp.SubmitReleaseCommand) (versiondomain.ReleaseRecord, error)
 }
 
-// WriterDeps 是写端点的依赖。打包传参：以后加写操作不必再改构造器签名。
-type WriterDeps struct {
+// SubjectResolver 是主体目录的只读端口（解析 keycloak/<sub> 到锚点）。
+type SubjectResolver interface {
+	ResolveSubject(ctx context.Context, sourceSystem, externalID string) (anchorID string, found bool, err error)
+}
+
+// ConsoleDeps 是控制台 BFF 通道的依赖：写端点与身份解析。
+// 打包传参，以后加控制台能力不必再改构造器签名。
+type ConsoleDeps struct {
 	Releases  ReleaseSubmitter
+	Subjects  SubjectResolver
 	BFFSecret string
 }
 
@@ -91,6 +98,7 @@ type Server struct {
 	board       BoardReader
 	versions    VersionReader
 	releases    ReleaseSubmitter
+	subjects    SubjectResolver
 	bffSecret   string
 	reports     ReportReader
 	gitea       GiteaInbound
@@ -104,15 +112,16 @@ type Server struct {
 	defaultOrganizationID uuid.UUID
 }
 
-func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintReader, board BoardReader, versions VersionReader, reports ReportReader, giteaInbound GiteaInbound, giteaSecret string, giteaOrg uuid.UUID, metrics *observability.Metrics, health observability.Health, logger *slog.Logger, defaultOrganizationID uuid.UUID, writers WriterDeps) *Server {
+func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintReader, board BoardReader, versions VersionReader, reports ReportReader, giteaInbound GiteaInbound, giteaSecret string, giteaOrg uuid.UUID, metrics *observability.Metrics, health observability.Health, logger *slog.Logger, defaultOrganizationID uuid.UUID, console ConsoleDeps) *Server {
 	return &Server{
 		products:              products,
 		workItems:             workItems,
 		sprints:               sprints,
 		board:                 board,
 		versions:              versions,
-		releases:              writers.Releases,
-		bffSecret:             writers.BFFSecret,
+		releases:              console.Releases,
+		subjects:              console.Subjects,
+		bffSecret:             console.BFFSecret,
 		reports:               reports,
 		gitea:                 giteaInbound,
 		giteaSecret:           giteaSecret,
@@ -134,6 +143,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/board", s.handleBoard)
 	mux.HandleFunc("/api/versions", s.handleVersions)
 	mux.HandleFunc("/api/releases", s.handleSubmitRelease)
+	mux.HandleFunc("/api/subjects/resolve", s.handleResolveSubject)
 	mux.HandleFunc("/api/reports/cycle-time", s.handleCycleTime)
 	mux.HandleFunc("/api/reports/throughput", s.handleThroughput)
 	mux.HandleFunc("/api/reports/team-load", s.handleTeamLoad)
@@ -804,6 +814,48 @@ func (s *Server) writeAppError(w http.ResponseWriter, logMessage string, err err
 		s.logger.Error(logMessage, slog.String("error", err.Error()))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 	}
+}
+
+// handleResolveSubject 把 keycloak/<sub> 解析成主体锚点。
+//
+// 为什么要过这一道而不是让浏览器直接问 subject-registry：registry 只开 gRPC，
+// 浏览器调不到；而且解析需要 service token，那个令牌不能下发到前端。
+//
+// 未接入主体目录时返回 found=false 而不是错误——调用方据此退化为「只知道 sub」，
+// 收件箱少一个 user: 键，但页面照常打开。
+func (s *Server) handleResolveSubject(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// GET 没有 body，签名覆盖空 body——时间戳仍在签名里，防重放。
+	if !s.validBFFSignature(r, nil) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	sourceSystem := strings.TrimSpace(r.URL.Query().Get("source"))
+	externalID := strings.TrimSpace(r.URL.Query().Get("external_id"))
+	if sourceSystem == "" || externalID == "" {
+		http.Error(w, "source and external_id are required", http.StatusBadRequest)
+		return
+	}
+	if s.subjects == nil {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"found": false, "anchor_id": ""})
+		return
+	}
+	anchorID, found, err := s.subjects.ResolveSubject(r.Context(), sourceSystem, externalID)
+	if err != nil {
+		// 目录故障不阻塞页面：返回 found=false，调用方退化。
+		s.logger.Warn("resolve subject failed",
+			slog.String("source", sourceSystem), slog.String("external_id", externalID),
+			slog.String("error", err.Error()))
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"found": false, "anchor_id": ""})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"found": found, "anchor_id": anchorID})
 }
 
 func (s *Server) reportActor(r *http.Request) (reportapp.Actor, *uuid.UUID, error) {

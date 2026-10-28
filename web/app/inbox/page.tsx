@@ -23,6 +23,10 @@ type InboxItem = {
   created_at: string;
 };
 
+import { Nav } from "../nav";
+import { resolveAnchor } from "@/lib/bff";
+import { readSession } from "@/lib/session";
+
 export const dynamic = "force-dynamic";
 
 async function readInbox(recipient: string): Promise<{ items: InboxItem[]; error?: string }> {
@@ -45,8 +49,17 @@ export default async function InboxPage({
   searchParams: Promise<{ recipient?: string }>;
 }) {
   const params = await searchParams;
+  // 登录后自动把「我」的收件人键并进来：user:<anchor> 需要先用 sub 解析锚点，
+  // 而 registry 只开 gRPC，所以这一步经过后端的签名端点。
+  const session = await readSession();
+  const anchor = session ? await resolveAnchor(session.sub) : null;
   const extra = (params.recipient ?? "").trim();
-  const recipients = extra ? [extra, ...DEFAULT_RECIPIENTS] : DEFAULT_RECIPIENTS;
+  const candidates = [
+    ...(anchor ? [`user:${anchor}`] : []),
+    ...(extra ? [extra] : []),
+    ...DEFAULT_RECIPIENTS,
+  ];
+  const recipients = candidates.filter((value, index) => candidates.indexOf(value) === index);
 
   const results = await Promise.all(recipients.map((recipient) => readInbox(recipient)));
   const errors = results.map((result) => result.error).filter((value): value is string => Boolean(value));
@@ -61,10 +74,7 @@ export default async function InboxPage({
     <main>
       <header className="page">
         <h1>收件箱</h1>
-        <span className="hint">
-          <a href="/">产品</a> · <a href="/work-items">工作项</a> · <a href="/board">看板</a> ·{" "}
-          <a href="/versions">版本</a> · <a href="/reports">报表</a> · devmaster
-        </span>
+        <Nav />
       </header>
 
       <form className="filters" method="get">
@@ -78,7 +88,11 @@ export default async function InboxPage({
       </form>
 
       <p className="hint">
-        合并自 {recipients.join(" · ")}
+        {session
+          ? anchor
+            ? `已登录为 ${session.name}，合并 ${recipients.join(" · ")}`
+            : `已登录为 ${session.name}，但主体目录里没有该身份的映射（只合并 ${recipients.join(" · ")}）`
+          : `未登录，只合并 ${recipients.join(" · ")}`}
       </p>
 
       {errors.length > 0 ? <p className="error">读取收件箱失败：{errors.join("；")}</p> : null}

@@ -1,3 +1,5 @@
+import { Nav } from "../nav";
+
 export const dynamic = "force-dynamic";
 
 type Product = { id: string; key: string; name: string };
@@ -120,9 +122,7 @@ export default async function BoardPage({
     <main className="board-page">
       <header className="page">
         <h1>{sprint ? sprint.name : "看板"}</h1>
-        <span className="hint">
-          <a href="/">产品</a> · <a href="/work-items">工作项</a> · <a href="/versions">版本</a> · <a href="/inbox">收件箱</a> · <a href="/reports">报表</a> · devmaster
-        </span>
+        <Nav />
       </header>
 
       <div className="board-meta">

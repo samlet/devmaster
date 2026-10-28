@@ -24,6 +24,7 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/database"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/logging"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/observability"
+	"github.com/xiaofeiwu/devmaster/backend/internal/platform/subjectregistry"
 	productpostgres "github.com/xiaofeiwu/devmaster/backend/internal/product/adapter/postgres"
 	"github.com/xiaofeiwu/devmaster/backend/internal/product/application"
 	reportpostgres "github.com/xiaofeiwu/devmaster/backend/internal/report/adapter/postgres"
@@ -122,10 +123,22 @@ func run() error {
 			{Name: "temporal", Check: observability.TCPCheck(cfg.Temporal.HostPort)},
 		},
 	}
+	// 主体目录：控制台用它把 keycloak/<sub> 解析成锚点（收件箱的 user: 键）。
+	// 未接入时解析端点返回 found=false，收件箱退化为只有团队/角色键。
+	var subjects *subjectregistry.Client
+	if cfg.Subjects.Enabled {
+		subjects, err = subjectregistry.New(cfg.Subjects)
+		if err != nil {
+			return fmt.Errorf("subject registry client: %w", err)
+		}
+		defer subjects.Close()
+		logger.Info("主体目录已接入（控制台解析）", slog.String("address", cfg.Subjects.Address))
+	}
 	httpServer := &http.Server{
 		Addr: cfg.Server.HTTPAddress,
-		Handler: httptransport.NewServer(productService, workItemService, sprintService, boardService, versionService, reportService, giteaService, cfg.Gitea.WebhookSecret, giteaOrg, metrics, health, logger, defaultOrganizationID, httptransport.WriterDeps{
+		Handler: httptransport.NewServer(productService, workItemService, sprintService, boardService, versionService, reportService, giteaService, cfg.Gitea.WebhookSecret, giteaOrg, metrics, health, logger, defaultOrganizationID, httptransport.ConsoleDeps{
 			Releases:  versionService,
+			Subjects:  subjects,
 			BFFSecret: cfg.Integrations.BFFSharedSecret,
 		}).Handler(),
 	}

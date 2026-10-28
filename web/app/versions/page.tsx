@@ -1,3 +1,5 @@
+import { Nav } from "../nav";
+
 export const dynamic = "force-dynamic";
 
 type Product = { id: string; key: string; name: string };
@@ -74,10 +76,7 @@ export default async function VersionsPage({
     <main>
       <header className="page">
         <h1>版本</h1>
-        <span className="hint">
-          <a href="/">产品</a> · <a href="/work-items">工作项</a> · <a href="/board">看板</a> ·{" "}
-          <a href="/inbox">收件箱</a> · <a href="/reports">报表</a> · devmaster
-        </span>
+        <Nav />
       </header>
 
       <form className="filters" method="get">

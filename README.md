@@ -61,6 +61,7 @@ make db-create        # devmaster_owner / devmaster_app 与 devmaster_dev / devm
 make migrate          # Atlas 版本化迁移 + 收紧运行时角色
 make run              # gRPC :50091 / HTTP :8291
 make web-install      # 首次
+./scripts/keycloak-dev.sh start   # 本地 IdP（:18281，导入 devmaster realm + 测试账号）
 make web-dev          # 控制台 http://127.0.0.1:3031
 make seed-dataset     # 导入 m1-smoke（幂等；重复跑不会产生第二份事实）
 make reconcile        # 事件折叠对账：当前态必须等于事件日志
@@ -101,6 +102,7 @@ grpcurl -plaintext -d '{"options":{"idempotency_key":"p-1"},"key":"hosp","name":
 | `consumer` | 消费 `release.submitted` 起发布工作流（inbox 幂等） | 无 |
 | `gitea-reconcile` | 每日对账（一次性/cron） | 无 |
 | `web` | Next.js 控制台（产品 / 工作项 / 看板 / 版本 / 收件箱；版本页可提交发布） | `:3031` |
+| Keycloak | 控制台登录用的 IdP（`devmaster` realm） | `:18281` |
 | `importer` | 数据包导入（一次性，`make seed-dataset`） | 无 |
 | `reconcile` | 事件折叠对账（一次性，`make reconcile`） | 无 |
 | `snapshot` | 燃尽快照（一次性/cron，`make snapshot`） | 无 |
