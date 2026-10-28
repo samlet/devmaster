@@ -89,10 +89,7 @@ worker:
 consumer:
 	cd backend && go run ./cmd/consumer -config configs/local.example.yaml
 
-consumer:
-	cd backend && go run ./cmd/consumer -config configs/local.example.yaml
-
-# 三个进程同起同停：任一退出即整体退出，避免"半边活着"的假象。
+# 四个进程同起同停：任一退出即整体退出，避免"半边活着"的假象。
 dev:
 	@trap 'kill 0' EXIT INT TERM; \
 	( cd backend && go run ./cmd/server -config configs/local.example.yaml ) & \

@@ -149,7 +149,7 @@ docs/             01 评估 / 02 边界 / 03 架构 / 04 模型 / 06 契约 / 07
 | [07 Temporal 工作流设计](docs/07-Temporal工作流设计.md) | 发布、冲刺时钟、缺陷计时、对账 |
 | [05 指标与报表口径](docs/05-指标与报表口径.md) | 周期时间、吞吐、CFD、团队负载、性能基线 |
 | 08 研发计划与里程碑 | 待写（当前见 01 §8） |
-| 09 运维手册 | 待写 |
+| [09 运维手册](docs/09-运维手册.md) | 启动顺序、定时任务、故障处理、备份与回滚 |
 
 原始需求：[docs/drafts/draft.md](docs/drafts/draft.md) ·
 参考：[docs/drafts/jira-like-system-draft.md](docs/drafts/jira-like-system-draft.md)
