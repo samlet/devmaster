@@ -16,6 +16,7 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/artifact"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/database"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/gitea"
+	"github.com/xiaofeiwu/devmaster/backend/internal/platform/notify"
 	versionapp "github.com/xiaofeiwu/devmaster/backend/internal/version/application"
 )
 
@@ -42,10 +43,18 @@ func PingWorkflow(ctx workflow.Context) (PingResult, error) {
 //
 // 通知是旁路：实现方返回错误只记日志，不改变发布结果。
 type Notifier interface {
-	ReleaseFailed(ctx context.Context, versionID, version, reason string) error
-	ReleasePublished(ctx context.Context, versionID, version, tag string) error
+	ReleaseFailed(ctx context.Context, target notify.Target, reason string) error
+	ReleasePublished(ctx context.Context, target notify.Target, tag string) error
 	// ReleaseApprovalPending 是催办：waited/threshold 都是人可读时长（如 "1h30m0s"）。
-	ReleaseApprovalPending(ctx context.Context, versionID, version, waited, threshold, submittedBy string) error
+	ReleaseApprovalPending(ctx context.Context, reminder notify.ApprovalReminder) error
+}
+
+// SubjectResolver 是主体目录端口；nil 表示未接入。
+//
+// 未接入时通知发给团队收件箱——这是显式降级，不是失败。主体目录只影响
+// 「发给谁」，不影响「发不发」。
+type SubjectResolver interface {
+	ResolveSubject(ctx context.Context, sourceSystem, externalID string) (anchorID string, found bool, err error)
 }
 
 type Activities struct {
@@ -56,6 +65,8 @@ type Activities struct {
 	// Artifact 为 nil 表示未接入证据存证：发布链显式降级，evidence_ref 退化为
 	// 发布说明引用。生产环境配置校验会拒绝这种降级。
 	Artifact *artifact.Client
+	// Subjects 为 nil 表示未接入主体目录：通知发给团队收件箱，不做定向。
+	Subjects SubjectResolver
 	Notifier Notifier
 	Logger   *slog.Logger
 }

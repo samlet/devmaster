@@ -46,9 +46,15 @@ devmaster 不拥有项目、不拥有账、不拥有部署、不拥有生产事�
 ## 快速开始
 
 前置：本地 PostgreSQL 18、NATS JetStream、Temporal 已启动（brew 服务，不引入 Docker）。
-证据存证要 artifact：`backend/go.mod` 用 `replace github.com/xiaofeiwu/artifact => ../../artifact`
-指向同工作区的 artifact 仓（与 it-solution 引 devmaster 的做法一致），因此**克隆时需把
-artifact 放在 devmaster 的同级目录**。
+证据存证要 artifact、通知定向要 subject-registry：`backend/go.mod` 用 replace 指向同工作区的
+两个仓（与 it-solution 引 devmaster 的做法一致）：
+
+```text
+github.com/xiaofeiwu/artifact         => ../../artifact
+github.com/xiaofeiwu/subject-registry => ../../../portals/subject-registry
+```
+
+因此**克隆时需把 artifact 放在 devmaster 同级、subject-registry 放在 `portals/` 下**。
 
 ```bash
 make db-create        # devmaster_owner / devmaster_app 与 devmaster_dev / devmaster_test

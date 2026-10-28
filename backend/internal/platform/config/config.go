@@ -22,19 +22,20 @@ const (
 )
 
 type Config struct {
-	Environment  string            `yaml:"environment"`
-	Server       ServerConfig      `yaml:"server"`
-	Database     DatabaseConfig    `yaml:"database"`
-	Logging      LoggingConfig     `yaml:"logging"`
-	Auth         AuthConfig        `yaml:"auth"`
-	NATS         NATSConfig        `yaml:"nats"`
-	Temporal     TemporalConfig    `yaml:"temporal"`
-	Outbox       OutboxConfig      `yaml:"outbox"`
-	Approver     ApproverConfig    `yaml:"approver"`
-	Gitea        GiteaConfig       `yaml:"gitea"`
-	Notify       NotifyConfig      `yaml:"notify"`
-	Artifact     ArtifactConfig    `yaml:"artifact"`
-	Integrations IntegrationConfig `yaml:"integrations"`
+	Environment  string                `yaml:"environment"`
+	Server       ServerConfig          `yaml:"server"`
+	Database     DatabaseConfig        `yaml:"database"`
+	Logging      LoggingConfig         `yaml:"logging"`
+	Auth         AuthConfig            `yaml:"auth"`
+	NATS         NATSConfig            `yaml:"nats"`
+	Temporal     TemporalConfig        `yaml:"temporal"`
+	Outbox       OutboxConfig          `yaml:"outbox"`
+	Approver     ApproverConfig        `yaml:"approver"`
+	Gitea        GiteaConfig           `yaml:"gitea"`
+	Notify       NotifyConfig          `yaml:"notify"`
+	Artifact     ArtifactConfig        `yaml:"artifact"`
+	Subjects     SubjectRegistryConfig `yaml:"subject_registry"`
+	Integrations IntegrationConfig     `yaml:"integrations"`
 }
 
 type ServerConfig struct {
@@ -144,6 +145,18 @@ type ArtifactConfig struct {
 	TLS              bool          `yaml:"tls"`
 }
 
+// SubjectRegistryConfig 是主体目录（subject-registry）的接入参数。
+//
+// 与 artifact 不同，这里 enabled=false 不需要在生产拒绝启动：主体目录只影响
+// 「催办发给谁」这个路由优化，未接入时降级到角色收件箱，通知照发。把它设成
+// 生产必需项会把一个旁路依赖变成发布链的单点。
+type SubjectRegistryConfig struct {
+	Enabled      bool          `yaml:"enabled"`
+	Address      string        `yaml:"address"`
+	ServiceToken string        `yaml:"service_token"`
+	Timeout      time.Duration `yaml:"timeout"`
+}
+
 type IntegrationConfig struct {
 	// BFFSharedSecret 是 Next.js BFF 的签名密钥。M0 的只读控制台面不经过它，
 	// 但保留配置位，M1 接入写操作时不再改配置结构。
@@ -231,6 +244,11 @@ func Default() Config {
 			ReleaseNotesType: "devmaster.release-notes",
 			Timeout:          30 * time.Second,
 		},
+		Subjects: SubjectRegistryConfig{
+			Enabled: false,
+			Address: "127.0.0.1:50095",
+			Timeout: 5 * time.Second,
+		},
 	}
 }
 
@@ -291,6 +309,9 @@ func applyEnv(cfg *Config) {
 	setString(&cfg.Artifact.TenantID, "DEVMASTER_ARTIFACT_TENANT_ID")
 	setString(&cfg.Artifact.OrganizationID, "DEVMASTER_ARTIFACT_ORGANIZATION_ID")
 	setString(&cfg.Artifact.Namespace, "DEVMASTER_ARTIFACT_NAMESPACE")
+	setBool(&cfg.Subjects.Enabled, "DEVMASTER_SUBJECT_REGISTRY_ENABLED")
+	setString(&cfg.Subjects.Address, "DEVMASTER_SUBJECT_REGISTRY_ADDRESS")
+	setString(&cfg.Subjects.ServiceToken, "DEVMASTER_SUBJECT_REGISTRY_TOKEN")
 }
 
 // Validate 是"生产拒启"的唯一入口。

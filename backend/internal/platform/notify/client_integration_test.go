@@ -32,7 +32,9 @@ func TestReleaseFailedIntentReachesNotify(t *testing.T) {
 
 	versionID := uuid.NewString()
 	version := "it-" + versionID[:8]
-	if err := client.ReleaseFailed(context.Background(), versionID, version, "integration test"); err != nil {
+	if err := client.ReleaseFailed(context.Background(), Target{
+		VersionID: versionID, Version: version,
+	}, "integration test"); err != nil {
 		t.Fatalf("publish intent: %v", err)
 	}
 

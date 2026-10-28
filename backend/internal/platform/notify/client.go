@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -83,37 +84,75 @@ func (c *Client) Publish(ctx context.Context, intent Intent) error {
 	return nil
 }
 
-func (c *Client) ReleaseFailed(ctx context.Context, versionID, version, reason string) error {
+// Target 是发布类通知的收件目标。
+//
+// RecipientID 为空表示「用配置里的默认收件人」（团队收件箱）。调用方在能解析出
+// 具体主体时传 "user:<anchor_id>"，解析不出来就留空——留空是显式降级，
+// 不是静默失败。
+type Target struct {
+	VersionID   string
+	Version     string
+	RecipientID string
+}
+
+func (c *Client) ReleaseFailed(ctx context.Context, target Target, reason string) error {
 	return c.Publish(ctx, Intent{
 		Template:  "release.failed",
 		Category:  "transactional",
-		DedupeKey: "devmaster:release:" + versionID + ":failed",
-		Params:    map[string]any{"version": version, "version_id": versionID, "reason": reason},
-		Metadata:  map[string]string{"version_id": versionID},
+		Recipient: Recipient{RecipientID: target.RecipientID},
+		DedupeKey: "devmaster:release:" + target.VersionID + ":failed:" + target.RecipientID,
+		Params: map[string]any{
+			"version": target.Version, "version_id": target.VersionID, "reason": reason,
+		},
+		Metadata: map[string]string{"version_id": target.VersionID},
 	})
+}
+
+// ApprovalReminder 是一次催办的全部参数。
+//
+// 用结构体而不是六个裸 string：它们全是 string，顺序写错编译器不会报错，
+// 而错位的后果是把等待时长渲染进收件人字段——排障时根本看不出来。
+type ApprovalReminder struct {
+	VersionID   string
+	Version     string
+	Waited      string
+	Threshold   string
+	SubmittedBy string
+	// RecipientID 是 notify 的收件人键，由调用方解析后传入：
+	// 命中主体目录用 "user:<anchor_id>"，未命中降级 "role:RELEASE_APPROVER"。
+	RecipientID string
 }
 
 // ReleaseApprovalPending 是催办：发布已提交但审批还没结论。
-// dedupe_key 固定到版本级，notify 侧不会因为工作流多轮提醒而重复轰炸。
-func (c *Client) ReleaseApprovalPending(ctx context.Context, versionID, version, waited, threshold, submittedBy string) error {
+//
+// dedupe_key 带上收件人：同一版本对不同收件人是两条通知。若只按版本去重，
+// 「先发给角色、后来能定向到人」时第二条会被静默吃掉，本人永远收不到。
+func (c *Client) ReleaseApprovalPending(ctx context.Context, reminder ApprovalReminder) error {
+	recipientID := strings.TrimSpace(reminder.RecipientID)
+	if recipientID == "" {
+		return fmt.Errorf("approval reminder recipient is required")
+	}
 	return c.Publish(ctx, Intent{
 		Template:  "release.approval_pending",
 		Category:  "transactional",
-		DedupeKey: "devmaster:release:" + versionID + ":approval-pending",
+		Recipient: Recipient{RecipientID: recipientID},
+		DedupeKey: "devmaster:release:" + reminder.VersionID + ":approval-pending:" + recipientID,
 		Params: map[string]any{
-			"version": version, "version_id": versionID,
-			"waited": waited, "threshold": threshold, "submitted_by": submittedBy,
+			"version": reminder.Version, "version_id": reminder.VersionID,
+			"waited": reminder.Waited, "threshold": reminder.Threshold,
+			"submitted_by": reminder.SubmittedBy,
 		},
-		Metadata: map[string]string{"version_id": versionID},
+		Metadata: map[string]string{"version_id": reminder.VersionID},
 	})
 }
 
-func (c *Client) ReleasePublished(ctx context.Context, versionID, version, tag string) error {
+func (c *Client) ReleasePublished(ctx context.Context, target Target, tag string) error {
 	return c.Publish(ctx, Intent{
 		Template:  "release.published",
 		Category:  "transactional",
-		DedupeKey: "devmaster:release:" + versionID + ":published",
-		Params:    map[string]any{"version": version, "tag": tag},
-		Metadata:  map[string]string{"version_id": versionID},
+		Recipient: Recipient{RecipientID: target.RecipientID},
+		DedupeKey: "devmaster:release:" + target.VersionID + ":published:" + target.RecipientID,
+		Params:    map[string]any{"version": target.Version, "tag": tag},
+		Metadata:  map[string]string{"version_id": target.VersionID},
 	})
 }

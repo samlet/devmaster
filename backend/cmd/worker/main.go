@@ -17,6 +17,7 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/gitea"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/logging"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/notify"
+	"github.com/xiaofeiwu/devmaster/backend/internal/platform/subjectregistry"
 	versionpostgres "github.com/xiaofeiwu/devmaster/backend/internal/version/adapter/postgres"
 	versionapplication "github.com/xiaofeiwu/devmaster/backend/internal/version/application"
 	"github.com/xiaofeiwu/devmaster/backend/internal/workflow"
@@ -73,6 +74,15 @@ func run() error {
 		logger.Info("artifact 证据存证已接入",
 			slog.String("address", cfg.Artifact.Address),
 			slog.String("content_type", cfg.Artifact.TestReportType))
+	}
+	if cfg.Subjects.Enabled {
+		resolver, err := subjectregistry.New(cfg.Subjects)
+		if err != nil {
+			return fmt.Errorf("subject registry client: %w", err)
+		}
+		defer resolver.Close()
+		activities.Subjects = resolver
+		logger.Info("主体目录已接入", slog.String("address", cfg.Subjects.Address))
 	}
 	if cfg.Notify.Enabled {
 		notifier, err := notify.New(cfg.Notify)

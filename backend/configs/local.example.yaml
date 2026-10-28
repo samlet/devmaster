@@ -96,3 +96,14 @@ artifact:
   release_notes_type: devmaster.release-notes
   timeout: 30s
   tls: false
+
+# 主体目录（subject-registry）：把通知收件人从团队箱改为具体人。
+# enabled=false 时通知发团队收件箱——这是显式降级，不是失败：
+# 主体目录只影响「发给谁」，不影响「发不发」，所以生产不强制开启。
+subject_registry:
+  enabled: true
+  address: 127.0.0.1:50095
+  # 与服务端 SUBJECT_SERVICE_TOKEN 一致；从环境变量
+  # DEVMASTER_SUBJECT_REGISTRY_TOKEN 注入，不写进仓库。
+  service_token: ""
+  timeout: 5s

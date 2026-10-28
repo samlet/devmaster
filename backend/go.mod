@@ -9,7 +9,9 @@ require (
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/nats-io/nats.go v1.55.0
 	github.com/prometheus/client_golang v1.25.0
+	github.com/stretchr/testify v1.12.1
 	github.com/xiaofeiwu/artifact v0.0.0
+	github.com/xiaofeiwu/subject-registry v0.0.0
 	go.temporal.io/api v1.63.5
 	go.temporal.io/sdk v1.50.0
 	golang.org/x/oauth2 v0.37.0
@@ -63,7 +65,6 @@ require (
 	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
-	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/zclconf/go-cty v1.14.4 // indirect
 	github.com/zclconf/go-cty-yaml v1.1.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
@@ -81,3 +82,5 @@ require (
 )
 
 replace github.com/xiaofeiwu/artifact => ../../artifact
+
+replace github.com/xiaofeiwu/subject-registry => ../../../portals/subject-registry

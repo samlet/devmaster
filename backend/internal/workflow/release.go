@@ -10,6 +10,8 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +19,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/approver"
+	"github.com/xiaofeiwu/devmaster/backend/internal/platform/notify"
 	versionapp "github.com/xiaofeiwu/devmaster/backend/internal/version/application"
 	versiondomain "github.com/xiaofeiwu/devmaster/backend/internal/version/domain"
 )
@@ -226,11 +229,46 @@ func (a *Activities) PollReleaseApproval(ctx context.Context, instanceID string)
 }
 
 // NotifyApprovalPending 发一次待审批催办。通知是旁路：未启用时直接返回。
+//
+// 催办发给角色而不是具体审批人：approver 的实例接口不暴露 assignee，
+// 审批完成前 devmaster 拿不到审批人 id。等 approver 提供 assignee 查询再定向。
 func (a *Activities) NotifyApprovalPending(ctx context.Context, input ReleaseInput, info ReleaseInfo, waited, threshold string) error {
 	if a.Notifier == nil {
 		return nil
 	}
-	return a.Notifier.ReleaseApprovalPending(ctx, input.VersionID.String(), info.VersionName, waited, threshold, input.SubmittedBy)
+	return a.Notifier.ReleaseApprovalPending(ctx, notify.ApprovalReminder{
+		VersionID:   input.VersionID.String(),
+		Version:     info.VersionName,
+		Waited:      waited,
+		Threshold:   threshold,
+		SubmittedBy: input.SubmittedBy,
+		RecipientID: approvalRoleRecipient,
+	})
+}
+
+// recipientFor 把 devmaster 的用户标识解析成 notify 收件人。
+//
+// 返回空串表示「解析不出来」——由 notify 客户端落到配置的团队收件箱。
+// 这里刻意不返回 role 兜底：发布成功/失败是给提交人看的结果通知，
+// 发给全体审批角色反而制造噪音；催办才需要发给角色。
+func (a *Activities) recipientFor(ctx context.Context, subject string) string {
+	trimmed := strings.TrimSpace(subject)
+	if a.Subjects == nil || trimmed == "" {
+		return ""
+	}
+	anchorID, found, err := a.Subjects.ResolveSubject(ctx, subjectSourceKeycloak, trimmed)
+	if err != nil {
+		// 主体目录故障不影响通知本身：降级到团队收件箱并留痕。
+		if a.Logger != nil {
+			a.Logger.Warn("subject resolve failed; using team inbox",
+				slog.String("subject", trimmed), slog.String("error", err.Error()))
+		}
+		return ""
+	}
+	if !found {
+		return ""
+	}
+	return userRecipientPrefix + anchorID
 }
 
 func (a *Activities) ApproveRelease(ctx context.Context, input ReleaseInput, approverID string) error {
@@ -267,7 +305,12 @@ func (a *Activities) PublishRelease(ctx context.Context, input ReleaseInput, evi
 			if release.Tag != nil {
 				tag = *release.Tag
 			}
-			if notifyErr := a.Notifier.ReleasePublished(ctx, input.VersionID.String(), version.Name, tag); notifyErr != nil && a.Logger != nil {
+			target := notify.Target{
+				VersionID:   input.VersionID.String(),
+				Version:     version.Name,
+				RecipientID: a.recipientFor(ctx, input.SubmittedBy),
+			}
+			if notifyErr := a.Notifier.ReleasePublished(ctx, target, tag); notifyErr != nil && a.Logger != nil {
 				a.Logger.Warn("release published notification failed", "error", notifyErr)
 			}
 		}
@@ -280,7 +323,12 @@ func (a *Activities) FailRelease(ctx context.Context, input ReleaseInput, reason
 	if err == nil && a.Notifier != nil {
 		// 通知是旁路：失败只记日志，不改发布结果。
 		if version, getErr := a.Versions.Get(ctx, a.workflowActor(input), input.VersionID); getErr == nil {
-			if notifyErr := a.Notifier.ReleaseFailed(ctx, input.VersionID.String(), version.Name, reason); notifyErr != nil && a.Logger != nil {
+			target := notify.Target{
+				VersionID:   input.VersionID.String(),
+				Version:     version.Name,
+				RecipientID: a.recipientFor(ctx, input.SubmittedBy),
+			}
+			if notifyErr := a.Notifier.ReleaseFailed(ctx, target, reason); notifyErr != nil && a.Logger != nil {
 				a.Logger.Warn("release failure notification failed", "error", notifyErr)
 			}
 		}

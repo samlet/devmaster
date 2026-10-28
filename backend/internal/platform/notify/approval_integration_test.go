@@ -36,7 +36,11 @@ func TestReleaseApprovalPendingIntentReachesNotify(t *testing.T) {
 
 	versionID := uuid.NewString()
 	version := "ap-" + versionID[:8]
-	if err := client.ReleaseApprovalPending(context.Background(), versionID, version, "1h30m0s", "1h0m0s", "alice"); err != nil {
+	if err := client.ReleaseApprovalPending(context.Background(), ApprovalReminder{
+		VersionID: versionID, Version: version,
+		Waited: "1h30m0s", Threshold: "1h0m0s", SubmittedBy: "alice",
+		RecipientID: "role:RELEASE_APPROVER",
+	}); err != nil {
 		t.Fatalf("publish intent: %v", err)
 	}
 
