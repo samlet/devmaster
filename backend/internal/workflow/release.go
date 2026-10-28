@@ -1,7 +1,10 @@
-// ReleaseWorkflow 是发布审批链：起流程 → 轮询审批 → 打 tag → 发布。
+// ReleaseWorkflow 是发布审批链：起流程 → 轮询审批 → 打 tag → 存证 → 发布。
 //
 // 为什么轮询而不是回调：approver 没有通用出站回调；轮询间隔与上限都是
 // 输入参数，测试可以缩短到秒级，生产保持 10s/24h 量级。
+//
+// 为什么存证在发布之前：evidence_ref 是发布记录的一部分，先有证据再有
+// PUBLISHED 才说得通；存证失败就停在这里，不产出「发布了但没证据」的记录。
 package workflow
 
 import (
@@ -112,7 +115,11 @@ func ReleaseWorkflow(ctx workflow.Context, input ReleaseInput) error {
 	if err := workflow.ExecuteActivity(ctx, "MarkReleaseTagged", input, tag).Get(ctx, nil); err != nil {
 		return err
 	}
-	return workflow.ExecuteActivity(ctx, "PublishRelease", input, info.NotesRef).Get(ctx, nil)
+	var evidence EvidenceResult
+	if err := workflow.ExecuteActivity(ctx, "SealEvidence", input, info, result, tag).Get(ctx, &evidence); err != nil {
+		return err
+	}
+	return workflow.ExecuteActivity(ctx, "PublishRelease", input, evidence.Ref).Get(ctx, nil)
 }
 
 func failRelease(ctx workflow.Context, input ReleaseInput, reason string) error {
@@ -216,6 +223,8 @@ func (a *Activities) MarkReleaseTagged(ctx context.Context, input ReleaseInput, 
 	return err
 }
 
+// PublishRelease 落 PUBLISHED 并写 evidence_ref（artifact 固定版本引用）。
+// 存证未接入时 evidenceRef 是发布说明引用——这是显式降级，不是默认路径。
 func (a *Activities) PublishRelease(ctx context.Context, input ReleaseInput, evidenceRef string) error {
 	_, err := a.Versions.Publish(ctx, a.workflowActor(input), input.ReleaseID, evidenceRef)
 	if err == nil && a.Notifier != nil {

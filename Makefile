@@ -148,6 +148,14 @@ PERF_ITEMS ?= 100000
 perf-baseline:
 	cd backend && go run ./cmd/perfbaseline -config configs/local.example.yaml -items $(PERF_ITEMS)
 
+# 证据存证自检：对真实 artifact 写一份证据并回读校验字节一致。
+# 需要 artifact content-api 与 Keycloak 在跑（见 docs/09-运维手册.md）。
+evidence-check:
+	cd backend && go run ./cmd/evidence-check -config configs/local.example.yaml
+
+test-evidence:
+	./scripts/test-evidence.sh
+
 test: tools
 	buf lint
 	cd backend && go test ./...

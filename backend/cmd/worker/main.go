@@ -11,6 +11,7 @@ import (
 	"go.temporal.io/sdk/worker"
 
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/approver"
+	"github.com/xiaofeiwu/devmaster/backend/internal/platform/artifact"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/config"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/database"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/gitea"
@@ -61,6 +62,17 @@ func run() error {
 		Approver: approver.New(cfg.Approver),
 		Gitea:    gitea.New(cfg.Gitea),
 		Logger:   logger,
+	}
+	if cfg.Artifact.Enabled {
+		artifactClient, err := artifact.New(context.Background(), cfg.Artifact)
+		if err != nil {
+			return fmt.Errorf("artifact client: %w", err)
+		}
+		defer artifactClient.Close()
+		activities.Artifact = artifactClient
+		logger.Info("artifact 证据存证已接入",
+			slog.String("address", cfg.Artifact.Address),
+			slog.String("content_type", cfg.Artifact.TestReportType))
 	}
 	if cfg.Notify.Enabled {
 		notifier, err := notify.New(cfg.Notify)

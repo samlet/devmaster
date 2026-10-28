@@ -33,6 +33,7 @@ type Config struct {
 	Approver     ApproverConfig    `yaml:"approver"`
 	Gitea        GiteaConfig       `yaml:"gitea"`
 	Notify       NotifyConfig      `yaml:"notify"`
+	Artifact     ArtifactConfig    `yaml:"artifact"`
 	Integrations IntegrationConfig `yaml:"integrations"`
 }
 
@@ -120,6 +121,26 @@ type NotifyConfig struct {
 	RecipientID string `yaml:"recipient_id"`
 }
 
+// ArtifactConfig 是 artifact（内容与证据仓）的接入参数。
+//
+// Enabled=false 时发布链跳过存证并把 evidence_ref 留空——这是本地没有
+// artifact 时的显式降级，不是默认值：生产必须开启（Validate 会拒）。
+type ArtifactConfig struct {
+	Enabled          bool          `yaml:"enabled"`
+	Address          string        `yaml:"address"`
+	Issuer           string        `yaml:"issuer"`
+	TokenURL         string        `yaml:"token_url"`
+	ClientID         string        `yaml:"client_id"`
+	ClientSecret     string        `yaml:"client_secret"`
+	TenantID         string        `yaml:"tenant_id"`
+	OrganizationID   string        `yaml:"organization_id"`
+	Namespace        string        `yaml:"namespace"`
+	TestReportType   string        `yaml:"test_report_type"`
+	ReleaseNotesType string        `yaml:"release_notes_type"`
+	Timeout          time.Duration `yaml:"timeout"`
+	TLS              bool          `yaml:"tls"`
+}
+
 type IntegrationConfig struct {
 	// BFFSharedSecret 是 Next.js BFF 的签名密钥。M0 的只读控制台面不经过它，
 	// 但保留配置位，M1 接入写操作时不再改配置结构。
@@ -194,6 +215,18 @@ func Default() Config {
 			Repo:           "hosp",
 			OrganizationID: "00000000-0000-0000-0000-000000000001",
 		},
+		Artifact: ArtifactConfig{
+			Enabled:          false,
+			Address:          "127.0.0.1:50071",
+			Issuer:           "http://127.0.0.1:8180/realms/artifact",
+			ClientID:         "content-worker",
+			TenantID:         "00000000-0000-0000-0000-000000000001",
+			OrganizationID:   "00000000-0000-0000-0000-000000000001",
+			Namespace:        "devmaster",
+			TestReportType:   "devmaster.test-report",
+			ReleaseNotesType: "devmaster.release-notes",
+			Timeout:          30 * time.Second,
+		},
 	}
 }
 
@@ -244,6 +277,15 @@ func applyEnv(cfg *Config) {
 	setBool(&cfg.Auth.Enabled, "DEVMASTER_AUTH_ENABLED")
 	setString(&cfg.Auth.Issuer, "DEVMASTER_AUTH_ISSUER")
 	setString(&cfg.Auth.Audience, "DEVMASTER_AUTH_AUDIENCE")
+	setBool(&cfg.Artifact.Enabled, "DEVMASTER_ARTIFACT_ENABLED")
+	setString(&cfg.Artifact.Address, "DEVMASTER_ARTIFACT_ADDRESS")
+	setString(&cfg.Artifact.Issuer, "DEVMASTER_ARTIFACT_ISSUER")
+	setString(&cfg.Artifact.TokenURL, "DEVMASTER_ARTIFACT_TOKEN_URL")
+	setString(&cfg.Artifact.ClientID, "DEVMASTER_ARTIFACT_CLIENT_ID")
+	setString(&cfg.Artifact.ClientSecret, "DEVMASTER_ARTIFACT_CLIENT_SECRET")
+	setString(&cfg.Artifact.TenantID, "DEVMASTER_ARTIFACT_TENANT_ID")
+	setString(&cfg.Artifact.OrganizationID, "DEVMASTER_ARTIFACT_ORGANIZATION_ID")
+	setString(&cfg.Artifact.Namespace, "DEVMASTER_ARTIFACT_NAMESPACE")
 }
 
 // Validate 是"生产拒启"的唯一入口。
@@ -265,6 +307,20 @@ func (c Config) Validate() error {
 		}
 		if strings.TrimSpace(c.Auth.Issuer) == "" || strings.TrimSpace(c.Auth.Audience) == "" {
 			return errors.New("auth.issuer and auth.audience are required in production")
+		}
+		// 发布证据是审计事实：生产环境关掉存证等于发布链缺一环。
+		if !c.Artifact.Enabled {
+			return errors.New("artifact.enabled must be true in production")
+		}
+	}
+	if c.Artifact.Enabled {
+		if strings.TrimSpace(c.Artifact.Address) == "" ||
+			strings.TrimSpace(c.Artifact.ClientID) == "" ||
+			strings.TrimSpace(c.Artifact.ClientSecret) == "" {
+			return errors.New("artifact.address and client credentials are required when artifact is enabled")
+		}
+		if strings.TrimSpace(c.Artifact.TokenURL) == "" && strings.TrimSpace(c.Artifact.Issuer) == "" {
+			return errors.New("artifact.token_url or artifact.issuer is required when artifact is enabled")
 		}
 	}
 	return nil

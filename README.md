@@ -3,9 +3,10 @@
 面向软件研发的执行事实源：**工作项、冲刺、版本、工时**。参考 Jira 的任务/缺陷/冲刺/版本迭代
 四件套，但只保留其中可被核算的部分，并把它们接进生态的项目与财务链路。
 
-**当前状态：M6 报表已落地，发布通知已接 notify（2026-10-28）。** 周期时间 / 吞吐 / 累积流图 / 团队负载
-四个接口 + 日快照表，10 万项实测四项均 < 300ms。口径见
-[docs/05](docs/05-指标与报表口径.md)。
+**当前状态：M6 报表已落地，发布链已闭环（notify + artifact 证据存证，2026-10-28）。**
+周期时间 / 吞吐 / 累积流图 / 团队负载四个接口 + 日快照表，10 万项实测四项均 < 300ms；
+发布证据由 `SealEvidence` 活动封成 artifact 不可变修订并回读校验字节。口径见
+[docs/05](docs/05-指标与报表口径.md)，存证契约见 [docs/06 §8](docs/06-集成契约与事件设计.md)。
 评估与裁决见 [docs/01](docs/01-方案评估与关键决策.md)，分期见 [docs/01 §8](docs/01-方案评估与关键决策.md)。
 
 ## 定位
@@ -26,7 +27,8 @@ devmaster 不拥有项目、不拥有账、不拥有部署、不拥有生产事�
 ```
 
 三条链任一不通，本项目应停在 M3 或直接改用 Gitea Issues。链 B 的 PPM 侧已落地
-（PPM `docs/06 §9`，`labor_rates` + `dev.v1.work.logged` 消费者）。
+（PPM `docs/06 §9`，`labor_rates` + `dev.v1.work.logged` 消费者）；链 C 的 artifact
+证据侧已落地（`make test-evidence` 验收）。
 
 ## 边界（一句话版）
 
@@ -44,6 +46,9 @@ devmaster 不拥有项目、不拥有账、不拥有部署、不拥有生产事�
 ## 快速开始
 
 前置：本地 PostgreSQL 18、NATS JetStream、Temporal 已启动（brew 服务，不引入 Docker）。
+证据存证要 artifact：`backend/go.mod` 用 `replace github.com/xiaofeiwu/artifact => ../../artifact`
+指向同工作区的 artifact 仓（与 it-solution 引 devmaster 的做法一致），因此**克隆时需把
+artifact 放在 devmaster 的同级目录**。
 
 ```bash
 make db-create        # devmaster_owner / devmaster_app 与 devmaster_dev / devmaster_test
@@ -58,6 +63,8 @@ make approver-bootstrap  # 把发布审批流程定义发布到 approver（首�
 make gitea-reconcile     # Gitea 提交对账（补齐 webhook 漏掉的关联）
 make version-gate PRODUCT=HOSP VERSION=1.0.0   # 部署前置校验
 make test-version-gate   # 门禁验收：已发布放行、不存在拒绝（需 server 在跑）
+make evidence-check      # artifact 存证自检（需 content-api + Keycloak 在跑）
+make test-evidence       # 存证验收：新建 / 重放 / 载荷变化三条断言
 make perf-baseline       # 10 万项报表 P95 基线（需 server 在跑）
 make report-snapshot     # 固化报表日快照（DAYS=1 日报 / DAYS=60 回填）
 ```

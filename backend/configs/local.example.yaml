@@ -77,3 +77,22 @@ gitea:
   webhook_secret: devmaster-dev-secret
   organization_id: 00000000-0000-0000-0000-000000000001
 
+
+# artifact 证据存证（发布链的 SealEvidence 活动）。
+# enabled=false 时发布链跳过存证、evidence_ref 退化为发布说明引用；生产
+# 环境启动即拒绝这种降级（config.Validate）。
+artifact:
+  enabled: true
+  address: 127.0.0.1:50071
+  # 令牌走 Keycloak client_credentials；只配 issuer 时自动发现 token 端点。
+  issuer: http://127.0.0.1:8180/realms/artifact
+  client_id: content-worker
+  # 口令从环境变量 DEVMASTER_ARTIFACT_CLIENT_SECRET 注入，不写进仓库。
+  client_secret: ""
+  tenant_id: 00000000-0000-0000-0000-000000000001
+  organization_id: 00000000-0000-0000-0000-000000000001
+  namespace: devmaster
+  test_report_type: devmaster.test-report
+  release_notes_type: devmaster.release-notes
+  timeout: 30s
+  tls: false

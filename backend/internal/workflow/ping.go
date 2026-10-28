@@ -13,6 +13,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/approver"
+	"github.com/xiaofeiwu/devmaster/backend/internal/platform/artifact"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/database"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/gitea"
 	versionapp "github.com/xiaofeiwu/devmaster/backend/internal/version/application"
@@ -48,6 +49,9 @@ type Activities struct {
 	Versions *versionapp.Service
 	Approver *approver.Client
 	Gitea    *gitea.Client
+	// Artifact 为 nil 表示未接入证据存证：发布链显式降级，evidence_ref 退化为
+	// 发布说明引用。生产环境配置校验会拒绝这种降级。
+	Artifact *artifact.Client
 	Notifier Notifier
 	Logger   *slog.Logger
 }
