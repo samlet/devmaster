@@ -191,6 +191,27 @@ func workItemToProto(item workitemdomain.WorkItem) *devv1.WorkItem {
 	if item.EstimateMinutes != nil {
 		out.EstimateMinutes = *item.EstimateMinutes
 	}
+	if item.Platform != nil {
+		out.Platform = *item.Platform
+	}
+	if item.BuildNumber != nil {
+		out.BuildNumber = *item.BuildNumber
+	}
+	if item.ReproSteps != nil {
+		out.ReproSteps = *item.ReproSteps
+	}
+	if item.ExpectedBehavior != nil {
+		out.ExpectedBehavior = *item.ExpectedBehavior
+	}
+	if item.ActualBehavior != nil {
+		out.ActualBehavior = *item.ActualBehavior
+	}
+	if item.VersionID != nil {
+		out.VersionId = item.VersionID.String()
+	}
+	if item.AffectsVersionID != nil {
+		out.AffectsVersionId = item.AffectsVersionID.String()
+	}
 	return out
 }
 
@@ -284,6 +305,13 @@ func (s *WorkItemService) CreateWorkItem(ctx context.Context, req *devv1.CreateW
 				ExternalRef:        stringPtr(req.GetExternalRef()),
 				StoryPoints:        int16Ptr(req.StoryPoints),
 				EstimateMinutes:    req.EstimateMinutes,
+				Platform:           stringPtr(req.GetPlatform()),
+				BuildNumber:        stringPtr(req.GetBuildNumber()),
+				ReproSteps:         stringPtr(req.GetReproSteps()),
+				ExpectedBehavior:   stringPtr(req.GetExpectedBehavior()),
+				ActualBehavior:     stringPtr(req.GetActualBehavior()),
+				VersionID:          uuidPtr(req.GetVersionId()),
+				AffectsVersionID:   uuidPtr(req.GetAffectsVersionId()),
 			})
 			if err != nil {
 				return nil, appError(s.logger, err)
@@ -340,6 +368,13 @@ func (s *WorkItemService) UpdateWorkItem(ctx context.Context, req *devv1.UpdateW
 		BlockedReason:      req.BlockedReason,
 		StoryPoints:        int16Ptr(req.StoryPoints),
 		EstimateMinutes:    req.EstimateMinutes,
+		Platform:           req.Platform,
+		BuildNumber:        req.BuildNumber,
+		ReproSteps:         req.ReproSteps,
+		ExpectedBehavior:   req.ExpectedBehavior,
+		ActualBehavior:     req.ActualBehavior,
+		VersionID:          uuidPtrValue(req.VersionId),
+		AffectsVersionID:   uuidPtrValue(req.AffectsVersionId),
 	}
 	if req.Priority != nil {
 		priority, parseErr := priorityFromProto(*req.Priority)
@@ -725,6 +760,25 @@ func linkToProto(link workitemdomain.Link) *devv1.Link {
 		CreatedBy: link.CreatedBy,
 		CreatedAt: timestamppb.New(link.CreatedAt),
 	}
+}
+
+func uuidPtr(raw string) *uuid.UUID {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+	parsed, err := uuid.Parse(trimmed)
+	if err != nil {
+		return nil
+	}
+	return &parsed
+}
+
+func uuidPtrValue(raw *string) *uuid.UUID {
+	if raw == nil {
+		return nil
+	}
+	return uuidPtr(*raw)
 }
 
 func int16Ptr(value *int32) *int16 {

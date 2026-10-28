@@ -170,6 +170,32 @@ var (
 		Columns:    ProductCountersColumns,
 		PrimaryKey: []*schema.Column{ProductCountersColumns[0]},
 	}
+	// ReleaseRecordsColumns holds the columns for the "release_records" table.
+	ReleaseRecordsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "version_id", Type: field.TypeUUID},
+		{Name: "status", Type: field.TypeString, Size: 24, Default: "PENDING_APPROVAL"},
+		{Name: "tag", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "commit_from", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "commit_to", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "submitted_by", Type: field.TypeString, Size: 128},
+		{Name: "approval_instance_id", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "approver_id", Type: field.TypeString, Nullable: true, Size: 128},
+		{Name: "evidence_ref", Type: field.TypeString, Nullable: true},
+		{Name: "failure_reason", Type: field.TypeString, Nullable: true},
+		{Name: "released_by", Type: field.TypeString, Nullable: true, Size: 128},
+		{Name: "released_at", Type: field.TypeTime, Nullable: true},
+		{Name: "version", Type: field.TypeInt, Default: 0},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// ReleaseRecordsTable holds the schema information for the "release_records" table.
+	ReleaseRecordsTable = &schema.Table{
+		Name:       "release_records",
+		Columns:    ReleaseRecordsColumns,
+		PrimaryKey: []*schema.Column{ReleaseRecordsColumns[0]},
+	}
 	// SprintsColumns holds the columns for the "sprints" table.
 	SprintsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -242,6 +268,35 @@ var (
 			},
 		},
 	}
+	// VersionsColumns holds the columns for the "versions" table.
+	VersionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "product_id", Type: field.TypeUUID},
+		{Name: "name", Type: field.TypeString, Size: 32},
+		{Name: "status", Type: field.TypeString, Size: 16, Default: "PLANNED"},
+		{Name: "milestone_label", Type: field.TypeString, Nullable: true, Size: 32},
+		{Name: "planned_date", Type: field.TypeTime, Nullable: true},
+		{Name: "released_at", Type: field.TypeTime, Nullable: true},
+		{Name: "notes_ref", Type: field.TypeString, Nullable: true},
+		{Name: "scope_frozen_at", Type: field.TypeTime, Nullable: true},
+		{Name: "version", Type: field.TypeInt, Default: 0},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// VersionsTable holds the schema information for the "versions" table.
+	VersionsTable = &schema.Table{
+		Name:       "versions",
+		Columns:    VersionsColumns,
+		PrimaryKey: []*schema.Column{VersionsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "version_product_id_name",
+				Unique:  true,
+				Columns: []*schema.Column{VersionsColumns[2], VersionsColumns[3]},
+			},
+		},
+	}
 	// WorkItemsColumns holds the columns for the "work_items" table.
 	WorkItemsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -263,6 +318,13 @@ var (
 		{Name: "sprint_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "story_points", Type: field.TypeInt16, Nullable: true},
 		{Name: "estimate_minutes", Type: field.TypeInt, Nullable: true},
+		{Name: "platform", Type: field.TypeString, Nullable: true, Size: 16},
+		{Name: "build_number", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "repro_steps", Type: field.TypeString, Nullable: true},
+		{Name: "expected_behavior", Type: field.TypeString, Nullable: true},
+		{Name: "actual_behavior", Type: field.TypeString, Nullable: true},
+		{Name: "version_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "affects_version_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "rank", Type: field.TypeString, Size: 64},
 		{Name: "project_code", Type: field.TypeString, Nullable: true, Size: 64},
 		{Name: "wbs_code", Type: field.TypeString, Nullable: true, Size: 64},
@@ -290,7 +352,7 @@ var (
 			{
 				Name:    "workitem_product_id_rank",
 				Unique:  false,
-				Columns: []*schema.Column{WorkItemsColumns[3], WorkItemsColumns[19]},
+				Columns: []*schema.Column{WorkItemsColumns[3], WorkItemsColumns[26]},
 			},
 			{
 				Name:    "workitem_assignee_id_status",
@@ -366,9 +428,11 @@ var (
 		OutboxEventsTable,
 		ProductsTable,
 		ProductCountersTable,
+		ReleaseRecordsTable,
 		SprintsTable,
 		SprintScopeEventsTable,
 		SprintSnapshotsTable,
+		VersionsTable,
 		WorkItemsTable,
 		WorkItemEventsTable,
 		WorkItemLinksTable,

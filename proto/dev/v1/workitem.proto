@@ -98,6 +98,13 @@ message WorkItem {
   string sprint_id = 27;
   int32 story_points = 28;
   int32 estimate_minutes = 29;
+  string platform = 30;
+  string build_number = 31;
+  string repro_steps = 32;
+  string expected_behavior = 33;
+  string actual_behavior = 34;
+  string version_id = 35;
+  string affects_version_id = 36;
 }
 
 message CreateWorkItemRequest {
@@ -117,6 +124,13 @@ message CreateWorkItemRequest {
   string external_ref = 14;
   optional int32 story_points = 15;
   optional int32 estimate_minutes = 16;
+  string platform = 17;
+  string build_number = 18;
+  string repro_steps = 19;
+  string expected_behavior = 20;
+  string actual_behavior = 21;
+  string version_id = 22;
+  string affects_version_id = 23;
 }
 
 message CreateWorkItemResponse {
@@ -147,6 +161,13 @@ message UpdateWorkItemRequest {
   optional string blocked_reason = 12;
   optional int32 story_points = 13;
   optional int32 estimate_minutes = 14;
+  optional string platform = 15;
+  optional string build_number = 16;
+  optional string repro_steps = 17;
+  optional string expected_behavior = 18;
+  optional string actual_behavior = 19;
+  optional string version_id = 20;
+  optional string affects_version_id = 21;
 }
 
 message UpdateWorkItemResponse {

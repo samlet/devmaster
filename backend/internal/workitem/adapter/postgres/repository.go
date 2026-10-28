@@ -29,7 +29,9 @@ const workItemColumns = `id, organization_id, key, product_id, type, status, res
 	title, description_md, acceptance_criteria, priority, severity, environment,
 	reporter_id, assignee_id, parent_id, rank, project_code, wbs_code, external_ref,
 	custom_fields, blocked_reason, reopened_count, version, created_at, updated_at,
-	resolved_at, closed_at, sprint_id, story_points, estimate_minutes`
+	resolved_at, closed_at, sprint_id, story_points, estimate_minutes,
+	platform, build_number, repro_steps, expected_behavior, actual_behavior,
+	version_id, affects_version_id`
 
 type Repository struct {
 	db     *database.DB
@@ -122,15 +124,19 @@ func insertWorkItem(ctx context.Context, tx *sql.Tx, item domain.WorkItem) error
 			title, description_md, acceptance_criteria, priority, severity, environment,
 			reporter_id, assignee_id, parent_id, rank, project_code, wbs_code, external_ref,
 			custom_fields, blocked_reason, reopened_count, version, created_at, updated_at,
-			resolved_at, closed_at, sprint_id, story_points, estimate_minutes
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
+			resolved_at, closed_at, sprint_id, story_points, estimate_minutes,
+			platform, build_number, repro_steps, expected_behavior, actual_behavior,
+			version_id, affects_version_id
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38)`,
 		item.ID, item.OrganizationID, item.Key, item.ProductID, string(item.Type), string(item.Status),
 		derefResolution(item.Resolution), item.Title, item.DescriptionMD, item.AcceptanceCriteria,
 		int16(item.Priority), derefSeverity(item.Severity), item.Environment, item.ReporterID,
 		item.AssigneeID, item.ParentID, item.Rank, item.ProjectCode, item.WBSCode, item.ExternalRef,
 		customFields, item.BlockedReason, item.ReopenedCount, item.Version, item.CreatedAt,
 		item.UpdatedAt, item.ResolvedAt, item.ClosedAt,
-		item.SprintID, item.StoryPoints, item.EstimateMinutes)
+		item.SprintID, item.StoryPoints, item.EstimateMinutes,
+		item.Platform, item.BuildNumber, item.ReproSteps, item.ExpectedBehavior,
+		item.ActualBehavior, item.VersionID, item.AffectsVersionID)
 	if err != nil {
 		return fmt.Errorf("insert work item: %w", err)
 	}
@@ -296,13 +302,18 @@ func updateWorkItem(ctx context.Context, tx *sql.Tx, item domain.WorkItem, expec
 			external_ref = $13, custom_fields = $14, blocked_reason = $15,
 			reopened_count = $16, version = $17, updated_at = $18,
 			resolved_at = $19, closed_at = $20,
-			sprint_id = $21, story_points = $22, estimate_minutes = $23
-		WHERE organization_id = $24 AND id = $25 AND version = $26`,
+			sprint_id = $21, story_points = $22, estimate_minutes = $23,
+			platform = $24, build_number = $25, repro_steps = $26,
+			expected_behavior = $27, actual_behavior = $28,
+			version_id = $29, affects_version_id = $30
+		WHERE organization_id = $31 AND id = $32 AND version = $33`,
 		string(item.Status), derefResolution(item.Resolution), item.Title, item.DescriptionMD,
 		item.AcceptanceCriteria, int16(item.Priority), derefSeverity(item.Severity), item.Environment,
 		item.AssigneeID, item.Rank, item.ProjectCode, item.WBSCode, item.ExternalRef,
 		customFields, item.BlockedReason, item.ReopenedCount, item.Version, item.UpdatedAt,
 		item.ResolvedAt, item.ClosedAt, item.SprintID, item.StoryPoints, item.EstimateMinutes,
+		item.Platform, item.BuildNumber, item.ReproSteps, item.ExpectedBehavior,
+		item.ActualBehavior, item.VersionID, item.AffectsVersionID,
 		item.OrganizationID, item.ID, expectedVersion)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -647,6 +658,13 @@ func scanWorkItem(row rowScanner) (domain.WorkItem, error) {
 		sprintID      *uuid.UUID
 		storyPoints   *int16
 		estimateMin   *int32
+		platform      *string
+		buildNumber   *string
+		reproSteps    *string
+		expected      *string
+		actual        *string
+		versionID     *uuid.UUID
+		affectsID     *uuid.UUID
 		projectCode   *string
 		wbsCode       *string
 		externalRef   *string
@@ -661,6 +679,7 @@ func scanWorkItem(row rowScanner) (domain.WorkItem, error) {
 		&wbsCode, &externalRef, &customFields, &blockedReason, &reopenedCount,
 		&item.Version, &item.CreatedAt, &item.UpdatedAt, &item.ResolvedAt, &item.ClosedAt,
 		&sprintID, &storyPoints, &estimateMin,
+		&platform, &buildNumber, &reproSteps, &expected, &actual, &versionID, &affectsID,
 	); err != nil {
 		return domain.WorkItem{}, err
 	}
@@ -682,6 +701,13 @@ func scanWorkItem(row rowScanner) (domain.WorkItem, error) {
 	item.SprintID = sprintID
 	item.StoryPoints = storyPoints
 	item.EstimateMinutes = estimateMin
+	item.Platform = platform
+	item.BuildNumber = buildNumber
+	item.ReproSteps = reproSteps
+	item.ExpectedBehavior = expected
+	item.ActualBehavior = actual
+	item.VersionID = versionID
+	item.AffectsVersionID = affectsID
 	item.ProjectCode = projectCode
 	item.WBSCode = wbsCode
 	item.ExternalRef = externalRef

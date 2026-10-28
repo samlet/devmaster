@@ -74,6 +74,13 @@ type CreateCommand struct {
 	SprintID           *uuid.UUID
 	StoryPoints        *int16
 	EstimateMinutes    *int32
+	Platform           *string
+	BuildNumber        *string
+	ReproSteps         *string
+	ExpectedBehavior   *string
+	ActualBehavior     *string
+	VersionID          *uuid.UUID
+	AffectsVersionID   *uuid.UUID
 	ProjectCode        *string
 	WBSCode            *string
 	ExternalRef        *string
@@ -109,17 +116,34 @@ type AssignCommand struct {
 }
 
 type Service struct {
-	repo     Repository
-	producer string
+	repo         Repository
+	producer     string
+	versionGuard func(ctx context.Context, organizationID, versionID uuid.UUID) error
 }
 
 func NewService(repo Repository) *Service {
 	return &Service{repo: repo, producer: "devmaster-server"}
 }
 
+// SetVersionGuard 注入"版本范围是否可改"的校验（由版本模块实现）。
+// 用函数注入而不是直接 import，避免 workitem 依赖 version 造成环。
+func (s *Service) SetVersionGuard(guard func(ctx context.Context, organizationID, versionID uuid.UUID) error) {
+	s.versionGuard = guard
+}
+
+func (s *Service) ensureVersionMutable(ctx context.Context, organizationID uuid.UUID, versionID *uuid.UUID) error {
+	if versionID == nil || s.versionGuard == nil {
+		return nil
+	}
+	return s.versionGuard(ctx, organizationID, *versionID)
+}
+
 func (s *Service) Create(ctx context.Context, actor Actor, cmd CreateCommand) (domain.WorkItem, error) {
 	if cmd.ProductID == uuid.Nil {
 		return domain.WorkItem{}, apperr.Invalid("product_id", "must be a valid UUID")
+	}
+	if err := s.ensureVersionMutable(ctx, actor.OrganizationID, cmd.VersionID); err != nil {
+		return domain.WorkItem{}, err
 	}
 	key, rank, err := s.repo.ReserveIdentity(ctx, actor.OrganizationID, cmd.ProductID)
 	if err != nil {
@@ -142,6 +166,13 @@ func (s *Service) Create(ctx context.Context, actor Actor, cmd CreateCommand) (d
 		SprintID:           cmd.SprintID,
 		StoryPoints:        cmd.StoryPoints,
 		EstimateMinutes:    cmd.EstimateMinutes,
+		Platform:           cmd.Platform,
+		BuildNumber:        cmd.BuildNumber,
+		ReproSteps:         cmd.ReproSteps,
+		ExpectedBehavior:   cmd.ExpectedBehavior,
+		ActualBehavior:     cmd.ActualBehavior,
+		VersionID:          cmd.VersionID,
+		AffectsVersionID:   cmd.AffectsVersionID,
 		Rank:               rank,
 		ProjectCode:        cmd.ProjectCode,
 		WBSCode:            cmd.WBSCode,
@@ -196,6 +227,11 @@ func (s *Service) Update(ctx context.Context, actor Actor, cmd UpdateCommand) (d
 	item, err := s.repo.GetByID(ctx, actor.OrganizationID, cmd.WorkItemID)
 	if err != nil {
 		return domain.WorkItem{}, err
+	}
+	if cmd.Fields.VersionID != nil && (item.VersionID == nil || *cmd.Fields.VersionID != *item.VersionID) {
+		if err := s.ensureVersionMutable(ctx, actor.OrganizationID, cmd.Fields.VersionID); err != nil {
+			return domain.WorkItem{}, err
+		}
 	}
 	changed, err := item.ApplyUpdate(cmd.Fields)
 	if err != nil {
@@ -348,9 +384,9 @@ func (s *Service) Assign(ctx context.Context, actor Actor, cmd AssignCommand) (d
 		AggregateVersion: int64(item.Version),
 		EventType:        "dev.v1.workitem.assigned",
 		Payload: map[string]any{
-			"work_item_id":          item.ID.String(),
-			"key":                   item.Key,
-			"assignee_id":           derefString(item.AssigneeID),
+			"work_item_id":         item.ID.String(),
+			"key":                  item.Key,
+			"assignee_id":          derefString(item.AssigneeID),
 			"previous_assignee_id": derefString(previous),
 		},
 	})

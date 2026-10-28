@@ -55,6 +55,20 @@ type WorkItem struct {
 	StoryPoints *int16 `json:"story_points,omitempty"`
 	// EstimateMinutes holds the value of the "estimate_minutes" field.
 	EstimateMinutes *int `json:"estimate_minutes,omitempty"`
+	// Platform holds the value of the "platform" field.
+	Platform *string `json:"platform,omitempty"`
+	// BuildNumber holds the value of the "build_number" field.
+	BuildNumber *string `json:"build_number,omitempty"`
+	// ReproSteps holds the value of the "repro_steps" field.
+	ReproSteps *string `json:"repro_steps,omitempty"`
+	// ExpectedBehavior holds the value of the "expected_behavior" field.
+	ExpectedBehavior *string `json:"expected_behavior,omitempty"`
+	// ActualBehavior holds the value of the "actual_behavior" field.
+	ActualBehavior *string `json:"actual_behavior,omitempty"`
+	// VersionID holds the value of the "version_id" field.
+	VersionID *uuid.UUID `json:"version_id,omitempty"`
+	// AffectsVersionID holds the value of the "affects_version_id" field.
+	AffectsVersionID *uuid.UUID `json:"affects_version_id,omitempty"`
 	// Rank holds the value of the "rank" field.
 	Rank string `json:"rank,omitempty"`
 	// ProjectCode holds the value of the "project_code" field.
@@ -87,13 +101,13 @@ func (*WorkItem) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case workitem.FieldParentID, workitem.FieldSprintID:
+		case workitem.FieldParentID, workitem.FieldSprintID, workitem.FieldVersionID, workitem.FieldAffectsVersionID:
 			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
 		case workitem.FieldCustomFields:
 			values[i] = new([]byte)
 		case workitem.FieldPriority, workitem.FieldStoryPoints, workitem.FieldEstimateMinutes, workitem.FieldReopenedCount, workitem.FieldVersion:
 			values[i] = new(sql.NullInt64)
-		case workitem.FieldKey, workitem.FieldType, workitem.FieldStatus, workitem.FieldResolution, workitem.FieldTitle, workitem.FieldDescriptionMd, workitem.FieldAcceptanceCriteria, workitem.FieldSeverity, workitem.FieldEnvironment, workitem.FieldReporterID, workitem.FieldAssigneeID, workitem.FieldRank, workitem.FieldProjectCode, workitem.FieldWbsCode, workitem.FieldExternalRef, workitem.FieldBlockedReason:
+		case workitem.FieldKey, workitem.FieldType, workitem.FieldStatus, workitem.FieldResolution, workitem.FieldTitle, workitem.FieldDescriptionMd, workitem.FieldAcceptanceCriteria, workitem.FieldSeverity, workitem.FieldEnvironment, workitem.FieldReporterID, workitem.FieldAssigneeID, workitem.FieldPlatform, workitem.FieldBuildNumber, workitem.FieldReproSteps, workitem.FieldExpectedBehavior, workitem.FieldActualBehavior, workitem.FieldRank, workitem.FieldProjectCode, workitem.FieldWbsCode, workitem.FieldExternalRef, workitem.FieldBlockedReason:
 			values[i] = new(sql.NullString)
 		case workitem.FieldCreatedAt, workitem.FieldUpdatedAt, workitem.FieldResolvedAt, workitem.FieldClosedAt:
 			values[i] = new(sql.NullTime)
@@ -236,6 +250,55 @@ func (_m *WorkItem) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.EstimateMinutes = new(int)
 				*_m.EstimateMinutes = int(value.Int64)
+			}
+		case workitem.FieldPlatform:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field platform", values[i])
+			} else if value.Valid {
+				_m.Platform = new(string)
+				*_m.Platform = value.String
+			}
+		case workitem.FieldBuildNumber:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field build_number", values[i])
+			} else if value.Valid {
+				_m.BuildNumber = new(string)
+				*_m.BuildNumber = value.String
+			}
+		case workitem.FieldReproSteps:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field repro_steps", values[i])
+			} else if value.Valid {
+				_m.ReproSteps = new(string)
+				*_m.ReproSteps = value.String
+			}
+		case workitem.FieldExpectedBehavior:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field expected_behavior", values[i])
+			} else if value.Valid {
+				_m.ExpectedBehavior = new(string)
+				*_m.ExpectedBehavior = value.String
+			}
+		case workitem.FieldActualBehavior:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field actual_behavior", values[i])
+			} else if value.Valid {
+				_m.ActualBehavior = new(string)
+				*_m.ActualBehavior = value.String
+			}
+		case workitem.FieldVersionID:
+			if value, ok := values[i].(*sql.NullScanner); !ok {
+				return fmt.Errorf("unexpected type %T for field version_id", values[i])
+			} else if value.Valid {
+				_m.VersionID = new(uuid.UUID)
+				*_m.VersionID = *value.S.(*uuid.UUID)
+			}
+		case workitem.FieldAffectsVersionID:
+			if value, ok := values[i].(*sql.NullScanner); !ok {
+				return fmt.Errorf("unexpected type %T for field affects_version_id", values[i])
+			} else if value.Valid {
+				_m.AffectsVersionID = new(uuid.UUID)
+				*_m.AffectsVersionID = *value.S.(*uuid.UUID)
 			}
 		case workitem.FieldRank:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -422,6 +485,41 @@ func (_m *WorkItem) String() string {
 	builder.WriteString(", ")
 	if v := _m.EstimateMinutes; v != nil {
 		builder.WriteString("estimate_minutes=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.Platform; v != nil {
+		builder.WriteString("platform=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.BuildNumber; v != nil {
+		builder.WriteString("build_number=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.ReproSteps; v != nil {
+		builder.WriteString("repro_steps=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.ExpectedBehavior; v != nil {
+		builder.WriteString("expected_behavior=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.ActualBehavior; v != nil {
+		builder.WriteString("actual_behavior=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.VersionID; v != nil {
+		builder.WriteString("version_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.AffectsVersionID; v != nil {
+		builder.WriteString("affects_version_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")

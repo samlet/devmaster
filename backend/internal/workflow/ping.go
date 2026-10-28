@@ -6,12 +6,16 @@ package workflow
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/workflow"
 
+	"github.com/xiaofeiwu/devmaster/backend/internal/platform/approver"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/database"
+	"github.com/xiaofeiwu/devmaster/backend/internal/platform/gitea"
+	versionapp "github.com/xiaofeiwu/devmaster/backend/internal/version/application"
 )
 
 type PingResult struct {
@@ -34,7 +38,11 @@ func PingWorkflow(ctx workflow.Context) (PingResult, error) {
 }
 
 type Activities struct {
-	DB *database.DB
+	DB       *database.DB
+	Versions *versionapp.Service
+	Approver *approver.Client
+	Gitea    *gitea.Client
+	Logger   *slog.Logger
 }
 
 func (a *Activities) Ping(ctx context.Context) (PingResult, error) {

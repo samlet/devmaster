@@ -10,9 +10,13 @@ import (
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
+	"github.com/xiaofeiwu/devmaster/backend/internal/platform/approver"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/config"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/database"
+	"github.com/xiaofeiwu/devmaster/backend/internal/platform/gitea"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/logging"
+	versionpostgres "github.com/xiaofeiwu/devmaster/backend/internal/version/adapter/postgres"
+	versionapplication "github.com/xiaofeiwu/devmaster/backend/internal/version/application"
 	"github.com/xiaofeiwu/devmaster/backend/internal/workflow"
 )
 
@@ -49,9 +53,17 @@ func run() error {
 	}
 	defer temporalClient.Close()
 
-	activities := &workflow.Activities{DB: db}
+	versionService := versionapplication.NewService(versionpostgres.NewRepository(db))
+	activities := &workflow.Activities{
+		DB:       db,
+		Versions: versionService,
+		Approver: approver.New(cfg.Approver),
+		Gitea:    gitea.New(cfg.Gitea),
+		Logger:   logger,
+	}
 	workerInstance := worker.New(temporalClient, cfg.Temporal.TaskQueue, worker.Options{})
 	workerInstance.RegisterWorkflow(workflow.PingWorkflow)
+	workerInstance.RegisterWorkflow(workflow.ReleaseWorkflow)
 	// 注册整个活动结构体：方法名（Ping）就是工作流里 ExecuteActivity 用的名字。
 	workerInstance.RegisterActivity(activities)
 

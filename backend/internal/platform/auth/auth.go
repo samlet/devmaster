@@ -91,6 +91,16 @@ var MethodRules = map[string]Rule{
 
 	"/dev.v1.BoardService/GetBoard":     {RequireOrganization: true},
 	"/dev.v1.BoardService/MoveWorkItem": {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+
+	"/dev.v1.VersionService/GetVersion":         {RequireOrganization: true},
+	"/dev.v1.VersionService/ListVersions":       {RequireOrganization: true},
+	"/dev.v1.VersionService/GetRelease":         {RequireOrganization: true},
+	"/dev.v1.VersionService/ListReleases":       {RequireOrganization: true},
+	"/dev.v1.VersionService/CreateVersion":      {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+	"/dev.v1.VersionService/UpdateVersion":      {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+	"/dev.v1.VersionService/AssignVersionItems": {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+	// 提交发布是不可逆动作（会冻结范围），要求 lead。
+	"/dev.v1.VersionService/SubmitRelease": {RequireOrganization: true, Roles: []string{"DEV_LEAD"}},
 }
 
 type Authenticator struct {

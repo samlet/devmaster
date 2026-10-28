@@ -220,6 +220,104 @@ func (_c *WorkItemCreate) SetNillableEstimateMinutes(v *int) *WorkItemCreate {
 	return _c
 }
 
+// SetPlatform sets the "platform" field.
+func (_c *WorkItemCreate) SetPlatform(v string) *WorkItemCreate {
+	_c.mutation.SetPlatform(v)
+	return _c
+}
+
+// SetNillablePlatform sets the "platform" field if the given value is not nil.
+func (_c *WorkItemCreate) SetNillablePlatform(v *string) *WorkItemCreate {
+	if v != nil {
+		_c.SetPlatform(*v)
+	}
+	return _c
+}
+
+// SetBuildNumber sets the "build_number" field.
+func (_c *WorkItemCreate) SetBuildNumber(v string) *WorkItemCreate {
+	_c.mutation.SetBuildNumber(v)
+	return _c
+}
+
+// SetNillableBuildNumber sets the "build_number" field if the given value is not nil.
+func (_c *WorkItemCreate) SetNillableBuildNumber(v *string) *WorkItemCreate {
+	if v != nil {
+		_c.SetBuildNumber(*v)
+	}
+	return _c
+}
+
+// SetReproSteps sets the "repro_steps" field.
+func (_c *WorkItemCreate) SetReproSteps(v string) *WorkItemCreate {
+	_c.mutation.SetReproSteps(v)
+	return _c
+}
+
+// SetNillableReproSteps sets the "repro_steps" field if the given value is not nil.
+func (_c *WorkItemCreate) SetNillableReproSteps(v *string) *WorkItemCreate {
+	if v != nil {
+		_c.SetReproSteps(*v)
+	}
+	return _c
+}
+
+// SetExpectedBehavior sets the "expected_behavior" field.
+func (_c *WorkItemCreate) SetExpectedBehavior(v string) *WorkItemCreate {
+	_c.mutation.SetExpectedBehavior(v)
+	return _c
+}
+
+// SetNillableExpectedBehavior sets the "expected_behavior" field if the given value is not nil.
+func (_c *WorkItemCreate) SetNillableExpectedBehavior(v *string) *WorkItemCreate {
+	if v != nil {
+		_c.SetExpectedBehavior(*v)
+	}
+	return _c
+}
+
+// SetActualBehavior sets the "actual_behavior" field.
+func (_c *WorkItemCreate) SetActualBehavior(v string) *WorkItemCreate {
+	_c.mutation.SetActualBehavior(v)
+	return _c
+}
+
+// SetNillableActualBehavior sets the "actual_behavior" field if the given value is not nil.
+func (_c *WorkItemCreate) SetNillableActualBehavior(v *string) *WorkItemCreate {
+	if v != nil {
+		_c.SetActualBehavior(*v)
+	}
+	return _c
+}
+
+// SetVersionID sets the "version_id" field.
+func (_c *WorkItemCreate) SetVersionID(v uuid.UUID) *WorkItemCreate {
+	_c.mutation.SetVersionID(v)
+	return _c
+}
+
+// SetNillableVersionID sets the "version_id" field if the given value is not nil.
+func (_c *WorkItemCreate) SetNillableVersionID(v *uuid.UUID) *WorkItemCreate {
+	if v != nil {
+		_c.SetVersionID(*v)
+	}
+	return _c
+}
+
+// SetAffectsVersionID sets the "affects_version_id" field.
+func (_c *WorkItemCreate) SetAffectsVersionID(v uuid.UUID) *WorkItemCreate {
+	_c.mutation.SetAffectsVersionID(v)
+	return _c
+}
+
+// SetNillableAffectsVersionID sets the "affects_version_id" field if the given value is not nil.
+func (_c *WorkItemCreate) SetNillableAffectsVersionID(v *uuid.UUID) *WorkItemCreate {
+	if v != nil {
+		_c.SetAffectsVersionID(*v)
+	}
+	return _c
+}
+
 // SetRank sets the "rank" field.
 func (_c *WorkItemCreate) SetRank(v string) *WorkItemCreate {
 	_c.mutation.SetRank(v)
@@ -525,6 +623,16 @@ func (_c *WorkItemCreate) check() error {
 			return &ValidationError{Name: "assignee_id", err: fmt.Errorf(`ent: validator failed for field "WorkItem.assignee_id": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.Platform(); ok {
+		if err := workitem.PlatformValidator(v); err != nil {
+			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "WorkItem.platform": %w`, err)}
+		}
+	}
+	if v, ok := _c.mutation.BuildNumber(); ok {
+		if err := workitem.BuildNumberValidator(v); err != nil {
+			return &ValidationError{Name: "build_number", err: fmt.Errorf(`ent: validator failed for field "WorkItem.build_number": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.Rank(); !ok {
 		return &ValidationError{Name: "rank", err: errors.New(`ent: missing required field "WorkItem.rank"`)}
 	}
@@ -667,6 +775,34 @@ func (_c *WorkItemCreate) createSpec() (*WorkItem, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.EstimateMinutes(); ok {
 		_spec.SetField(workitem.FieldEstimateMinutes, field.TypeInt, value)
 		_node.EstimateMinutes = &value
+	}
+	if value, ok := _c.mutation.Platform(); ok {
+		_spec.SetField(workitem.FieldPlatform, field.TypeString, value)
+		_node.Platform = &value
+	}
+	if value, ok := _c.mutation.BuildNumber(); ok {
+		_spec.SetField(workitem.FieldBuildNumber, field.TypeString, value)
+		_node.BuildNumber = &value
+	}
+	if value, ok := _c.mutation.ReproSteps(); ok {
+		_spec.SetField(workitem.FieldReproSteps, field.TypeString, value)
+		_node.ReproSteps = &value
+	}
+	if value, ok := _c.mutation.ExpectedBehavior(); ok {
+		_spec.SetField(workitem.FieldExpectedBehavior, field.TypeString, value)
+		_node.ExpectedBehavior = &value
+	}
+	if value, ok := _c.mutation.ActualBehavior(); ok {
+		_spec.SetField(workitem.FieldActualBehavior, field.TypeString, value)
+		_node.ActualBehavior = &value
+	}
+	if value, ok := _c.mutation.VersionID(); ok {
+		_spec.SetField(workitem.FieldVersionID, field.TypeUUID, value)
+		_node.VersionID = &value
+	}
+	if value, ok := _c.mutation.AffectsVersionID(); ok {
+		_spec.SetField(workitem.FieldAffectsVersionID, field.TypeUUID, value)
+		_node.AffectsVersionID = &value
 	}
 	if value, ok := _c.mutation.Rank(); ok {
 		_spec.SetField(workitem.FieldRank, field.TypeString, value)
@@ -1053,6 +1189,132 @@ func (u *WorkItemUpsert) AddEstimateMinutes(v int) *WorkItemUpsert {
 // ClearEstimateMinutes clears the value of the "estimate_minutes" field.
 func (u *WorkItemUpsert) ClearEstimateMinutes() *WorkItemUpsert {
 	u.SetNull(workitem.FieldEstimateMinutes)
+	return u
+}
+
+// SetPlatform sets the "platform" field.
+func (u *WorkItemUpsert) SetPlatform(v string) *WorkItemUpsert {
+	u.Set(workitem.FieldPlatform, v)
+	return u
+}
+
+// UpdatePlatform sets the "platform" field to the value that was provided on create.
+func (u *WorkItemUpsert) UpdatePlatform() *WorkItemUpsert {
+	u.SetExcluded(workitem.FieldPlatform)
+	return u
+}
+
+// ClearPlatform clears the value of the "platform" field.
+func (u *WorkItemUpsert) ClearPlatform() *WorkItemUpsert {
+	u.SetNull(workitem.FieldPlatform)
+	return u
+}
+
+// SetBuildNumber sets the "build_number" field.
+func (u *WorkItemUpsert) SetBuildNumber(v string) *WorkItemUpsert {
+	u.Set(workitem.FieldBuildNumber, v)
+	return u
+}
+
+// UpdateBuildNumber sets the "build_number" field to the value that was provided on create.
+func (u *WorkItemUpsert) UpdateBuildNumber() *WorkItemUpsert {
+	u.SetExcluded(workitem.FieldBuildNumber)
+	return u
+}
+
+// ClearBuildNumber clears the value of the "build_number" field.
+func (u *WorkItemUpsert) ClearBuildNumber() *WorkItemUpsert {
+	u.SetNull(workitem.FieldBuildNumber)
+	return u
+}
+
+// SetReproSteps sets the "repro_steps" field.
+func (u *WorkItemUpsert) SetReproSteps(v string) *WorkItemUpsert {
+	u.Set(workitem.FieldReproSteps, v)
+	return u
+}
+
+// UpdateReproSteps sets the "repro_steps" field to the value that was provided on create.
+func (u *WorkItemUpsert) UpdateReproSteps() *WorkItemUpsert {
+	u.SetExcluded(workitem.FieldReproSteps)
+	return u
+}
+
+// ClearReproSteps clears the value of the "repro_steps" field.
+func (u *WorkItemUpsert) ClearReproSteps() *WorkItemUpsert {
+	u.SetNull(workitem.FieldReproSteps)
+	return u
+}
+
+// SetExpectedBehavior sets the "expected_behavior" field.
+func (u *WorkItemUpsert) SetExpectedBehavior(v string) *WorkItemUpsert {
+	u.Set(workitem.FieldExpectedBehavior, v)
+	return u
+}
+
+// UpdateExpectedBehavior sets the "expected_behavior" field to the value that was provided on create.
+func (u *WorkItemUpsert) UpdateExpectedBehavior() *WorkItemUpsert {
+	u.SetExcluded(workitem.FieldExpectedBehavior)
+	return u
+}
+
+// ClearExpectedBehavior clears the value of the "expected_behavior" field.
+func (u *WorkItemUpsert) ClearExpectedBehavior() *WorkItemUpsert {
+	u.SetNull(workitem.FieldExpectedBehavior)
+	return u
+}
+
+// SetActualBehavior sets the "actual_behavior" field.
+func (u *WorkItemUpsert) SetActualBehavior(v string) *WorkItemUpsert {
+	u.Set(workitem.FieldActualBehavior, v)
+	return u
+}
+
+// UpdateActualBehavior sets the "actual_behavior" field to the value that was provided on create.
+func (u *WorkItemUpsert) UpdateActualBehavior() *WorkItemUpsert {
+	u.SetExcluded(workitem.FieldActualBehavior)
+	return u
+}
+
+// ClearActualBehavior clears the value of the "actual_behavior" field.
+func (u *WorkItemUpsert) ClearActualBehavior() *WorkItemUpsert {
+	u.SetNull(workitem.FieldActualBehavior)
+	return u
+}
+
+// SetVersionID sets the "version_id" field.
+func (u *WorkItemUpsert) SetVersionID(v uuid.UUID) *WorkItemUpsert {
+	u.Set(workitem.FieldVersionID, v)
+	return u
+}
+
+// UpdateVersionID sets the "version_id" field to the value that was provided on create.
+func (u *WorkItemUpsert) UpdateVersionID() *WorkItemUpsert {
+	u.SetExcluded(workitem.FieldVersionID)
+	return u
+}
+
+// ClearVersionID clears the value of the "version_id" field.
+func (u *WorkItemUpsert) ClearVersionID() *WorkItemUpsert {
+	u.SetNull(workitem.FieldVersionID)
+	return u
+}
+
+// SetAffectsVersionID sets the "affects_version_id" field.
+func (u *WorkItemUpsert) SetAffectsVersionID(v uuid.UUID) *WorkItemUpsert {
+	u.Set(workitem.FieldAffectsVersionID, v)
+	return u
+}
+
+// UpdateAffectsVersionID sets the "affects_version_id" field to the value that was provided on create.
+func (u *WorkItemUpsert) UpdateAffectsVersionID() *WorkItemUpsert {
+	u.SetExcluded(workitem.FieldAffectsVersionID)
+	return u
+}
+
+// ClearAffectsVersionID clears the value of the "affects_version_id" field.
+func (u *WorkItemUpsert) ClearAffectsVersionID() *WorkItemUpsert {
+	u.SetNull(workitem.FieldAffectsVersionID)
 	return u
 }
 
@@ -1626,6 +1888,153 @@ func (u *WorkItemUpsertOne) UpdateEstimateMinutes() *WorkItemUpsertOne {
 func (u *WorkItemUpsertOne) ClearEstimateMinutes() *WorkItemUpsertOne {
 	return u.Update(func(s *WorkItemUpsert) {
 		s.ClearEstimateMinutes()
+	})
+}
+
+// SetPlatform sets the "platform" field.
+func (u *WorkItemUpsertOne) SetPlatform(v string) *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetPlatform(v)
+	})
+}
+
+// UpdatePlatform sets the "platform" field to the value that was provided on create.
+func (u *WorkItemUpsertOne) UpdatePlatform() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdatePlatform()
+	})
+}
+
+// ClearPlatform clears the value of the "platform" field.
+func (u *WorkItemUpsertOne) ClearPlatform() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearPlatform()
+	})
+}
+
+// SetBuildNumber sets the "build_number" field.
+func (u *WorkItemUpsertOne) SetBuildNumber(v string) *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetBuildNumber(v)
+	})
+}
+
+// UpdateBuildNumber sets the "build_number" field to the value that was provided on create.
+func (u *WorkItemUpsertOne) UpdateBuildNumber() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateBuildNumber()
+	})
+}
+
+// ClearBuildNumber clears the value of the "build_number" field.
+func (u *WorkItemUpsertOne) ClearBuildNumber() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearBuildNumber()
+	})
+}
+
+// SetReproSteps sets the "repro_steps" field.
+func (u *WorkItemUpsertOne) SetReproSteps(v string) *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetReproSteps(v)
+	})
+}
+
+// UpdateReproSteps sets the "repro_steps" field to the value that was provided on create.
+func (u *WorkItemUpsertOne) UpdateReproSteps() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateReproSteps()
+	})
+}
+
+// ClearReproSteps clears the value of the "repro_steps" field.
+func (u *WorkItemUpsertOne) ClearReproSteps() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearReproSteps()
+	})
+}
+
+// SetExpectedBehavior sets the "expected_behavior" field.
+func (u *WorkItemUpsertOne) SetExpectedBehavior(v string) *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetExpectedBehavior(v)
+	})
+}
+
+// UpdateExpectedBehavior sets the "expected_behavior" field to the value that was provided on create.
+func (u *WorkItemUpsertOne) UpdateExpectedBehavior() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateExpectedBehavior()
+	})
+}
+
+// ClearExpectedBehavior clears the value of the "expected_behavior" field.
+func (u *WorkItemUpsertOne) ClearExpectedBehavior() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearExpectedBehavior()
+	})
+}
+
+// SetActualBehavior sets the "actual_behavior" field.
+func (u *WorkItemUpsertOne) SetActualBehavior(v string) *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetActualBehavior(v)
+	})
+}
+
+// UpdateActualBehavior sets the "actual_behavior" field to the value that was provided on create.
+func (u *WorkItemUpsertOne) UpdateActualBehavior() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateActualBehavior()
+	})
+}
+
+// ClearActualBehavior clears the value of the "actual_behavior" field.
+func (u *WorkItemUpsertOne) ClearActualBehavior() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearActualBehavior()
+	})
+}
+
+// SetVersionID sets the "version_id" field.
+func (u *WorkItemUpsertOne) SetVersionID(v uuid.UUID) *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetVersionID(v)
+	})
+}
+
+// UpdateVersionID sets the "version_id" field to the value that was provided on create.
+func (u *WorkItemUpsertOne) UpdateVersionID() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateVersionID()
+	})
+}
+
+// ClearVersionID clears the value of the "version_id" field.
+func (u *WorkItemUpsertOne) ClearVersionID() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearVersionID()
+	})
+}
+
+// SetAffectsVersionID sets the "affects_version_id" field.
+func (u *WorkItemUpsertOne) SetAffectsVersionID(v uuid.UUID) *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetAffectsVersionID(v)
+	})
+}
+
+// UpdateAffectsVersionID sets the "affects_version_id" field to the value that was provided on create.
+func (u *WorkItemUpsertOne) UpdateAffectsVersionID() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateAffectsVersionID()
+	})
+}
+
+// ClearAffectsVersionID clears the value of the "affects_version_id" field.
+func (u *WorkItemUpsertOne) ClearAffectsVersionID() *WorkItemUpsertOne {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearAffectsVersionID()
 	})
 }
 
@@ -2397,6 +2806,153 @@ func (u *WorkItemUpsertBulk) UpdateEstimateMinutes() *WorkItemUpsertBulk {
 func (u *WorkItemUpsertBulk) ClearEstimateMinutes() *WorkItemUpsertBulk {
 	return u.Update(func(s *WorkItemUpsert) {
 		s.ClearEstimateMinutes()
+	})
+}
+
+// SetPlatform sets the "platform" field.
+func (u *WorkItemUpsertBulk) SetPlatform(v string) *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetPlatform(v)
+	})
+}
+
+// UpdatePlatform sets the "platform" field to the value that was provided on create.
+func (u *WorkItemUpsertBulk) UpdatePlatform() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdatePlatform()
+	})
+}
+
+// ClearPlatform clears the value of the "platform" field.
+func (u *WorkItemUpsertBulk) ClearPlatform() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearPlatform()
+	})
+}
+
+// SetBuildNumber sets the "build_number" field.
+func (u *WorkItemUpsertBulk) SetBuildNumber(v string) *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetBuildNumber(v)
+	})
+}
+
+// UpdateBuildNumber sets the "build_number" field to the value that was provided on create.
+func (u *WorkItemUpsertBulk) UpdateBuildNumber() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateBuildNumber()
+	})
+}
+
+// ClearBuildNumber clears the value of the "build_number" field.
+func (u *WorkItemUpsertBulk) ClearBuildNumber() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearBuildNumber()
+	})
+}
+
+// SetReproSteps sets the "repro_steps" field.
+func (u *WorkItemUpsertBulk) SetReproSteps(v string) *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetReproSteps(v)
+	})
+}
+
+// UpdateReproSteps sets the "repro_steps" field to the value that was provided on create.
+func (u *WorkItemUpsertBulk) UpdateReproSteps() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateReproSteps()
+	})
+}
+
+// ClearReproSteps clears the value of the "repro_steps" field.
+func (u *WorkItemUpsertBulk) ClearReproSteps() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearReproSteps()
+	})
+}
+
+// SetExpectedBehavior sets the "expected_behavior" field.
+func (u *WorkItemUpsertBulk) SetExpectedBehavior(v string) *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetExpectedBehavior(v)
+	})
+}
+
+// UpdateExpectedBehavior sets the "expected_behavior" field to the value that was provided on create.
+func (u *WorkItemUpsertBulk) UpdateExpectedBehavior() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateExpectedBehavior()
+	})
+}
+
+// ClearExpectedBehavior clears the value of the "expected_behavior" field.
+func (u *WorkItemUpsertBulk) ClearExpectedBehavior() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearExpectedBehavior()
+	})
+}
+
+// SetActualBehavior sets the "actual_behavior" field.
+func (u *WorkItemUpsertBulk) SetActualBehavior(v string) *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetActualBehavior(v)
+	})
+}
+
+// UpdateActualBehavior sets the "actual_behavior" field to the value that was provided on create.
+func (u *WorkItemUpsertBulk) UpdateActualBehavior() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateActualBehavior()
+	})
+}
+
+// ClearActualBehavior clears the value of the "actual_behavior" field.
+func (u *WorkItemUpsertBulk) ClearActualBehavior() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearActualBehavior()
+	})
+}
+
+// SetVersionID sets the "version_id" field.
+func (u *WorkItemUpsertBulk) SetVersionID(v uuid.UUID) *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetVersionID(v)
+	})
+}
+
+// UpdateVersionID sets the "version_id" field to the value that was provided on create.
+func (u *WorkItemUpsertBulk) UpdateVersionID() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateVersionID()
+	})
+}
+
+// ClearVersionID clears the value of the "version_id" field.
+func (u *WorkItemUpsertBulk) ClearVersionID() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearVersionID()
+	})
+}
+
+// SetAffectsVersionID sets the "affects_version_id" field.
+func (u *WorkItemUpsertBulk) SetAffectsVersionID(v uuid.UUID) *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.SetAffectsVersionID(v)
+	})
+}
+
+// UpdateAffectsVersionID sets the "affects_version_id" field to the value that was provided on create.
+func (u *WorkItemUpsertBulk) UpdateAffectsVersionID() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.UpdateAffectsVersionID()
+	})
+}
+
+// ClearAffectsVersionID clears the value of the "affects_version_id" field.
+func (u *WorkItemUpsertBulk) ClearAffectsVersionID() *WorkItemUpsertBulk {
+	return u.Update(func(s *WorkItemUpsert) {
+		s.ClearAffectsVersionID()
 	})
 }
 

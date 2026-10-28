@@ -22,6 +22,8 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/internal/product/domain"
 	sprintapp "github.com/xiaofeiwu/devmaster/backend/internal/sprint/application"
 	sprintdomain "github.com/xiaofeiwu/devmaster/backend/internal/sprint/domain"
+	versionapp "github.com/xiaofeiwu/devmaster/backend/internal/version/application"
+	versiondomain "github.com/xiaofeiwu/devmaster/backend/internal/version/domain"
 	workitemapplication "github.com/xiaofeiwu/devmaster/backend/internal/workitem/application"
 	workitemdomain "github.com/xiaofeiwu/devmaster/backend/internal/workitem/domain"
 )
@@ -42,11 +44,16 @@ type BoardReader interface {
 	Get(ctx context.Context, actor boardapp.Actor, productID uuid.UUID, sprintID *uuid.UUID) (boardapp.BoardView, error)
 }
 
+type VersionReader interface {
+	List(ctx context.Context, actor versionapp.Actor, productID uuid.UUID) ([]versiondomain.Version, error)
+}
+
 type Server struct {
 	products  ProductReader
 	workItems WorkItemReader
 	sprints   SprintReader
 	board     BoardReader
+	versions  VersionReader
 	metrics   *observability.Metrics
 	health    observability.Health
 	logger    *slog.Logger
@@ -55,12 +62,13 @@ type Server struct {
 	defaultOrganizationID uuid.UUID
 }
 
-func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintReader, board BoardReader, metrics *observability.Metrics, health observability.Health, logger *slog.Logger, defaultOrganizationID uuid.UUID) *Server {
+func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintReader, board BoardReader, versions VersionReader, metrics *observability.Metrics, health observability.Health, logger *slog.Logger, defaultOrganizationID uuid.UUID) *Server {
 	return &Server{
 		products:              products,
 		workItems:             workItems,
 		sprints:               sprints,
 		board:                 board,
+		versions:              versions,
 		metrics:               metrics,
 		health:                health,
 		logger:                logger,
@@ -76,6 +84,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/work-items", s.handleWorkItems)
 	mux.HandleFunc("/api/sprints", s.handleSprints)
 	mux.HandleFunc("/api/board", s.handleBoard)
+	mux.HandleFunc("/api/versions", s.handleVersions)
 	return cors(mux)
 }
 
@@ -433,4 +442,61 @@ func formatTime(value *time.Time) string {
 		return ""
 	}
 	return value.Format(time.RFC3339)
+}
+
+type versionView struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Status         string `json:"status"`
+	MilestoneLabel string `json:"milestone_label"`
+	PlannedDate    string `json:"planned_date"`
+	ReleasedAt     string `json:"released_at"`
+	ScopeFrozen    bool   `json:"scope_frozen"`
+}
+
+func (s *Server) handleVersions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	productID, err := uuid.Parse(strings.TrimSpace(r.URL.Query().Get("product_id")))
+	if err != nil {
+		http.Error(w, "product_id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	versions, err := s.versions.List(r.Context(), versionapp.Actor{
+		Subject:        "http-readonly",
+		OrganizationID: organizationID,
+	}, productID)
+	if err != nil {
+		s.logger.Error("list versions failed", slog.String("error", err.Error()))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	out := make([]versionView, 0, len(versions))
+	for _, version := range versions {
+		view := versionView{
+			ID:          version.ID.String(),
+			Name:        version.Name,
+			Status:      string(version.Status),
+			ScopeFrozen: version.ScopeFrozenAt != nil,
+		}
+		if version.MilestoneLabel != nil {
+			view.MilestoneLabel = *version.MilestoneLabel
+		}
+		if version.PlannedDate != nil {
+			view.PlannedDate = version.PlannedDate.Format("2006-01-02")
+		}
+		if version.ReleasedAt != nil {
+			view.ReleasedAt = version.ReleasedAt.Format(time.RFC3339)
+		}
+		out = append(out, view)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"items": out})
 }

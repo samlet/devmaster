@@ -13,8 +13,8 @@ GRPC_PORT ?= 50091
 HTTP_PORT ?= 8291
 
 .PHONY: help tools proto proto-check db-create migrate migrate-test migrate-status \
-        run relay worker dev web-install web-dev web-build web-check \
-        seed-check seed-dataset reconcile snapshot test test-integration lint build check clean
+        run relay worker consumer dev web-install web-dev web-build web-check \
+        seed-check seed-dataset reconcile snapshot approver-bootstrap test test-integration lint build check clean
 
 help:
 	@echo "make tools            检查 go / buf / atlas"
@@ -25,6 +25,8 @@ help:
 	@echo "make run              起 server（gRPC $(GRPC_PORT) / HTTP $(HTTP_PORT)）"
 	@echo "make relay            outbox → JetStream"
 	@echo "make worker           Temporal worker"
+	@echo "make consumer         消费 release.submitted 起发布工作流"
+	@echo "make consumer         消费 release.submitted 起发布工作流"
 	@echo "make dev              server + relay + worker 同起同停"
 	@echo "make web-install      安装前端依赖（pnpm）"
 	@echo "make web-dev          控制台 :3031"
@@ -34,6 +36,7 @@ help:
 	@echo "make seed-dataset     导入数据包（幂等，默认 m1-smoke）"
 	@echo "make reconcile        事件折叠对账（需 ORGANIZATION_ID）"
 	@echo "make snapshot         给进行中冲刺写当天燃尽快照"
+	@echo "make approver-bootstrap 发布发布审批流程定义到 approver"
 	@echo "make test             buf lint + go test"
 	@echo "make test-integration 真连 PG 的集成测试（-p 1）"
 	@echo "make lint             go vet + buf lint"
@@ -78,12 +81,19 @@ relay:
 worker:
 	cd backend && go run ./cmd/worker -config configs/local.example.yaml
 
+consumer:
+	cd backend && go run ./cmd/consumer -config configs/local.example.yaml
+
+consumer:
+	cd backend && go run ./cmd/consumer -config configs/local.example.yaml
+
 # 三个进程同起同停：任一退出即整体退出，避免"半边活着"的假象。
 dev:
 	@trap 'kill 0' EXIT INT TERM; \
 	( cd backend && go run ./cmd/server -config configs/local.example.yaml ) & \
 	( cd backend && go run ./cmd/relay  -config configs/local.example.yaml ) & \
-	( cd backend && go run ./cmd/worker -config configs/local.example.yaml ) & \
+	( cd backend && go run ./cmd/worker   -config configs/local.example.yaml ) & \
+	( cd backend && go run ./cmd/consumer -config configs/local.example.yaml ) & \
 	wait
 
 web-install:
@@ -112,6 +122,9 @@ reconcile:
 
 snapshot:
 	cd backend && go run ./cmd/snapshot -organization-id $(ORGANIZATION_ID) -config configs/local.example.yaml
+
+approver-bootstrap:
+	./scripts/approver-bootstrap.sh
 
 test: tools
 	buf lint

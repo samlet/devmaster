@@ -173,11 +173,11 @@ func ParseSeverity(value string) (Severity, error) {
 type LinkType string
 
 const (
-	LinkBlocks    LinkType = "BLOCKS"
-	LinkBlockedBy LinkType = "BLOCKED_BY"
-	LinkRelates   LinkType = "RELATES"
+	LinkBlocks     LinkType = "BLOCKS"
+	LinkBlockedBy  LinkType = "BLOCKED_BY"
+	LinkRelates    LinkType = "RELATES"
 	LinkDuplicates LinkType = "DUPLICATES"
-	LinkCauses    LinkType = "CAUSES"
+	LinkCauses     LinkType = "CAUSES"
 )
 
 func ParseLinkType(value string) (LinkType, error) {

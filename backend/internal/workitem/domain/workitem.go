@@ -23,6 +23,13 @@ type WorkItem struct {
 	Priority           Priority
 	Severity           *Severity
 	Environment        *string
+	Platform           *string
+	BuildNumber        *string
+	ReproSteps         *string
+	ExpectedBehavior   *string
+	ActualBehavior     *string
+	VersionID          *uuid.UUID
+	AffectsVersionID   *uuid.UUID
 	ReporterID         string
 	AssigneeID         *string
 	ParentID           *uuid.UUID
@@ -54,6 +61,13 @@ type NewWorkItemInput struct {
 	Priority           Priority
 	Severity           *Severity
 	Environment        *string
+	Platform           *string
+	BuildNumber        *string
+	ReproSteps         *string
+	ExpectedBehavior   *string
+	ActualBehavior     *string
+	VersionID          *uuid.UUID
+	AffectsVersionID   *uuid.UUID
 	ReporterID         string
 	AssigneeID         *string
 	ParentID           *uuid.UUID
@@ -101,6 +115,16 @@ func NewWorkItem(input NewWorkItemInput) (WorkItem, error) {
 	if strings.TrimSpace(input.Rank) == "" {
 		return WorkItem{}, apperr.Invalid("rank", "must not be empty")
 	}
+	if input.Platform != nil {
+		switch strings.ToUpper(*input.Platform) {
+		case "WIN", "MAC", "IOS", "ANDROID", "SERVER":
+		default:
+			return WorkItem{}, apperr.Invalid("platform", "must be WIN/MAC/IOS/ANDROID/SERVER")
+		}
+	}
+	if input.AffectsVersionID != nil && input.Type != TypeBug {
+		return WorkItem{}, apperr.Invalid("affects_version_id", "only bugs can carry an affects version")
+	}
 	if input.StoryPoints != nil && (*input.StoryPoints < 0 || *input.StoryPoints > 100) {
 		return WorkItem{}, apperr.Invalid("story_points", "must be between 0 and 100")
 	}
@@ -121,6 +145,13 @@ func NewWorkItem(input NewWorkItemInput) (WorkItem, error) {
 		Priority:           input.Priority,
 		Severity:           input.Severity,
 		Environment:        trimPtr(input.Environment),
+		Platform:           upperPtr(input.Platform),
+		BuildNumber:        trimPtr(input.BuildNumber),
+		ReproSteps:         trimPtr(input.ReproSteps),
+		ExpectedBehavior:   trimPtr(input.ExpectedBehavior),
+		ActualBehavior:     trimPtr(input.ActualBehavior),
+		VersionID:          input.VersionID,
+		AffectsVersionID:   input.AffectsVersionID,
 		ReporterID:         strings.TrimSpace(input.ReporterID),
 		AssigneeID:         trimPtr(input.AssigneeID),
 		ParentID:           input.ParentID,
@@ -204,6 +235,13 @@ type UpdateFields struct {
 	BlockedReason      *string
 	StoryPoints        *int16
 	EstimateMinutes    *int32
+	Platform           *string
+	BuildNumber        *string
+	ReproSteps         *string
+	ExpectedBehavior   *string
+	ActualBehavior     *string
+	VersionID          *uuid.UUID
+	AffectsVersionID   *uuid.UUID
 }
 
 // ApplyUpdate 只应用显式给出的字段，返回真正变化的字段名。
@@ -275,6 +313,49 @@ func (w *WorkItem) ApplyUpdate(fields UpdateFields) ([]string, error) {
 		w.BlockedReason = trimPtr(fields.BlockedReason)
 		changed = append(changed, "blocked_reason")
 	}
+	if fields.Platform != nil {
+		platform := strings.ToUpper(strings.TrimSpace(*fields.Platform))
+		switch platform {
+		case "WIN", "MAC", "IOS", "ANDROID", "SERVER":
+		default:
+			return nil, apperr.Invalid("platform", "must be WIN/MAC/IOS/ANDROID/SERVER")
+		}
+		if w.Platform == nil || platform != *w.Platform {
+			w.Platform = &platform
+			changed = append(changed, "platform")
+		}
+	}
+	if fields.BuildNumber != nil && !samePtr(w.BuildNumber, fields.BuildNumber) {
+		w.BuildNumber = trimPtr(fields.BuildNumber)
+		changed = append(changed, "build_number")
+	}
+	if fields.ReproSteps != nil && !samePtr(w.ReproSteps, fields.ReproSteps) {
+		w.ReproSteps = trimPtr(fields.ReproSteps)
+		changed = append(changed, "repro_steps")
+	}
+	if fields.ExpectedBehavior != nil && !samePtr(w.ExpectedBehavior, fields.ExpectedBehavior) {
+		w.ExpectedBehavior = trimPtr(fields.ExpectedBehavior)
+		changed = append(changed, "expected_behavior")
+	}
+	if fields.ActualBehavior != nil && !samePtr(w.ActualBehavior, fields.ActualBehavior) {
+		w.ActualBehavior = trimPtr(fields.ActualBehavior)
+		changed = append(changed, "actual_behavior")
+	}
+	if fields.VersionID != nil && (w.VersionID == nil || *fields.VersionID != *w.VersionID) {
+		value := *fields.VersionID
+		w.VersionID = &value
+		changed = append(changed, "version_id")
+	}
+	if fields.AffectsVersionID != nil {
+		if w.Type != TypeBug {
+			return nil, apperr.Invalid("affects_version_id", "only bugs can carry an affects version")
+		}
+		if w.AffectsVersionID == nil || *fields.AffectsVersionID != *w.AffectsVersionID {
+			value := *fields.AffectsVersionID
+			w.AffectsVersionID = &value
+			changed = append(changed, "affects_version_id")
+		}
+	}
 	if fields.StoryPoints != nil {
 		if *fields.StoryPoints < 0 || *fields.StoryPoints > 100 {
 			return nil, apperr.Invalid("story_points", "must be between 0 and 100")
@@ -301,6 +382,17 @@ func (w *WorkItem) ApplyUpdate(fields UpdateFields) ([]string, error) {
 	w.UpdatedAt = time.Now().UTC()
 	w.Version++
 	return changed, nil
+}
+
+func upperPtr(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.ToUpper(strings.TrimSpace(*value))
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 func trimPtr(value *string) *string {

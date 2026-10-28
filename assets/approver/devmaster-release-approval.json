@@ -1,0 +1,17 @@
+{
+  "key": "devmaster-release-approval",
+  "name": "devmaster 版本发布审批",
+  "nodes": [
+    {"id": "start", "type": "START", "name": "开始"},
+    {"id": "approve", "type": "USER_TASK", "name": "发布审批",
+     "assignment": {"type": "USER", "values": ["release-approver"]},
+     "completion": {"mode": "ALL", "rejectStrategy": "IMMEDIATE"}},
+    {"id": "approved", "type": "END", "name": "批准", "result": "APPROVED"},
+    {"id": "rejected", "type": "END", "name": "驳回", "result": "REJECTED"}
+  ],
+  "edges": [
+    {"from": "start", "to": "approve"},
+    {"from": "approve", "to": "approved", "on": "APPROVED"},
+    {"from": "approve", "to": "rejected", "on": "REJECTED"}
+  ]
+}

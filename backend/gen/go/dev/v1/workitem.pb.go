@@ -422,6 +422,13 @@ type WorkItem struct {
 	SprintId           string                 `protobuf:"bytes,27,opt,name=sprint_id,json=sprintId,proto3" json:"sprint_id,omitempty"`
 	StoryPoints        int32                  `protobuf:"varint,28,opt,name=story_points,json=storyPoints,proto3" json:"story_points,omitempty"`
 	EstimateMinutes    int32                  `protobuf:"varint,29,opt,name=estimate_minutes,json=estimateMinutes,proto3" json:"estimate_minutes,omitempty"`
+	Platform           string                 `protobuf:"bytes,30,opt,name=platform,proto3" json:"platform,omitempty"`
+	BuildNumber        string                 `protobuf:"bytes,31,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
+	ReproSteps         string                 `protobuf:"bytes,32,opt,name=repro_steps,json=reproSteps,proto3" json:"repro_steps,omitempty"`
+	ExpectedBehavior   string                 `protobuf:"bytes,33,opt,name=expected_behavior,json=expectedBehavior,proto3" json:"expected_behavior,omitempty"`
+	ActualBehavior     string                 `protobuf:"bytes,34,opt,name=actual_behavior,json=actualBehavior,proto3" json:"actual_behavior,omitempty"`
+	VersionId          string                 `protobuf:"bytes,35,opt,name=version_id,json=versionId,proto3" json:"version_id,omitempty"`
+	AffectsVersionId   string                 `protobuf:"bytes,36,opt,name=affects_version_id,json=affectsVersionId,proto3" json:"affects_version_id,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -659,6 +666,55 @@ func (x *WorkItem) GetEstimateMinutes() int32 {
 	return 0
 }
 
+func (x *WorkItem) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *WorkItem) GetBuildNumber() string {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return ""
+}
+
+func (x *WorkItem) GetReproSteps() string {
+	if x != nil {
+		return x.ReproSteps
+	}
+	return ""
+}
+
+func (x *WorkItem) GetExpectedBehavior() string {
+	if x != nil {
+		return x.ExpectedBehavior
+	}
+	return ""
+}
+
+func (x *WorkItem) GetActualBehavior() string {
+	if x != nil {
+		return x.ActualBehavior
+	}
+	return ""
+}
+
+func (x *WorkItem) GetVersionId() string {
+	if x != nil {
+		return x.VersionId
+	}
+	return ""
+}
+
+func (x *WorkItem) GetAffectsVersionId() string {
+	if x != nil {
+		return x.AffectsVersionId
+	}
+	return ""
+}
+
 type CreateWorkItemRequest struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	Options            *WriteOptions          `protobuf:"bytes,1,opt,name=options,proto3" json:"options,omitempty"`
@@ -677,6 +733,13 @@ type CreateWorkItemRequest struct {
 	ExternalRef        string                 `protobuf:"bytes,14,opt,name=external_ref,json=externalRef,proto3" json:"external_ref,omitempty"`
 	StoryPoints        *int32                 `protobuf:"varint,15,opt,name=story_points,json=storyPoints,proto3,oneof" json:"story_points,omitempty"`
 	EstimateMinutes    *int32                 `protobuf:"varint,16,opt,name=estimate_minutes,json=estimateMinutes,proto3,oneof" json:"estimate_minutes,omitempty"`
+	Platform           string                 `protobuf:"bytes,17,opt,name=platform,proto3" json:"platform,omitempty"`
+	BuildNumber        string                 `protobuf:"bytes,18,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
+	ReproSteps         string                 `protobuf:"bytes,19,opt,name=repro_steps,json=reproSteps,proto3" json:"repro_steps,omitempty"`
+	ExpectedBehavior   string                 `protobuf:"bytes,20,opt,name=expected_behavior,json=expectedBehavior,proto3" json:"expected_behavior,omitempty"`
+	ActualBehavior     string                 `protobuf:"bytes,21,opt,name=actual_behavior,json=actualBehavior,proto3" json:"actual_behavior,omitempty"`
+	VersionId          string                 `protobuf:"bytes,22,opt,name=version_id,json=versionId,proto3" json:"version_id,omitempty"`
+	AffectsVersionId   string                 `protobuf:"bytes,23,opt,name=affects_version_id,json=affectsVersionId,proto3" json:"affects_version_id,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -821,6 +884,55 @@ func (x *CreateWorkItemRequest) GetEstimateMinutes() int32 {
 		return *x.EstimateMinutes
 	}
 	return 0
+}
+
+func (x *CreateWorkItemRequest) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *CreateWorkItemRequest) GetBuildNumber() string {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return ""
+}
+
+func (x *CreateWorkItemRequest) GetReproSteps() string {
+	if x != nil {
+		return x.ReproSteps
+	}
+	return ""
+}
+
+func (x *CreateWorkItemRequest) GetExpectedBehavior() string {
+	if x != nil {
+		return x.ExpectedBehavior
+	}
+	return ""
+}
+
+func (x *CreateWorkItemRequest) GetActualBehavior() string {
+	if x != nil {
+		return x.ActualBehavior
+	}
+	return ""
+}
+
+func (x *CreateWorkItemRequest) GetVersionId() string {
+	if x != nil {
+		return x.VersionId
+	}
+	return ""
+}
+
+func (x *CreateWorkItemRequest) GetAffectsVersionId() string {
+	if x != nil {
+		return x.AffectsVersionId
+	}
+	return ""
 }
 
 type CreateWorkItemResponse struct {
@@ -979,6 +1091,13 @@ type UpdateWorkItemRequest struct {
 	BlockedReason      *string                `protobuf:"bytes,12,opt,name=blocked_reason,json=blockedReason,proto3,oneof" json:"blocked_reason,omitempty"`
 	StoryPoints        *int32                 `protobuf:"varint,13,opt,name=story_points,json=storyPoints,proto3,oneof" json:"story_points,omitempty"`
 	EstimateMinutes    *int32                 `protobuf:"varint,14,opt,name=estimate_minutes,json=estimateMinutes,proto3,oneof" json:"estimate_minutes,omitempty"`
+	Platform           *string                `protobuf:"bytes,15,opt,name=platform,proto3,oneof" json:"platform,omitempty"`
+	BuildNumber        *string                `protobuf:"bytes,16,opt,name=build_number,json=buildNumber,proto3,oneof" json:"build_number,omitempty"`
+	ReproSteps         *string                `protobuf:"bytes,17,opt,name=repro_steps,json=reproSteps,proto3,oneof" json:"repro_steps,omitempty"`
+	ExpectedBehavior   *string                `protobuf:"bytes,18,opt,name=expected_behavior,json=expectedBehavior,proto3,oneof" json:"expected_behavior,omitempty"`
+	ActualBehavior     *string                `protobuf:"bytes,19,opt,name=actual_behavior,json=actualBehavior,proto3,oneof" json:"actual_behavior,omitempty"`
+	VersionId          *string                `protobuf:"bytes,20,opt,name=version_id,json=versionId,proto3,oneof" json:"version_id,omitempty"`
+	AffectsVersionId   *string                `protobuf:"bytes,21,opt,name=affects_version_id,json=affectsVersionId,proto3,oneof" json:"affects_version_id,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -1109,6 +1228,55 @@ func (x *UpdateWorkItemRequest) GetEstimateMinutes() int32 {
 		return *x.EstimateMinutes
 	}
 	return 0
+}
+
+func (x *UpdateWorkItemRequest) GetPlatform() string {
+	if x != nil && x.Platform != nil {
+		return *x.Platform
+	}
+	return ""
+}
+
+func (x *UpdateWorkItemRequest) GetBuildNumber() string {
+	if x != nil && x.BuildNumber != nil {
+		return *x.BuildNumber
+	}
+	return ""
+}
+
+func (x *UpdateWorkItemRequest) GetReproSteps() string {
+	if x != nil && x.ReproSteps != nil {
+		return *x.ReproSteps
+	}
+	return ""
+}
+
+func (x *UpdateWorkItemRequest) GetExpectedBehavior() string {
+	if x != nil && x.ExpectedBehavior != nil {
+		return *x.ExpectedBehavior
+	}
+	return ""
+}
+
+func (x *UpdateWorkItemRequest) GetActualBehavior() string {
+	if x != nil && x.ActualBehavior != nil {
+		return *x.ActualBehavior
+	}
+	return ""
+}
+
+func (x *UpdateWorkItemRequest) GetVersionId() string {
+	if x != nil && x.VersionId != nil {
+		return *x.VersionId
+	}
+	return ""
+}
+
+func (x *UpdateWorkItemRequest) GetAffectsVersionId() string {
+	if x != nil && x.AffectsVersionId != nil {
+		return *x.AffectsVersionId
+	}
+	return ""
 }
 
 type UpdateWorkItemResponse struct {
@@ -2468,7 +2636,8 @@ var File_dev_v1_workitem_proto protoreflect.FileDescriptor
 
 const file_dev_v1_workitem_proto_rawDesc = "" +
 	"\n" +
-	"\x15dev/v1/workitem.proto\x12\x06dev.v1\x1a\x13dev/v1/common.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xda\b\n" +
+	"\x15dev/v1/workitem.proto\x12\x06dev.v1\x1a\x13dev/v1/common.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdd\n" +
+	"\n" +
 	"\bWorkItem\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
 	"\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x12\x10\n" +
@@ -2507,7 +2676,16 @@ const file_dev_v1_workitem_proto_rawDesc = "" +
 	"\tclosed_at\x18\x1a \x01(\v2\x1a.google.protobuf.TimestampR\bclosedAt\x12\x1b\n" +
 	"\tsprint_id\x18\x1b \x01(\tR\bsprintId\x12!\n" +
 	"\fstory_points\x18\x1c \x01(\x05R\vstoryPoints\x12)\n" +
-	"\x10estimate_minutes\x18\x1d \x01(\x05R\x0festimateMinutes\"\x99\x05\n" +
+	"\x10estimate_minutes\x18\x1d \x01(\x05R\x0festimateMinutes\x12\x1a\n" +
+	"\bplatform\x18\x1e \x01(\tR\bplatform\x12!\n" +
+	"\fbuild_number\x18\x1f \x01(\tR\vbuildNumber\x12\x1f\n" +
+	"\vrepro_steps\x18  \x01(\tR\n" +
+	"reproSteps\x12+\n" +
+	"\x11expected_behavior\x18! \x01(\tR\x10expectedBehavior\x12'\n" +
+	"\x0factual_behavior\x18\" \x01(\tR\x0eactualBehavior\x12\x1d\n" +
+	"\n" +
+	"version_id\x18# \x01(\tR\tversionId\x12,\n" +
+	"\x12affects_version_id\x18$ \x01(\tR\x10affectsVersionId\"\x9c\a\n" +
 	"\x15CreateWorkItemRequest\x12.\n" +
 	"\aoptions\x18\x01 \x01(\v2\x14.dev.v1.WriteOptionsR\aoptions\x12\x1d\n" +
 	"\n" +
@@ -2527,7 +2705,16 @@ const file_dev_v1_workitem_proto_rawDesc = "" +
 	"\bwbs_code\x18\r \x01(\tR\awbsCode\x12!\n" +
 	"\fexternal_ref\x18\x0e \x01(\tR\vexternalRef\x12&\n" +
 	"\fstory_points\x18\x0f \x01(\x05H\x00R\vstoryPoints\x88\x01\x01\x12.\n" +
-	"\x10estimate_minutes\x18\x10 \x01(\x05H\x01R\x0festimateMinutes\x88\x01\x01B\x0f\n" +
+	"\x10estimate_minutes\x18\x10 \x01(\x05H\x01R\x0festimateMinutes\x88\x01\x01\x12\x1a\n" +
+	"\bplatform\x18\x11 \x01(\tR\bplatform\x12!\n" +
+	"\fbuild_number\x18\x12 \x01(\tR\vbuildNumber\x12\x1f\n" +
+	"\vrepro_steps\x18\x13 \x01(\tR\n" +
+	"reproSteps\x12+\n" +
+	"\x11expected_behavior\x18\x14 \x01(\tR\x10expectedBehavior\x12'\n" +
+	"\x0factual_behavior\x18\x15 \x01(\tR\x0eactualBehavior\x12\x1d\n" +
+	"\n" +
+	"version_id\x18\x16 \x01(\tR\tversionId\x12,\n" +
+	"\x12affects_version_id\x18\x17 \x01(\tR\x10affectsVersionIdB\x0f\n" +
 	"\r_story_pointsB\x13\n" +
 	"\x11_estimate_minutes\"G\n" +
 	"\x16CreateWorkItemResponse\x12-\n" +
@@ -2536,7 +2723,7 @@ const file_dev_v1_workitem_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\"D\n" +
 	"\x13GetWorkItemResponse\x12-\n" +
-	"\twork_item\x18\x01 \x01(\v2\x10.dev.v1.WorkItemR\bworkItem\"\x9c\x06\n" +
+	"\twork_item\x18\x01 \x01(\v2\x10.dev.v1.WorkItemR\bworkItem\"\xc0\t\n" +
 	"\x15UpdateWorkItemRequest\x12.\n" +
 	"\aoptions\x18\x01 \x01(\v2\x14.dev.v1.WriteOptionsR\aoptions\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x19\n" +
@@ -2553,7 +2740,16 @@ const file_dev_v1_workitem_proto_rawDesc = "" +
 	"\x0eblocked_reason\x18\f \x01(\tH\tR\rblockedReason\x88\x01\x01\x12&\n" +
 	"\fstory_points\x18\r \x01(\x05H\n" +
 	"R\vstoryPoints\x88\x01\x01\x12.\n" +
-	"\x10estimate_minutes\x18\x0e \x01(\x05H\vR\x0festimateMinutes\x88\x01\x01B\b\n" +
+	"\x10estimate_minutes\x18\x0e \x01(\x05H\vR\x0festimateMinutes\x88\x01\x01\x12\x1f\n" +
+	"\bplatform\x18\x0f \x01(\tH\fR\bplatform\x88\x01\x01\x12&\n" +
+	"\fbuild_number\x18\x10 \x01(\tH\rR\vbuildNumber\x88\x01\x01\x12$\n" +
+	"\vrepro_steps\x18\x11 \x01(\tH\x0eR\n" +
+	"reproSteps\x88\x01\x01\x120\n" +
+	"\x11expected_behavior\x18\x12 \x01(\tH\x0fR\x10expectedBehavior\x88\x01\x01\x12,\n" +
+	"\x0factual_behavior\x18\x13 \x01(\tH\x10R\x0eactualBehavior\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"version_id\x18\x14 \x01(\tH\x11R\tversionId\x88\x01\x01\x121\n" +
+	"\x12affects_version_id\x18\x15 \x01(\tH\x12R\x10affectsVersionId\x88\x01\x01B\b\n" +
 	"\x06_titleB\x11\n" +
 	"\x0f_description_mdB\x16\n" +
 	"\x14_acceptance_criteriaB\v\n" +
@@ -2565,7 +2761,14 @@ const file_dev_v1_workitem_proto_rawDesc = "" +
 	"\r_external_refB\x11\n" +
 	"\x0f_blocked_reasonB\x0f\n" +
 	"\r_story_pointsB\x13\n" +
-	"\x11_estimate_minutes\"G\n" +
+	"\x11_estimate_minutesB\v\n" +
+	"\t_platformB\x0f\n" +
+	"\r_build_numberB\x0e\n" +
+	"\f_repro_stepsB\x14\n" +
+	"\x12_expected_behaviorB\x12\n" +
+	"\x10_actual_behaviorB\r\n" +
+	"\v_version_idB\x15\n" +
+	"\x13_affects_version_id\"G\n" +
 	"\x16UpdateWorkItemResponse\x12-\n" +
 	"\twork_item\x18\x01 \x01(\v2\x10.dev.v1.WorkItemR\bworkItem\"\xd1\x01\n" +
 	"\x19TransitionWorkItemRequest\x12.\n" +

@@ -13,10 +13,12 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/ent/outboxevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/product"
 	"github.com/xiaofeiwu/devmaster/backend/ent/productcounter"
+	"github.com/xiaofeiwu/devmaster/backend/ent/releaserecord"
 	"github.com/xiaofeiwu/devmaster/backend/ent/schema"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprint"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintscopeevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintsnapshot"
+	"github.com/xiaofeiwu/devmaster/backend/ent/version"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitem"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemlink"
@@ -320,6 +322,74 @@ func init() {
 	productcounter.DefaultUpdatedAt = productcounterDescUpdatedAt.Default.(func() time.Time)
 	// productcounter.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	productcounter.UpdateDefaultUpdatedAt = productcounterDescUpdatedAt.UpdateDefault.(func() time.Time)
+	releaserecordFields := schema.ReleaseRecord{}.Fields()
+	_ = releaserecordFields
+	// releaserecordDescStatus is the schema descriptor for status field.
+	releaserecordDescStatus := releaserecordFields[3].Descriptor()
+	// releaserecord.DefaultStatus holds the default value on creation for the status field.
+	releaserecord.DefaultStatus = releaserecordDescStatus.Default.(string)
+	// releaserecord.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	releaserecord.StatusValidator = releaserecordDescStatus.Validators[0].(func(string) error)
+	// releaserecordDescTag is the schema descriptor for tag field.
+	releaserecordDescTag := releaserecordFields[4].Descriptor()
+	// releaserecord.TagValidator is a validator for the "tag" field. It is called by the builders before save.
+	releaserecord.TagValidator = releaserecordDescTag.Validators[0].(func(string) error)
+	// releaserecordDescCommitFrom is the schema descriptor for commit_from field.
+	releaserecordDescCommitFrom := releaserecordFields[5].Descriptor()
+	// releaserecord.CommitFromValidator is a validator for the "commit_from" field. It is called by the builders before save.
+	releaserecord.CommitFromValidator = releaserecordDescCommitFrom.Validators[0].(func(string) error)
+	// releaserecordDescCommitTo is the schema descriptor for commit_to field.
+	releaserecordDescCommitTo := releaserecordFields[6].Descriptor()
+	// releaserecord.CommitToValidator is a validator for the "commit_to" field. It is called by the builders before save.
+	releaserecord.CommitToValidator = releaserecordDescCommitTo.Validators[0].(func(string) error)
+	// releaserecordDescSubmittedBy is the schema descriptor for submitted_by field.
+	releaserecordDescSubmittedBy := releaserecordFields[7].Descriptor()
+	// releaserecord.SubmittedByValidator is a validator for the "submitted_by" field. It is called by the builders before save.
+	releaserecord.SubmittedByValidator = func() func(string) error {
+		validators := releaserecordDescSubmittedBy.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(submitted_by string) error {
+			for _, fn := range fns {
+				if err := fn(submitted_by); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// releaserecordDescApprovalInstanceID is the schema descriptor for approval_instance_id field.
+	releaserecordDescApprovalInstanceID := releaserecordFields[8].Descriptor()
+	// releaserecord.ApprovalInstanceIDValidator is a validator for the "approval_instance_id" field. It is called by the builders before save.
+	releaserecord.ApprovalInstanceIDValidator = releaserecordDescApprovalInstanceID.Validators[0].(func(string) error)
+	// releaserecordDescApproverID is the schema descriptor for approver_id field.
+	releaserecordDescApproverID := releaserecordFields[9].Descriptor()
+	// releaserecord.ApproverIDValidator is a validator for the "approver_id" field. It is called by the builders before save.
+	releaserecord.ApproverIDValidator = releaserecordDescApproverID.Validators[0].(func(string) error)
+	// releaserecordDescReleasedBy is the schema descriptor for released_by field.
+	releaserecordDescReleasedBy := releaserecordFields[12].Descriptor()
+	// releaserecord.ReleasedByValidator is a validator for the "released_by" field. It is called by the builders before save.
+	releaserecord.ReleasedByValidator = releaserecordDescReleasedBy.Validators[0].(func(string) error)
+	// releaserecordDescVersion is the schema descriptor for version field.
+	releaserecordDescVersion := releaserecordFields[14].Descriptor()
+	// releaserecord.DefaultVersion holds the default value on creation for the version field.
+	releaserecord.DefaultVersion = releaserecordDescVersion.Default.(int)
+	// releaserecordDescCreatedAt is the schema descriptor for created_at field.
+	releaserecordDescCreatedAt := releaserecordFields[15].Descriptor()
+	// releaserecord.DefaultCreatedAt holds the default value on creation for the created_at field.
+	releaserecord.DefaultCreatedAt = releaserecordDescCreatedAt.Default.(func() time.Time)
+	// releaserecordDescUpdatedAt is the schema descriptor for updated_at field.
+	releaserecordDescUpdatedAt := releaserecordFields[16].Descriptor()
+	// releaserecord.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	releaserecord.DefaultUpdatedAt = releaserecordDescUpdatedAt.Default.(func() time.Time)
+	// releaserecord.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	releaserecord.UpdateDefaultUpdatedAt = releaserecordDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// releaserecordDescID is the schema descriptor for id field.
+	releaserecordDescID := releaserecordFields[0].Descriptor()
+	// releaserecord.DefaultID holds the default value on creation for the id field.
+	releaserecord.DefaultID = releaserecordDescID.Default.(func() uuid.UUID)
 	sprintFields := schema.Sprint{}.Fields()
 	_ = sprintFields
 	// sprintDescName is the schema descriptor for name field.
@@ -406,6 +476,54 @@ func init() {
 	sprintsnapshotDescCreatedAt := sprintsnapshotFields[6].Descriptor()
 	// sprintsnapshot.DefaultCreatedAt holds the default value on creation for the created_at field.
 	sprintsnapshot.DefaultCreatedAt = sprintsnapshotDescCreatedAt.Default.(func() time.Time)
+	versionFields := schema.Version{}.Fields()
+	_ = versionFields
+	// versionDescName is the schema descriptor for name field.
+	versionDescName := versionFields[3].Descriptor()
+	// version.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	version.NameValidator = func() func(string) error {
+		validators := versionDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// versionDescStatus is the schema descriptor for status field.
+	versionDescStatus := versionFields[4].Descriptor()
+	// version.DefaultStatus holds the default value on creation for the status field.
+	version.DefaultStatus = versionDescStatus.Default.(string)
+	// version.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	version.StatusValidator = versionDescStatus.Validators[0].(func(string) error)
+	// versionDescMilestoneLabel is the schema descriptor for milestone_label field.
+	versionDescMilestoneLabel := versionFields[5].Descriptor()
+	// version.MilestoneLabelValidator is a validator for the "milestone_label" field. It is called by the builders before save.
+	version.MilestoneLabelValidator = versionDescMilestoneLabel.Validators[0].(func(string) error)
+	// versionDescVersion is the schema descriptor for version field.
+	versionDescVersion := versionFields[10].Descriptor()
+	// version.DefaultVersion holds the default value on creation for the version field.
+	version.DefaultVersion = versionDescVersion.Default.(int)
+	// versionDescCreatedAt is the schema descriptor for created_at field.
+	versionDescCreatedAt := versionFields[11].Descriptor()
+	// version.DefaultCreatedAt holds the default value on creation for the created_at field.
+	version.DefaultCreatedAt = versionDescCreatedAt.Default.(func() time.Time)
+	// versionDescUpdatedAt is the schema descriptor for updated_at field.
+	versionDescUpdatedAt := versionFields[12].Descriptor()
+	// version.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	version.DefaultUpdatedAt = versionDescUpdatedAt.Default.(func() time.Time)
+	// version.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	version.UpdateDefaultUpdatedAt = versionDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// versionDescID is the schema descriptor for id field.
+	versionDescID := versionFields[0].Descriptor()
+	// version.DefaultID holds the default value on creation for the id field.
+	version.DefaultID = versionDescID.Default.(func() uuid.UUID)
 	workitemFields := schema.WorkItem{}.Fields()
 	_ = workitemFields
 	// workitemDescKey is the schema descriptor for key field.
@@ -522,8 +640,16 @@ func init() {
 	workitemDescAssigneeID := workitemFields[14].Descriptor()
 	// workitem.AssigneeIDValidator is a validator for the "assignee_id" field. It is called by the builders before save.
 	workitem.AssigneeIDValidator = workitemDescAssigneeID.Validators[0].(func(string) error)
+	// workitemDescPlatform is the schema descriptor for platform field.
+	workitemDescPlatform := workitemFields[19].Descriptor()
+	// workitem.PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
+	workitem.PlatformValidator = workitemDescPlatform.Validators[0].(func(string) error)
+	// workitemDescBuildNumber is the schema descriptor for build_number field.
+	workitemDescBuildNumber := workitemFields[20].Descriptor()
+	// workitem.BuildNumberValidator is a validator for the "build_number" field. It is called by the builders before save.
+	workitem.BuildNumberValidator = workitemDescBuildNumber.Validators[0].(func(string) error)
 	// workitemDescRank is the schema descriptor for rank field.
-	workitemDescRank := workitemFields[19].Descriptor()
+	workitemDescRank := workitemFields[26].Descriptor()
 	// workitem.RankValidator is a validator for the "rank" field. It is called by the builders before save.
 	workitem.RankValidator = func() func(string) error {
 		validators := workitemDescRank.Validators
@@ -541,31 +667,31 @@ func init() {
 		}
 	}()
 	// workitemDescProjectCode is the schema descriptor for project_code field.
-	workitemDescProjectCode := workitemFields[20].Descriptor()
+	workitemDescProjectCode := workitemFields[27].Descriptor()
 	// workitem.ProjectCodeValidator is a validator for the "project_code" field. It is called by the builders before save.
 	workitem.ProjectCodeValidator = workitemDescProjectCode.Validators[0].(func(string) error)
 	// workitemDescWbsCode is the schema descriptor for wbs_code field.
-	workitemDescWbsCode := workitemFields[21].Descriptor()
+	workitemDescWbsCode := workitemFields[28].Descriptor()
 	// workitem.WbsCodeValidator is a validator for the "wbs_code" field. It is called by the builders before save.
 	workitem.WbsCodeValidator = workitemDescWbsCode.Validators[0].(func(string) error)
 	// workitemDescExternalRef is the schema descriptor for external_ref field.
-	workitemDescExternalRef := workitemFields[22].Descriptor()
+	workitemDescExternalRef := workitemFields[29].Descriptor()
 	// workitem.ExternalRefValidator is a validator for the "external_ref" field. It is called by the builders before save.
 	workitem.ExternalRefValidator = workitemDescExternalRef.Validators[0].(func(string) error)
 	// workitemDescReopenedCount is the schema descriptor for reopened_count field.
-	workitemDescReopenedCount := workitemFields[25].Descriptor()
+	workitemDescReopenedCount := workitemFields[32].Descriptor()
 	// workitem.DefaultReopenedCount holds the default value on creation for the reopened_count field.
 	workitem.DefaultReopenedCount = workitemDescReopenedCount.Default.(int16)
 	// workitemDescVersion is the schema descriptor for version field.
-	workitemDescVersion := workitemFields[26].Descriptor()
+	workitemDescVersion := workitemFields[33].Descriptor()
 	// workitem.DefaultVersion holds the default value on creation for the version field.
 	workitem.DefaultVersion = workitemDescVersion.Default.(int)
 	// workitemDescCreatedAt is the schema descriptor for created_at field.
-	workitemDescCreatedAt := workitemFields[27].Descriptor()
+	workitemDescCreatedAt := workitemFields[34].Descriptor()
 	// workitem.DefaultCreatedAt holds the default value on creation for the created_at field.
 	workitem.DefaultCreatedAt = workitemDescCreatedAt.Default.(func() time.Time)
 	// workitemDescUpdatedAt is the schema descriptor for updated_at field.
-	workitemDescUpdatedAt := workitemFields[28].Descriptor()
+	workitemDescUpdatedAt := workitemFields[35].Descriptor()
 	// workitem.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	workitem.DefaultUpdatedAt = workitemDescUpdatedAt.Default.(func() time.Time)
 	// workitem.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

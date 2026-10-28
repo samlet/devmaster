@@ -145,6 +145,41 @@ func EstimateMinutes(v int) predicate.WorkItem {
 	return predicate.WorkItem(sql.FieldEQ(FieldEstimateMinutes, v))
 }
 
+// Platform applies equality check predicate on the "platform" field. It's identical to PlatformEQ.
+func Platform(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldPlatform, v))
+}
+
+// BuildNumber applies equality check predicate on the "build_number" field. It's identical to BuildNumberEQ.
+func BuildNumber(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldBuildNumber, v))
+}
+
+// ReproSteps applies equality check predicate on the "repro_steps" field. It's identical to ReproStepsEQ.
+func ReproSteps(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldReproSteps, v))
+}
+
+// ExpectedBehavior applies equality check predicate on the "expected_behavior" field. It's identical to ExpectedBehaviorEQ.
+func ExpectedBehavior(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldExpectedBehavior, v))
+}
+
+// ActualBehavior applies equality check predicate on the "actual_behavior" field. It's identical to ActualBehaviorEQ.
+func ActualBehavior(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldActualBehavior, v))
+}
+
+// VersionID applies equality check predicate on the "version_id" field. It's identical to VersionIDEQ.
+func VersionID(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldVersionID, v))
+}
+
+// AffectsVersionID applies equality check predicate on the "affects_version_id" field. It's identical to AffectsVersionIDEQ.
+func AffectsVersionID(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldAffectsVersionID, v))
+}
+
 // Rank applies equality check predicate on the "rank" field. It's identical to RankEQ.
 func Rank(v string) predicate.WorkItem {
 	return predicate.WorkItem(sql.FieldEQ(FieldRank, v))
@@ -1283,6 +1318,481 @@ func EstimateMinutesIsNil() predicate.WorkItem {
 // EstimateMinutesNotNil applies the NotNil predicate on the "estimate_minutes" field.
 func EstimateMinutesNotNil() predicate.WorkItem {
 	return predicate.WorkItem(sql.FieldNotNull(FieldEstimateMinutes))
+}
+
+// PlatformEQ applies the EQ predicate on the "platform" field.
+func PlatformEQ(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldPlatform, v))
+}
+
+// PlatformNEQ applies the NEQ predicate on the "platform" field.
+func PlatformNEQ(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNEQ(FieldPlatform, v))
+}
+
+// PlatformIn applies the In predicate on the "platform" field.
+func PlatformIn(vs ...string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIn(FieldPlatform, vs...))
+}
+
+// PlatformNotIn applies the NotIn predicate on the "platform" field.
+func PlatformNotIn(vs ...string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotIn(FieldPlatform, vs...))
+}
+
+// PlatformGT applies the GT predicate on the "platform" field.
+func PlatformGT(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGT(FieldPlatform, v))
+}
+
+// PlatformGTE applies the GTE predicate on the "platform" field.
+func PlatformGTE(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGTE(FieldPlatform, v))
+}
+
+// PlatformLT applies the LT predicate on the "platform" field.
+func PlatformLT(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLT(FieldPlatform, v))
+}
+
+// PlatformLTE applies the LTE predicate on the "platform" field.
+func PlatformLTE(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLTE(FieldPlatform, v))
+}
+
+// PlatformContains applies the Contains predicate on the "platform" field.
+func PlatformContains(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldContains(FieldPlatform, v))
+}
+
+// PlatformHasPrefix applies the HasPrefix predicate on the "platform" field.
+func PlatformHasPrefix(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldHasPrefix(FieldPlatform, v))
+}
+
+// PlatformHasSuffix applies the HasSuffix predicate on the "platform" field.
+func PlatformHasSuffix(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldHasSuffix(FieldPlatform, v))
+}
+
+// PlatformIsNil applies the IsNil predicate on the "platform" field.
+func PlatformIsNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIsNull(FieldPlatform))
+}
+
+// PlatformNotNil applies the NotNil predicate on the "platform" field.
+func PlatformNotNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotNull(FieldPlatform))
+}
+
+// PlatformEqualFold applies the EqualFold predicate on the "platform" field.
+func PlatformEqualFold(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEqualFold(FieldPlatform, v))
+}
+
+// PlatformContainsFold applies the ContainsFold predicate on the "platform" field.
+func PlatformContainsFold(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldContainsFold(FieldPlatform, v))
+}
+
+// BuildNumberEQ applies the EQ predicate on the "build_number" field.
+func BuildNumberEQ(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldBuildNumber, v))
+}
+
+// BuildNumberNEQ applies the NEQ predicate on the "build_number" field.
+func BuildNumberNEQ(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNEQ(FieldBuildNumber, v))
+}
+
+// BuildNumberIn applies the In predicate on the "build_number" field.
+func BuildNumberIn(vs ...string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIn(FieldBuildNumber, vs...))
+}
+
+// BuildNumberNotIn applies the NotIn predicate on the "build_number" field.
+func BuildNumberNotIn(vs ...string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotIn(FieldBuildNumber, vs...))
+}
+
+// BuildNumberGT applies the GT predicate on the "build_number" field.
+func BuildNumberGT(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGT(FieldBuildNumber, v))
+}
+
+// BuildNumberGTE applies the GTE predicate on the "build_number" field.
+func BuildNumberGTE(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGTE(FieldBuildNumber, v))
+}
+
+// BuildNumberLT applies the LT predicate on the "build_number" field.
+func BuildNumberLT(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLT(FieldBuildNumber, v))
+}
+
+// BuildNumberLTE applies the LTE predicate on the "build_number" field.
+func BuildNumberLTE(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLTE(FieldBuildNumber, v))
+}
+
+// BuildNumberContains applies the Contains predicate on the "build_number" field.
+func BuildNumberContains(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldContains(FieldBuildNumber, v))
+}
+
+// BuildNumberHasPrefix applies the HasPrefix predicate on the "build_number" field.
+func BuildNumberHasPrefix(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldHasPrefix(FieldBuildNumber, v))
+}
+
+// BuildNumberHasSuffix applies the HasSuffix predicate on the "build_number" field.
+func BuildNumberHasSuffix(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldHasSuffix(FieldBuildNumber, v))
+}
+
+// BuildNumberIsNil applies the IsNil predicate on the "build_number" field.
+func BuildNumberIsNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIsNull(FieldBuildNumber))
+}
+
+// BuildNumberNotNil applies the NotNil predicate on the "build_number" field.
+func BuildNumberNotNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotNull(FieldBuildNumber))
+}
+
+// BuildNumberEqualFold applies the EqualFold predicate on the "build_number" field.
+func BuildNumberEqualFold(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEqualFold(FieldBuildNumber, v))
+}
+
+// BuildNumberContainsFold applies the ContainsFold predicate on the "build_number" field.
+func BuildNumberContainsFold(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldContainsFold(FieldBuildNumber, v))
+}
+
+// ReproStepsEQ applies the EQ predicate on the "repro_steps" field.
+func ReproStepsEQ(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldReproSteps, v))
+}
+
+// ReproStepsNEQ applies the NEQ predicate on the "repro_steps" field.
+func ReproStepsNEQ(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNEQ(FieldReproSteps, v))
+}
+
+// ReproStepsIn applies the In predicate on the "repro_steps" field.
+func ReproStepsIn(vs ...string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIn(FieldReproSteps, vs...))
+}
+
+// ReproStepsNotIn applies the NotIn predicate on the "repro_steps" field.
+func ReproStepsNotIn(vs ...string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotIn(FieldReproSteps, vs...))
+}
+
+// ReproStepsGT applies the GT predicate on the "repro_steps" field.
+func ReproStepsGT(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGT(FieldReproSteps, v))
+}
+
+// ReproStepsGTE applies the GTE predicate on the "repro_steps" field.
+func ReproStepsGTE(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGTE(FieldReproSteps, v))
+}
+
+// ReproStepsLT applies the LT predicate on the "repro_steps" field.
+func ReproStepsLT(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLT(FieldReproSteps, v))
+}
+
+// ReproStepsLTE applies the LTE predicate on the "repro_steps" field.
+func ReproStepsLTE(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLTE(FieldReproSteps, v))
+}
+
+// ReproStepsContains applies the Contains predicate on the "repro_steps" field.
+func ReproStepsContains(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldContains(FieldReproSteps, v))
+}
+
+// ReproStepsHasPrefix applies the HasPrefix predicate on the "repro_steps" field.
+func ReproStepsHasPrefix(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldHasPrefix(FieldReproSteps, v))
+}
+
+// ReproStepsHasSuffix applies the HasSuffix predicate on the "repro_steps" field.
+func ReproStepsHasSuffix(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldHasSuffix(FieldReproSteps, v))
+}
+
+// ReproStepsIsNil applies the IsNil predicate on the "repro_steps" field.
+func ReproStepsIsNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIsNull(FieldReproSteps))
+}
+
+// ReproStepsNotNil applies the NotNil predicate on the "repro_steps" field.
+func ReproStepsNotNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotNull(FieldReproSteps))
+}
+
+// ReproStepsEqualFold applies the EqualFold predicate on the "repro_steps" field.
+func ReproStepsEqualFold(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEqualFold(FieldReproSteps, v))
+}
+
+// ReproStepsContainsFold applies the ContainsFold predicate on the "repro_steps" field.
+func ReproStepsContainsFold(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldContainsFold(FieldReproSteps, v))
+}
+
+// ExpectedBehaviorEQ applies the EQ predicate on the "expected_behavior" field.
+func ExpectedBehaviorEQ(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldExpectedBehavior, v))
+}
+
+// ExpectedBehaviorNEQ applies the NEQ predicate on the "expected_behavior" field.
+func ExpectedBehaviorNEQ(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNEQ(FieldExpectedBehavior, v))
+}
+
+// ExpectedBehaviorIn applies the In predicate on the "expected_behavior" field.
+func ExpectedBehaviorIn(vs ...string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIn(FieldExpectedBehavior, vs...))
+}
+
+// ExpectedBehaviorNotIn applies the NotIn predicate on the "expected_behavior" field.
+func ExpectedBehaviorNotIn(vs ...string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotIn(FieldExpectedBehavior, vs...))
+}
+
+// ExpectedBehaviorGT applies the GT predicate on the "expected_behavior" field.
+func ExpectedBehaviorGT(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGT(FieldExpectedBehavior, v))
+}
+
+// ExpectedBehaviorGTE applies the GTE predicate on the "expected_behavior" field.
+func ExpectedBehaviorGTE(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGTE(FieldExpectedBehavior, v))
+}
+
+// ExpectedBehaviorLT applies the LT predicate on the "expected_behavior" field.
+func ExpectedBehaviorLT(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLT(FieldExpectedBehavior, v))
+}
+
+// ExpectedBehaviorLTE applies the LTE predicate on the "expected_behavior" field.
+func ExpectedBehaviorLTE(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLTE(FieldExpectedBehavior, v))
+}
+
+// ExpectedBehaviorContains applies the Contains predicate on the "expected_behavior" field.
+func ExpectedBehaviorContains(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldContains(FieldExpectedBehavior, v))
+}
+
+// ExpectedBehaviorHasPrefix applies the HasPrefix predicate on the "expected_behavior" field.
+func ExpectedBehaviorHasPrefix(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldHasPrefix(FieldExpectedBehavior, v))
+}
+
+// ExpectedBehaviorHasSuffix applies the HasSuffix predicate on the "expected_behavior" field.
+func ExpectedBehaviorHasSuffix(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldHasSuffix(FieldExpectedBehavior, v))
+}
+
+// ExpectedBehaviorIsNil applies the IsNil predicate on the "expected_behavior" field.
+func ExpectedBehaviorIsNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIsNull(FieldExpectedBehavior))
+}
+
+// ExpectedBehaviorNotNil applies the NotNil predicate on the "expected_behavior" field.
+func ExpectedBehaviorNotNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotNull(FieldExpectedBehavior))
+}
+
+// ExpectedBehaviorEqualFold applies the EqualFold predicate on the "expected_behavior" field.
+func ExpectedBehaviorEqualFold(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEqualFold(FieldExpectedBehavior, v))
+}
+
+// ExpectedBehaviorContainsFold applies the ContainsFold predicate on the "expected_behavior" field.
+func ExpectedBehaviorContainsFold(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldContainsFold(FieldExpectedBehavior, v))
+}
+
+// ActualBehaviorEQ applies the EQ predicate on the "actual_behavior" field.
+func ActualBehaviorEQ(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldActualBehavior, v))
+}
+
+// ActualBehaviorNEQ applies the NEQ predicate on the "actual_behavior" field.
+func ActualBehaviorNEQ(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNEQ(FieldActualBehavior, v))
+}
+
+// ActualBehaviorIn applies the In predicate on the "actual_behavior" field.
+func ActualBehaviorIn(vs ...string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIn(FieldActualBehavior, vs...))
+}
+
+// ActualBehaviorNotIn applies the NotIn predicate on the "actual_behavior" field.
+func ActualBehaviorNotIn(vs ...string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotIn(FieldActualBehavior, vs...))
+}
+
+// ActualBehaviorGT applies the GT predicate on the "actual_behavior" field.
+func ActualBehaviorGT(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGT(FieldActualBehavior, v))
+}
+
+// ActualBehaviorGTE applies the GTE predicate on the "actual_behavior" field.
+func ActualBehaviorGTE(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGTE(FieldActualBehavior, v))
+}
+
+// ActualBehaviorLT applies the LT predicate on the "actual_behavior" field.
+func ActualBehaviorLT(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLT(FieldActualBehavior, v))
+}
+
+// ActualBehaviorLTE applies the LTE predicate on the "actual_behavior" field.
+func ActualBehaviorLTE(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLTE(FieldActualBehavior, v))
+}
+
+// ActualBehaviorContains applies the Contains predicate on the "actual_behavior" field.
+func ActualBehaviorContains(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldContains(FieldActualBehavior, v))
+}
+
+// ActualBehaviorHasPrefix applies the HasPrefix predicate on the "actual_behavior" field.
+func ActualBehaviorHasPrefix(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldHasPrefix(FieldActualBehavior, v))
+}
+
+// ActualBehaviorHasSuffix applies the HasSuffix predicate on the "actual_behavior" field.
+func ActualBehaviorHasSuffix(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldHasSuffix(FieldActualBehavior, v))
+}
+
+// ActualBehaviorIsNil applies the IsNil predicate on the "actual_behavior" field.
+func ActualBehaviorIsNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIsNull(FieldActualBehavior))
+}
+
+// ActualBehaviorNotNil applies the NotNil predicate on the "actual_behavior" field.
+func ActualBehaviorNotNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotNull(FieldActualBehavior))
+}
+
+// ActualBehaviorEqualFold applies the EqualFold predicate on the "actual_behavior" field.
+func ActualBehaviorEqualFold(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEqualFold(FieldActualBehavior, v))
+}
+
+// ActualBehaviorContainsFold applies the ContainsFold predicate on the "actual_behavior" field.
+func ActualBehaviorContainsFold(v string) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldContainsFold(FieldActualBehavior, v))
+}
+
+// VersionIDEQ applies the EQ predicate on the "version_id" field.
+func VersionIDEQ(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldVersionID, v))
+}
+
+// VersionIDNEQ applies the NEQ predicate on the "version_id" field.
+func VersionIDNEQ(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNEQ(FieldVersionID, v))
+}
+
+// VersionIDIn applies the In predicate on the "version_id" field.
+func VersionIDIn(vs ...uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIn(FieldVersionID, vs...))
+}
+
+// VersionIDNotIn applies the NotIn predicate on the "version_id" field.
+func VersionIDNotIn(vs ...uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotIn(FieldVersionID, vs...))
+}
+
+// VersionIDGT applies the GT predicate on the "version_id" field.
+func VersionIDGT(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGT(FieldVersionID, v))
+}
+
+// VersionIDGTE applies the GTE predicate on the "version_id" field.
+func VersionIDGTE(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGTE(FieldVersionID, v))
+}
+
+// VersionIDLT applies the LT predicate on the "version_id" field.
+func VersionIDLT(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLT(FieldVersionID, v))
+}
+
+// VersionIDLTE applies the LTE predicate on the "version_id" field.
+func VersionIDLTE(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLTE(FieldVersionID, v))
+}
+
+// VersionIDIsNil applies the IsNil predicate on the "version_id" field.
+func VersionIDIsNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIsNull(FieldVersionID))
+}
+
+// VersionIDNotNil applies the NotNil predicate on the "version_id" field.
+func VersionIDNotNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotNull(FieldVersionID))
+}
+
+// AffectsVersionIDEQ applies the EQ predicate on the "affects_version_id" field.
+func AffectsVersionIDEQ(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldEQ(FieldAffectsVersionID, v))
+}
+
+// AffectsVersionIDNEQ applies the NEQ predicate on the "affects_version_id" field.
+func AffectsVersionIDNEQ(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNEQ(FieldAffectsVersionID, v))
+}
+
+// AffectsVersionIDIn applies the In predicate on the "affects_version_id" field.
+func AffectsVersionIDIn(vs ...uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIn(FieldAffectsVersionID, vs...))
+}
+
+// AffectsVersionIDNotIn applies the NotIn predicate on the "affects_version_id" field.
+func AffectsVersionIDNotIn(vs ...uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotIn(FieldAffectsVersionID, vs...))
+}
+
+// AffectsVersionIDGT applies the GT predicate on the "affects_version_id" field.
+func AffectsVersionIDGT(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGT(FieldAffectsVersionID, v))
+}
+
+// AffectsVersionIDGTE applies the GTE predicate on the "affects_version_id" field.
+func AffectsVersionIDGTE(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldGTE(FieldAffectsVersionID, v))
+}
+
+// AffectsVersionIDLT applies the LT predicate on the "affects_version_id" field.
+func AffectsVersionIDLT(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLT(FieldAffectsVersionID, v))
+}
+
+// AffectsVersionIDLTE applies the LTE predicate on the "affects_version_id" field.
+func AffectsVersionIDLTE(v uuid.UUID) predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldLTE(FieldAffectsVersionID, v))
+}
+
+// AffectsVersionIDIsNil applies the IsNil predicate on the "affects_version_id" field.
+func AffectsVersionIDIsNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldIsNull(FieldAffectsVersionID))
+}
+
+// AffectsVersionIDNotNil applies the NotNil predicate on the "affects_version_id" field.
+func AffectsVersionIDNotNil() predicate.WorkItem {
+	return predicate.WorkItem(sql.FieldNotNull(FieldAffectsVersionID))
 }
 
 // RankEQ applies the EQ predicate on the "rank" field.

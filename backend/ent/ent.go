@@ -19,9 +19,11 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/ent/outboxevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/product"
 	"github.com/xiaofeiwu/devmaster/backend/ent/productcounter"
+	"github.com/xiaofeiwu/devmaster/backend/ent/releaserecord"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprint"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintscopeevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintsnapshot"
+	"github.com/xiaofeiwu/devmaster/backend/ent/version"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitem"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemlink"
@@ -92,9 +94,11 @@ func checkColumn(t, c string) error {
 			outboxevent.Table:      outboxevent.ValidColumn,
 			product.Table:          product.ValidColumn,
 			productcounter.Table:   productcounter.ValidColumn,
+			releaserecord.Table:    releaserecord.ValidColumn,
 			sprint.Table:           sprint.ValidColumn,
 			sprintscopeevent.Table: sprintscopeevent.ValidColumn,
 			sprintsnapshot.Table:   sprintsnapshot.ValidColumn,
+			version.Table:          version.ValidColumn,
 			workitem.Table:         workitem.ValidColumn,
 			workitemevent.Table:    workitemevent.ValidColumn,
 			workitemlink.Table:     workitemlink.ValidColumn,

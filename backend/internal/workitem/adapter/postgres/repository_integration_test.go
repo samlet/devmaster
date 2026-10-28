@@ -8,8 +8,8 @@ import (
 
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/apperr"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/dbtest"
-	productdomain "github.com/xiaofeiwu/devmaster/backend/internal/product/domain"
 	productpostgres "github.com/xiaofeiwu/devmaster/backend/internal/product/adapter/postgres"
+	productdomain "github.com/xiaofeiwu/devmaster/backend/internal/product/domain"
 	workitempostgres "github.com/xiaofeiwu/devmaster/backend/internal/workitem/adapter/postgres"
 	workitemapplication "github.com/xiaofeiwu/devmaster/backend/internal/workitem/application"
 	workitemdomain "github.com/xiaofeiwu/devmaster/backend/internal/workitem/domain"

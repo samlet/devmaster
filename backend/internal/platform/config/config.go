@@ -30,6 +30,8 @@ type Config struct {
 	NATS         NATSConfig        `yaml:"nats"`
 	Temporal     TemporalConfig    `yaml:"temporal"`
 	Outbox       OutboxConfig      `yaml:"outbox"`
+	Approver     ApproverConfig    `yaml:"approver"`
+	Gitea        GiteaConfig       `yaml:"gitea"`
 	Integrations IntegrationConfig `yaml:"integrations"`
 }
 
@@ -90,6 +92,23 @@ type OutboxConfig struct {
 	MaxBackoff   time.Duration `yaml:"max_backoff"`
 }
 
+type ApproverConfig struct {
+	BaseURL      string        `yaml:"base_url"`
+	TenantID     string        `yaml:"tenant_id"`
+	ServiceUser  string        `yaml:"service_user"`
+	ApproverUser string        `yaml:"approver_user"`
+	ProcessKey   string        `yaml:"process_key"`
+	PollInterval time.Duration `yaml:"poll_interval"`
+	PollTimeout  time.Duration `yaml:"poll_timeout"`
+}
+
+type GiteaConfig struct {
+	BaseURL string `yaml:"base_url"`
+	Token   string `yaml:"token"`
+	Owner   string `yaml:"owner"`
+	Repo    string `yaml:"repo"`
+}
+
 type IntegrationConfig struct {
 	// BFFSharedSecret 是 Next.js BFF 的签名密钥。M0 的只读控制台面不经过它，
 	// 但保留配置位，M1 接入写操作时不再改配置结构。
@@ -143,6 +162,20 @@ func Default() Config {
 			BaseBackoff:  2 * time.Second,
 			MaxBackoff:   5 * time.Minute,
 		},
+		Approver: ApproverConfig{
+			BaseURL:      "http://127.0.0.1:18090",
+			TenantID:     "default",
+			ServiceUser:  "devmaster-service",
+			ApproverUser: "release-approver",
+			ProcessKey:   "devmaster-release-approval",
+			PollInterval: 5 * time.Second,
+			PollTimeout:  30 * time.Minute,
+		},
+		Gitea: GiteaConfig{
+			BaseURL: "http://127.0.0.1:3123",
+			Owner:   "meshadmin",
+			Repo:    "hosp",
+		},
 	}
 }
 
@@ -178,6 +211,12 @@ func applyEnv(cfg *Config) {
 	setString(&cfg.NATS.Stream, "DEVMASTER_NATS_STREAM")
 	setString(&cfg.Temporal.HostPort, "DEVMASTER_TEMPORAL_HOSTPORT")
 	setString(&cfg.Temporal.Namespace, "DEVMASTER_TEMPORAL_NAMESPACE")
+	setString(&cfg.Approver.BaseURL, "DEVMASTER_APPROVER_BASE_URL")
+	setString(&cfg.Approver.ProcessKey, "DEVMASTER_APPROVER_PROCESS_KEY")
+	setString(&cfg.Gitea.BaseURL, "DEVMASTER_GITEA_BASE_URL")
+	setString(&cfg.Gitea.Token, "DEVMASTER_GITEA_TOKEN")
+	setString(&cfg.Gitea.Owner, "DEVMASTER_GITEA_OWNER")
+	setString(&cfg.Gitea.Repo, "DEVMASTER_GITEA_REPO")
 	setBool(&cfg.Auth.Enabled, "DEVMASTER_AUTH_ENABLED")
 	setString(&cfg.Auth.Issuer, "DEVMASTER_AUTH_ISSUER")
 	setString(&cfg.Auth.Audience, "DEVMASTER_AUTH_AUDIENCE")

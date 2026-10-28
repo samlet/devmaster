@@ -76,7 +76,7 @@ export default async function WorkItemsPage({
       <header className="page">
         <h1>工作项</h1>
         <span className="hint">
-          <a href="/">产品</a> · <a href="/board">看板</a> · devmaster
+          <a href="/">产品</a> · <a href="/board">看板</a> · <a href="/versions">版本</a> · devmaster
         </span>
       </header>
 

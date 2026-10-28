@@ -28,6 +28,8 @@ import (
 	sprintapplication "github.com/xiaofeiwu/devmaster/backend/internal/sprint/application"
 	grpctransport "github.com/xiaofeiwu/devmaster/backend/internal/transport/grpc"
 	httptransport "github.com/xiaofeiwu/devmaster/backend/internal/transport/http"
+	versionpostgres "github.com/xiaofeiwu/devmaster/backend/internal/version/adapter/postgres"
+	versionapplication "github.com/xiaofeiwu/devmaster/backend/internal/version/application"
 	workitempostgres "github.com/xiaofeiwu/devmaster/backend/internal/workitem/adapter/postgres"
 	workitemapplication "github.com/xiaofeiwu/devmaster/backend/internal/workitem/application"
 )
@@ -72,6 +74,12 @@ func run() error {
 	workItemService := workitemapplication.NewService(workitempostgres.NewRepository(db))
 	sprintService := sprintapplication.NewService(sprintpostgres.NewRepository(db))
 	boardService := boardapplication.NewService(workItemService, sprintService)
+	versionService := versionapplication.NewService(versionpostgres.NewRepository(db))
+	workItemService.SetVersionGuard(func(ctx context.Context, organizationID, versionID uuid.UUID) error {
+		return versionService.EnsureMutable(ctx, versionapplication.Actor{
+			Subject: "workitem-guard", OrganizationID: organizationID,
+		}, versionID)
+	})
 
 	grpcServer := grpctransport.NewServer(
 		authenticator, metrics, logger,
@@ -79,6 +87,7 @@ func run() error {
 		grpctransport.NewWorkItemService(workItemService, db, logger),
 		grpctransport.NewSprintService(sprintService, db, logger),
 		grpctransport.NewBoardService(boardService, db, logger),
+		grpctransport.NewVersionService(versionService, db, logger),
 		grpctransport.NewSystemService(),
 	)
 	grpcListener, err := net.Listen("tcp", cfg.Server.GRPCAddress)
@@ -100,7 +109,7 @@ func run() error {
 	}
 	httpServer := &http.Server{
 		Addr:    cfg.Server.HTTPAddress,
-		Handler: httptransport.NewServer(productService, workItemService, sprintService, boardService, metrics, health, logger, defaultOrganizationID).Handler(),
+		Handler: httptransport.NewServer(productService, workItemService, sprintService, boardService, versionService, metrics, health, logger, defaultOrganizationID).Handler(),
 	}
 
 	errCh := make(chan error, 2)

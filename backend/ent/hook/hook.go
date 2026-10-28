@@ -93,6 +93,18 @@ func (f ProductCounterFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Val
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ProductCounterMutation", m)
 }
 
+// The ReleaseRecordFunc type is an adapter to allow the use of ordinary
+// function as ReleaseRecord mutator.
+type ReleaseRecordFunc func(context.Context, *ent.ReleaseRecordMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ReleaseRecordFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ReleaseRecordMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ReleaseRecordMutation", m)
+}
+
 // The SprintFunc type is an adapter to allow the use of ordinary
 // function as Sprint mutator.
 type SprintFunc func(context.Context, *ent.SprintMutation) (ent.Value, error)
@@ -127,6 +139,18 @@ func (f SprintSnapshotFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Val
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SprintSnapshotMutation", m)
+}
+
+// The VersionFunc type is an adapter to allow the use of ordinary
+// function as Version mutator.
+type VersionFunc func(context.Context, *ent.VersionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f VersionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.VersionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.VersionMutation", m)
 }
 
 // The WorkItemFunc type is an adapter to allow the use of ordinary

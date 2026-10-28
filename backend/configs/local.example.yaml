@@ -57,6 +57,20 @@ outbox:
   base_backoff: 2s
   max_backoff: 5m
 
-integrations:
-  # M1 接入写操作时启用；M0 的只读控制台面不经过 BFF 签名。
-  bff_shared_secret: ""
+approver:
+  # 本地 approver API（HEADER 模式）；生产走 OIDC + 网关。
+  base_url: http://127.0.0.1:18090
+  tenant_id: default
+  service_user: devmaster-service
+  approver_user: release-approver
+  process_key: devmaster-release-approval
+  poll_interval: 5s
+  poll_timeout: 30m
+
+gitea:
+  base_url: http://127.0.0.1:3123
+  # 令牌从环境变量 DEVMASTER_GITEA_TOKEN 注入，不写进仓库。
+  token: ""
+  owner: meshadmin
+  repo: hosp
+

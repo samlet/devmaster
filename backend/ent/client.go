@@ -22,9 +22,11 @@ import (
 	"github.com/xiaofeiwu/devmaster/backend/ent/outboxevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/product"
 	"github.com/xiaofeiwu/devmaster/backend/ent/productcounter"
+	"github.com/xiaofeiwu/devmaster/backend/ent/releaserecord"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprint"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintscopeevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/sprintsnapshot"
+	"github.com/xiaofeiwu/devmaster/backend/ent/version"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitem"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemevent"
 	"github.com/xiaofeiwu/devmaster/backend/ent/workitemlink"
@@ -49,12 +51,16 @@ type Client struct {
 	Product *ProductClient
 	// ProductCounter is the client for interacting with the ProductCounter builders.
 	ProductCounter *ProductCounterClient
+	// ReleaseRecord is the client for interacting with the ReleaseRecord builders.
+	ReleaseRecord *ReleaseRecordClient
 	// Sprint is the client for interacting with the Sprint builders.
 	Sprint *SprintClient
 	// SprintScopeEvent is the client for interacting with the SprintScopeEvent builders.
 	SprintScopeEvent *SprintScopeEventClient
 	// SprintSnapshot is the client for interacting with the SprintSnapshot builders.
 	SprintSnapshot *SprintSnapshotClient
+	// Version is the client for interacting with the Version builders.
+	Version *VersionClient
 	// WorkItem is the client for interacting with the WorkItem builders.
 	WorkItem *WorkItemClient
 	// WorkItemEvent is the client for interacting with the WorkItemEvent builders.
@@ -79,9 +85,11 @@ func (c *Client) init() {
 	c.OutboxEvent = NewOutboxEventClient(c.config)
 	c.Product = NewProductClient(c.config)
 	c.ProductCounter = NewProductCounterClient(c.config)
+	c.ReleaseRecord = NewReleaseRecordClient(c.config)
 	c.Sprint = NewSprintClient(c.config)
 	c.SprintScopeEvent = NewSprintScopeEventClient(c.config)
 	c.SprintSnapshot = NewSprintSnapshotClient(c.config)
+	c.Version = NewVersionClient(c.config)
 	c.WorkItem = NewWorkItemClient(c.config)
 	c.WorkItemEvent = NewWorkItemEventClient(c.config)
 	c.WorkItemLink = NewWorkItemLinkClient(c.config)
@@ -184,9 +192,11 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		OutboxEvent:      NewOutboxEventClient(cfg),
 		Product:          NewProductClient(cfg),
 		ProductCounter:   NewProductCounterClient(cfg),
+		ReleaseRecord:    NewReleaseRecordClient(cfg),
 		Sprint:           NewSprintClient(cfg),
 		SprintScopeEvent: NewSprintScopeEventClient(cfg),
 		SprintSnapshot:   NewSprintSnapshotClient(cfg),
+		Version:          NewVersionClient(cfg),
 		WorkItem:         NewWorkItemClient(cfg),
 		WorkItemEvent:    NewWorkItemEventClient(cfg),
 		WorkItemLink:     NewWorkItemLinkClient(cfg),
@@ -216,9 +226,11 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		OutboxEvent:      NewOutboxEventClient(cfg),
 		Product:          NewProductClient(cfg),
 		ProductCounter:   NewProductCounterClient(cfg),
+		ReleaseRecord:    NewReleaseRecordClient(cfg),
 		Sprint:           NewSprintClient(cfg),
 		SprintScopeEvent: NewSprintScopeEventClient(cfg),
 		SprintSnapshot:   NewSprintSnapshotClient(cfg),
+		Version:          NewVersionClient(cfg),
 		WorkItem:         NewWorkItemClient(cfg),
 		WorkItemEvent:    NewWorkItemEventClient(cfg),
 		WorkItemLink:     NewWorkItemLinkClient(cfg),
@@ -252,8 +264,8 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.Board, c.Comment, c.IdempotencyKey, c.InboxEvent, c.OutboxEvent, c.Product,
-		c.ProductCounter, c.Sprint, c.SprintScopeEvent, c.SprintSnapshot, c.WorkItem,
-		c.WorkItemEvent, c.WorkItemLink,
+		c.ProductCounter, c.ReleaseRecord, c.Sprint, c.SprintScopeEvent,
+		c.SprintSnapshot, c.Version, c.WorkItem, c.WorkItemEvent, c.WorkItemLink,
 	} {
 		n.Use(hooks...)
 	}
@@ -264,8 +276,8 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.Board, c.Comment, c.IdempotencyKey, c.InboxEvent, c.OutboxEvent, c.Product,
-		c.ProductCounter, c.Sprint, c.SprintScopeEvent, c.SprintSnapshot, c.WorkItem,
-		c.WorkItemEvent, c.WorkItemLink,
+		c.ProductCounter, c.ReleaseRecord, c.Sprint, c.SprintScopeEvent,
+		c.SprintSnapshot, c.Version, c.WorkItem, c.WorkItemEvent, c.WorkItemLink,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -288,12 +300,16 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Product.mutate(ctx, m)
 	case *ProductCounterMutation:
 		return c.ProductCounter.mutate(ctx, m)
+	case *ReleaseRecordMutation:
+		return c.ReleaseRecord.mutate(ctx, m)
 	case *SprintMutation:
 		return c.Sprint.mutate(ctx, m)
 	case *SprintScopeEventMutation:
 		return c.SprintScopeEvent.mutate(ctx, m)
 	case *SprintSnapshotMutation:
 		return c.SprintSnapshot.mutate(ctx, m)
+	case *VersionMutation:
+		return c.Version.mutate(ctx, m)
 	case *WorkItemMutation:
 		return c.WorkItem.mutate(ctx, m)
 	case *WorkItemEventMutation:
@@ -1236,6 +1252,139 @@ func (c *ProductCounterClient) mutate(ctx context.Context, m *ProductCounterMuta
 	}
 }
 
+// ReleaseRecordClient is a client for the ReleaseRecord schema.
+type ReleaseRecordClient struct {
+	config
+}
+
+// NewReleaseRecordClient returns a client for the ReleaseRecord from the given config.
+func NewReleaseRecordClient(c config) *ReleaseRecordClient {
+	return &ReleaseRecordClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `releaserecord.Hooks(f(g(h())))`.
+func (c *ReleaseRecordClient) Use(hooks ...Hook) {
+	c.hooks.ReleaseRecord = append(c.hooks.ReleaseRecord, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `releaserecord.Intercept(f(g(h())))`.
+func (c *ReleaseRecordClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ReleaseRecord = append(c.inters.ReleaseRecord, interceptors...)
+}
+
+// Create returns a builder for creating a ReleaseRecord entity.
+func (c *ReleaseRecordClient) Create() *ReleaseRecordCreate {
+	mutation := newReleaseRecordMutation(c.config, OpCreate)
+	return &ReleaseRecordCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ReleaseRecord entities.
+func (c *ReleaseRecordClient) CreateBulk(builders ...*ReleaseRecordCreate) *ReleaseRecordCreateBulk {
+	return &ReleaseRecordCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ReleaseRecordClient) MapCreateBulk(slice any, setFunc func(*ReleaseRecordCreate, int)) *ReleaseRecordCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ReleaseRecordCreateBulk{err: fmt.Errorf("calling to ReleaseRecordClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ReleaseRecordCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ReleaseRecordCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ReleaseRecord.
+func (c *ReleaseRecordClient) Update() *ReleaseRecordUpdate {
+	mutation := newReleaseRecordMutation(c.config, OpUpdate)
+	return &ReleaseRecordUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ReleaseRecordClient) UpdateOne(_m *ReleaseRecord) *ReleaseRecordUpdateOne {
+	mutation := newReleaseRecordMutation(c.config, OpUpdateOne, withReleaseRecord(_m))
+	return &ReleaseRecordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ReleaseRecordClient) UpdateOneID(id uuid.UUID) *ReleaseRecordUpdateOne {
+	mutation := newReleaseRecordMutation(c.config, OpUpdateOne, withReleaseRecordID(id))
+	return &ReleaseRecordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ReleaseRecord.
+func (c *ReleaseRecordClient) Delete() *ReleaseRecordDelete {
+	mutation := newReleaseRecordMutation(c.config, OpDelete)
+	return &ReleaseRecordDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ReleaseRecordClient) DeleteOne(_m *ReleaseRecord) *ReleaseRecordDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ReleaseRecordClient) DeleteOneID(id uuid.UUID) *ReleaseRecordDeleteOne {
+	builder := c.Delete().Where(releaserecord.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ReleaseRecordDeleteOne{builder}
+}
+
+// Query returns a query builder for ReleaseRecord.
+func (c *ReleaseRecordClient) Query() *ReleaseRecordQuery {
+	return &ReleaseRecordQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeReleaseRecord},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ReleaseRecord entity by its id.
+func (c *ReleaseRecordClient) Get(ctx context.Context, id uuid.UUID) (*ReleaseRecord, error) {
+	return c.Query().Where(releaserecord.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ReleaseRecordClient) GetX(ctx context.Context, id uuid.UUID) *ReleaseRecord {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ReleaseRecordClient) Hooks() []Hook {
+	return c.hooks.ReleaseRecord
+}
+
+// Interceptors returns the client interceptors.
+func (c *ReleaseRecordClient) Interceptors() []Interceptor {
+	return c.inters.ReleaseRecord
+}
+
+func (c *ReleaseRecordClient) mutate(ctx context.Context, m *ReleaseRecordMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ReleaseRecordCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ReleaseRecordUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ReleaseRecordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ReleaseRecordDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ReleaseRecord mutation op: %q", m.Op())
+	}
+}
+
 // SprintClient is a client for the Sprint schema.
 type SprintClient struct {
 	config
@@ -1632,6 +1781,139 @@ func (c *SprintSnapshotClient) mutate(ctx context.Context, m *SprintSnapshotMuta
 		return (&SprintSnapshotDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown SprintSnapshot mutation op: %q", m.Op())
+	}
+}
+
+// VersionClient is a client for the Version schema.
+type VersionClient struct {
+	config
+}
+
+// NewVersionClient returns a client for the Version from the given config.
+func NewVersionClient(c config) *VersionClient {
+	return &VersionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `version.Hooks(f(g(h())))`.
+func (c *VersionClient) Use(hooks ...Hook) {
+	c.hooks.Version = append(c.hooks.Version, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `version.Intercept(f(g(h())))`.
+func (c *VersionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Version = append(c.inters.Version, interceptors...)
+}
+
+// Create returns a builder for creating a Version entity.
+func (c *VersionClient) Create() *VersionCreate {
+	mutation := newVersionMutation(c.config, OpCreate)
+	return &VersionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Version entities.
+func (c *VersionClient) CreateBulk(builders ...*VersionCreate) *VersionCreateBulk {
+	return &VersionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *VersionClient) MapCreateBulk(slice any, setFunc func(*VersionCreate, int)) *VersionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &VersionCreateBulk{err: fmt.Errorf("calling to VersionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*VersionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &VersionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Version.
+func (c *VersionClient) Update() *VersionUpdate {
+	mutation := newVersionMutation(c.config, OpUpdate)
+	return &VersionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *VersionClient) UpdateOne(_m *Version) *VersionUpdateOne {
+	mutation := newVersionMutation(c.config, OpUpdateOne, withVersion(_m))
+	return &VersionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *VersionClient) UpdateOneID(id uuid.UUID) *VersionUpdateOne {
+	mutation := newVersionMutation(c.config, OpUpdateOne, withVersionID(id))
+	return &VersionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Version.
+func (c *VersionClient) Delete() *VersionDelete {
+	mutation := newVersionMutation(c.config, OpDelete)
+	return &VersionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *VersionClient) DeleteOne(_m *Version) *VersionDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *VersionClient) DeleteOneID(id uuid.UUID) *VersionDeleteOne {
+	builder := c.Delete().Where(version.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &VersionDeleteOne{builder}
+}
+
+// Query returns a query builder for Version.
+func (c *VersionClient) Query() *VersionQuery {
+	return &VersionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeVersion},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Version entity by its id.
+func (c *VersionClient) Get(ctx context.Context, id uuid.UUID) (*Version, error) {
+	return c.Query().Where(version.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *VersionClient) GetX(ctx context.Context, id uuid.UUID) *Version {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *VersionClient) Hooks() []Hook {
+	return c.hooks.Version
+}
+
+// Interceptors returns the client interceptors.
+func (c *VersionClient) Interceptors() []Interceptor {
+	return c.inters.Version
+}
+
+func (c *VersionClient) mutate(ctx context.Context, m *VersionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&VersionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&VersionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&VersionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&VersionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Version mutation op: %q", m.Op())
 	}
 }
 
@@ -2038,12 +2320,12 @@ func (c *WorkItemLinkClient) mutate(ctx context.Context, m *WorkItemLinkMutation
 type (
 	hooks struct {
 		Board, Comment, IdempotencyKey, InboxEvent, OutboxEvent, Product,
-		ProductCounter, Sprint, SprintScopeEvent, SprintSnapshot, WorkItem,
-		WorkItemEvent, WorkItemLink []ent.Hook
+		ProductCounter, ReleaseRecord, Sprint, SprintScopeEvent, SprintSnapshot,
+		Version, WorkItem, WorkItemEvent, WorkItemLink []ent.Hook
 	}
 	inters struct {
 		Board, Comment, IdempotencyKey, InboxEvent, OutboxEvent, Product,
-		ProductCounter, Sprint, SprintScopeEvent, SprintSnapshot, WorkItem,
-		WorkItemEvent, WorkItemLink []ent.Interceptor
+		ProductCounter, ReleaseRecord, Sprint, SprintScopeEvent, SprintSnapshot,
+		Version, WorkItem, WorkItemEvent, WorkItemLink []ent.Interceptor
 	}
 )

@@ -1,0 +1,152 @@
+syntax = "proto3";
+
+package dev.v1;
+
+import "dev/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/xiaofeiwu/devmaster/backend/gen/go/dev/v1;devv1";
+
+enum VersionStatus {
+  VERSION_STATUS_UNSPECIFIED = 0;
+  VERSION_STATUS_PLANNED = 1;
+  VERSION_STATUS_IN_PROGRESS = 2;
+  VERSION_STATUS_RELEASED = 3;
+  VERSION_STATUS_ARCHIVED = 4;
+  VERSION_STATUS_CANCELLED = 5;
+}
+
+enum ReleaseStatus {
+  RELEASE_STATUS_UNSPECIFIED = 0;
+  RELEASE_STATUS_PENDING_APPROVAL = 1;
+  RELEASE_STATUS_APPROVED = 2;
+  RELEASE_STATUS_TAGGED = 3;
+  RELEASE_STATUS_PUBLISHED = 4;
+  RELEASE_STATUS_FAILED = 5;
+}
+
+message Version {
+  string id = 1;
+  string organization_id = 2;
+  string product_id = 3;
+  string name = 4;
+  VersionStatus status = 5;
+  string milestone_label = 6;
+  string planned_date = 7; // YYYY-MM-DD
+  google.protobuf.Timestamp released_at = 8;
+  string notes_ref = 9;
+  google.protobuf.Timestamp scope_frozen_at = 10;
+  int32 version = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+}
+
+message ReleaseRecord {
+  string id = 1;
+  string organization_id = 2;
+  string version_id = 3;
+  ReleaseStatus status = 4;
+  string tag = 5;
+  string commit_from = 6;
+  string commit_to = 7;
+  string submitted_by = 8;
+  string approval_instance_id = 9;
+  string approver_id = 10;
+  string evidence_ref = 11;
+  string failure_reason = 12;
+  string released_by = 13;
+  google.protobuf.Timestamp released_at = 14;
+  int32 version = 15;
+  google.protobuf.Timestamp created_at = 16;
+  google.protobuf.Timestamp updated_at = 17;
+}
+
+message CreateVersionRequest {
+  WriteOptions options = 1;
+  string product_id = 2;
+  string name = 3;
+  string milestone_label = 4;
+  string planned_date = 5;
+  string notes_ref = 6;
+}
+
+message CreateVersionResponse {
+  Version version = 1;
+}
+
+message UpdateVersionRequest {
+  WriteOptions options = 1;
+  string id = 2;
+  optional string name = 3;
+  optional string milestone_label = 4;
+  optional string planned_date = 5;
+  optional string notes_ref = 6;
+}
+
+message UpdateVersionResponse {
+  Version version = 1;
+}
+
+message GetVersionRequest {
+  string id = 1;
+}
+
+message GetVersionResponse {
+  Version version = 1;
+}
+
+message ListVersionsRequest {
+  string product_id = 1;
+}
+
+message ListVersionsResponse {
+  repeated Version versions = 1;
+}
+
+message AssignVersionItemsRequest {
+  WriteOptions options = 1;
+  string version_id = 2;
+  repeated string work_item_ids = 3;
+}
+
+message AssignVersionItemsResponse {
+  int32 affected = 1;
+}
+
+message SubmitReleaseRequest {
+  WriteOptions options = 1;
+  string version_id = 2;
+  string commit_from = 3;
+  string commit_to = 4;
+}
+
+message SubmitReleaseResponse {
+  ReleaseRecord release = 1;
+}
+
+message GetReleaseRequest {
+  string id = 1;
+}
+
+message GetReleaseResponse {
+  ReleaseRecord release = 1;
+}
+
+message ListReleasesRequest {
+  string version_id = 1;
+}
+
+message ListReleasesResponse {
+  repeated ReleaseRecord releases = 1;
+}
+
+service VersionService {
+  rpc CreateVersion(CreateVersionRequest) returns (CreateVersionResponse);
+  rpc UpdateVersion(UpdateVersionRequest) returns (UpdateVersionResponse);
+  rpc GetVersion(GetVersionRequest) returns (GetVersionResponse);
+  rpc ListVersions(ListVersionsRequest) returns (ListVersionsResponse);
+  rpc AssignVersionItems(AssignVersionItemsRequest) returns (AssignVersionItemsResponse);
+  rpc SubmitRelease(SubmitReleaseRequest) returns (SubmitReleaseResponse);
+  rpc GetRelease(GetReleaseRequest) returns (GetReleaseResponse);
+  rpc ListReleases(ListReleasesRequest) returns (ListReleasesResponse);
+}

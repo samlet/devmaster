@@ -50,6 +50,20 @@ const (
 	FieldStoryPoints = "story_points"
 	// FieldEstimateMinutes holds the string denoting the estimate_minutes field in the database.
 	FieldEstimateMinutes = "estimate_minutes"
+	// FieldPlatform holds the string denoting the platform field in the database.
+	FieldPlatform = "platform"
+	// FieldBuildNumber holds the string denoting the build_number field in the database.
+	FieldBuildNumber = "build_number"
+	// FieldReproSteps holds the string denoting the repro_steps field in the database.
+	FieldReproSteps = "repro_steps"
+	// FieldExpectedBehavior holds the string denoting the expected_behavior field in the database.
+	FieldExpectedBehavior = "expected_behavior"
+	// FieldActualBehavior holds the string denoting the actual_behavior field in the database.
+	FieldActualBehavior = "actual_behavior"
+	// FieldVersionID holds the string denoting the version_id field in the database.
+	FieldVersionID = "version_id"
+	// FieldAffectsVersionID holds the string denoting the affects_version_id field in the database.
+	FieldAffectsVersionID = "affects_version_id"
 	// FieldRank holds the string denoting the rank field in the database.
 	FieldRank = "rank"
 	// FieldProjectCode holds the string denoting the project_code field in the database.
@@ -99,6 +113,13 @@ var Columns = []string{
 	FieldSprintID,
 	FieldStoryPoints,
 	FieldEstimateMinutes,
+	FieldPlatform,
+	FieldBuildNumber,
+	FieldReproSteps,
+	FieldExpectedBehavior,
+	FieldActualBehavior,
+	FieldVersionID,
+	FieldAffectsVersionID,
 	FieldRank,
 	FieldProjectCode,
 	FieldWbsCode,
@@ -146,6 +167,10 @@ var (
 	ReporterIDValidator func(string) error
 	// AssigneeIDValidator is a validator for the "assignee_id" field. It is called by the builders before save.
 	AssigneeIDValidator func(string) error
+	// PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
+	PlatformValidator func(string) error
+	// BuildNumberValidator is a validator for the "build_number" field. It is called by the builders before save.
+	BuildNumberValidator func(string) error
 	// RankValidator is a validator for the "rank" field. It is called by the builders before save.
 	RankValidator func(string) error
 	// ProjectCodeValidator is a validator for the "project_code" field. It is called by the builders before save.
@@ -264,6 +289,41 @@ func ByStoryPoints(opts ...sql.OrderTermOption) OrderOption {
 // ByEstimateMinutes orders the results by the estimate_minutes field.
 func ByEstimateMinutes(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldEstimateMinutes, opts...).ToFunc()
+}
+
+// ByPlatform orders the results by the platform field.
+func ByPlatform(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPlatform, opts...).ToFunc()
+}
+
+// ByBuildNumber orders the results by the build_number field.
+func ByBuildNumber(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBuildNumber, opts...).ToFunc()
+}
+
+// ByReproSteps orders the results by the repro_steps field.
+func ByReproSteps(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReproSteps, opts...).ToFunc()
+}
+
+// ByExpectedBehavior orders the results by the expected_behavior field.
+func ByExpectedBehavior(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldExpectedBehavior, opts...).ToFunc()
+}
+
+// ByActualBehavior orders the results by the actual_behavior field.
+func ByActualBehavior(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldActualBehavior, opts...).ToFunc()
+}
+
+// ByVersionID orders the results by the version_id field.
+func ByVersionID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldVersionID, opts...).ToFunc()
+}
+
+// ByAffectsVersionID orders the results by the affects_version_id field.
+func ByAffectsVersionID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAffectsVersionID, opts...).ToFunc()
 }
 
 // ByRank orders the results by the rank field.

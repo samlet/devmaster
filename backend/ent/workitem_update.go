@@ -356,6 +356,146 @@ func (_u *WorkItemUpdate) ClearEstimateMinutes() *WorkItemUpdate {
 	return _u
 }
 
+// SetPlatform sets the "platform" field.
+func (_u *WorkItemUpdate) SetPlatform(v string) *WorkItemUpdate {
+	_u.mutation.SetPlatform(v)
+	return _u
+}
+
+// SetNillablePlatform sets the "platform" field if the given value is not nil.
+func (_u *WorkItemUpdate) SetNillablePlatform(v *string) *WorkItemUpdate {
+	if v != nil {
+		_u.SetPlatform(*v)
+	}
+	return _u
+}
+
+// ClearPlatform clears the value of the "platform" field.
+func (_u *WorkItemUpdate) ClearPlatform() *WorkItemUpdate {
+	_u.mutation.ClearPlatform()
+	return _u
+}
+
+// SetBuildNumber sets the "build_number" field.
+func (_u *WorkItemUpdate) SetBuildNumber(v string) *WorkItemUpdate {
+	_u.mutation.SetBuildNumber(v)
+	return _u
+}
+
+// SetNillableBuildNumber sets the "build_number" field if the given value is not nil.
+func (_u *WorkItemUpdate) SetNillableBuildNumber(v *string) *WorkItemUpdate {
+	if v != nil {
+		_u.SetBuildNumber(*v)
+	}
+	return _u
+}
+
+// ClearBuildNumber clears the value of the "build_number" field.
+func (_u *WorkItemUpdate) ClearBuildNumber() *WorkItemUpdate {
+	_u.mutation.ClearBuildNumber()
+	return _u
+}
+
+// SetReproSteps sets the "repro_steps" field.
+func (_u *WorkItemUpdate) SetReproSteps(v string) *WorkItemUpdate {
+	_u.mutation.SetReproSteps(v)
+	return _u
+}
+
+// SetNillableReproSteps sets the "repro_steps" field if the given value is not nil.
+func (_u *WorkItemUpdate) SetNillableReproSteps(v *string) *WorkItemUpdate {
+	if v != nil {
+		_u.SetReproSteps(*v)
+	}
+	return _u
+}
+
+// ClearReproSteps clears the value of the "repro_steps" field.
+func (_u *WorkItemUpdate) ClearReproSteps() *WorkItemUpdate {
+	_u.mutation.ClearReproSteps()
+	return _u
+}
+
+// SetExpectedBehavior sets the "expected_behavior" field.
+func (_u *WorkItemUpdate) SetExpectedBehavior(v string) *WorkItemUpdate {
+	_u.mutation.SetExpectedBehavior(v)
+	return _u
+}
+
+// SetNillableExpectedBehavior sets the "expected_behavior" field if the given value is not nil.
+func (_u *WorkItemUpdate) SetNillableExpectedBehavior(v *string) *WorkItemUpdate {
+	if v != nil {
+		_u.SetExpectedBehavior(*v)
+	}
+	return _u
+}
+
+// ClearExpectedBehavior clears the value of the "expected_behavior" field.
+func (_u *WorkItemUpdate) ClearExpectedBehavior() *WorkItemUpdate {
+	_u.mutation.ClearExpectedBehavior()
+	return _u
+}
+
+// SetActualBehavior sets the "actual_behavior" field.
+func (_u *WorkItemUpdate) SetActualBehavior(v string) *WorkItemUpdate {
+	_u.mutation.SetActualBehavior(v)
+	return _u
+}
+
+// SetNillableActualBehavior sets the "actual_behavior" field if the given value is not nil.
+func (_u *WorkItemUpdate) SetNillableActualBehavior(v *string) *WorkItemUpdate {
+	if v != nil {
+		_u.SetActualBehavior(*v)
+	}
+	return _u
+}
+
+// ClearActualBehavior clears the value of the "actual_behavior" field.
+func (_u *WorkItemUpdate) ClearActualBehavior() *WorkItemUpdate {
+	_u.mutation.ClearActualBehavior()
+	return _u
+}
+
+// SetVersionID sets the "version_id" field.
+func (_u *WorkItemUpdate) SetVersionID(v uuid.UUID) *WorkItemUpdate {
+	_u.mutation.SetVersionID(v)
+	return _u
+}
+
+// SetNillableVersionID sets the "version_id" field if the given value is not nil.
+func (_u *WorkItemUpdate) SetNillableVersionID(v *uuid.UUID) *WorkItemUpdate {
+	if v != nil {
+		_u.SetVersionID(*v)
+	}
+	return _u
+}
+
+// ClearVersionID clears the value of the "version_id" field.
+func (_u *WorkItemUpdate) ClearVersionID() *WorkItemUpdate {
+	_u.mutation.ClearVersionID()
+	return _u
+}
+
+// SetAffectsVersionID sets the "affects_version_id" field.
+func (_u *WorkItemUpdate) SetAffectsVersionID(v uuid.UUID) *WorkItemUpdate {
+	_u.mutation.SetAffectsVersionID(v)
+	return _u
+}
+
+// SetNillableAffectsVersionID sets the "affects_version_id" field if the given value is not nil.
+func (_u *WorkItemUpdate) SetNillableAffectsVersionID(v *uuid.UUID) *WorkItemUpdate {
+	if v != nil {
+		_u.SetAffectsVersionID(*v)
+	}
+	return _u
+}
+
+// ClearAffectsVersionID clears the value of the "affects_version_id" field.
+func (_u *WorkItemUpdate) ClearAffectsVersionID() *WorkItemUpdate {
+	_u.mutation.ClearAffectsVersionID()
+	return _u
+}
+
 // SetRank sets the "rank" field.
 func (_u *WorkItemUpdate) SetRank(v string) *WorkItemUpdate {
 	_u.mutation.SetRank(v)
@@ -638,6 +778,16 @@ func (_u *WorkItemUpdate) check() error {
 			return &ValidationError{Name: "assignee_id", err: fmt.Errorf(`ent: validator failed for field "WorkItem.assignee_id": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Platform(); ok {
+		if err := workitem.PlatformValidator(v); err != nil {
+			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "WorkItem.platform": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.BuildNumber(); ok {
+		if err := workitem.BuildNumberValidator(v); err != nil {
+			return &ValidationError{Name: "build_number", err: fmt.Errorf(`ent: validator failed for field "WorkItem.build_number": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Rank(); ok {
 		if err := workitem.RankValidator(v); err != nil {
 			return &ValidationError{Name: "rank", err: fmt.Errorf(`ent: validator failed for field "WorkItem.rank": %w`, err)}
@@ -762,6 +912,48 @@ func (_u *WorkItemUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.EstimateMinutesCleared() {
 		_spec.ClearField(workitem.FieldEstimateMinutes, field.TypeInt)
+	}
+	if value, ok := _u.mutation.Platform(); ok {
+		_spec.SetField(workitem.FieldPlatform, field.TypeString, value)
+	}
+	if _u.mutation.PlatformCleared() {
+		_spec.ClearField(workitem.FieldPlatform, field.TypeString)
+	}
+	if value, ok := _u.mutation.BuildNumber(); ok {
+		_spec.SetField(workitem.FieldBuildNumber, field.TypeString, value)
+	}
+	if _u.mutation.BuildNumberCleared() {
+		_spec.ClearField(workitem.FieldBuildNumber, field.TypeString)
+	}
+	if value, ok := _u.mutation.ReproSteps(); ok {
+		_spec.SetField(workitem.FieldReproSteps, field.TypeString, value)
+	}
+	if _u.mutation.ReproStepsCleared() {
+		_spec.ClearField(workitem.FieldReproSteps, field.TypeString)
+	}
+	if value, ok := _u.mutation.ExpectedBehavior(); ok {
+		_spec.SetField(workitem.FieldExpectedBehavior, field.TypeString, value)
+	}
+	if _u.mutation.ExpectedBehaviorCleared() {
+		_spec.ClearField(workitem.FieldExpectedBehavior, field.TypeString)
+	}
+	if value, ok := _u.mutation.ActualBehavior(); ok {
+		_spec.SetField(workitem.FieldActualBehavior, field.TypeString, value)
+	}
+	if _u.mutation.ActualBehaviorCleared() {
+		_spec.ClearField(workitem.FieldActualBehavior, field.TypeString)
+	}
+	if value, ok := _u.mutation.VersionID(); ok {
+		_spec.SetField(workitem.FieldVersionID, field.TypeUUID, value)
+	}
+	if _u.mutation.VersionIDCleared() {
+		_spec.ClearField(workitem.FieldVersionID, field.TypeUUID)
+	}
+	if value, ok := _u.mutation.AffectsVersionID(); ok {
+		_spec.SetField(workitem.FieldAffectsVersionID, field.TypeUUID, value)
+	}
+	if _u.mutation.AffectsVersionIDCleared() {
+		_spec.ClearField(workitem.FieldAffectsVersionID, field.TypeUUID)
 	}
 	if value, ok := _u.mutation.Rank(); ok {
 		_spec.SetField(workitem.FieldRank, field.TypeString, value)
@@ -1170,6 +1362,146 @@ func (_u *WorkItemUpdateOne) ClearEstimateMinutes() *WorkItemUpdateOne {
 	return _u
 }
 
+// SetPlatform sets the "platform" field.
+func (_u *WorkItemUpdateOne) SetPlatform(v string) *WorkItemUpdateOne {
+	_u.mutation.SetPlatform(v)
+	return _u
+}
+
+// SetNillablePlatform sets the "platform" field if the given value is not nil.
+func (_u *WorkItemUpdateOne) SetNillablePlatform(v *string) *WorkItemUpdateOne {
+	if v != nil {
+		_u.SetPlatform(*v)
+	}
+	return _u
+}
+
+// ClearPlatform clears the value of the "platform" field.
+func (_u *WorkItemUpdateOne) ClearPlatform() *WorkItemUpdateOne {
+	_u.mutation.ClearPlatform()
+	return _u
+}
+
+// SetBuildNumber sets the "build_number" field.
+func (_u *WorkItemUpdateOne) SetBuildNumber(v string) *WorkItemUpdateOne {
+	_u.mutation.SetBuildNumber(v)
+	return _u
+}
+
+// SetNillableBuildNumber sets the "build_number" field if the given value is not nil.
+func (_u *WorkItemUpdateOne) SetNillableBuildNumber(v *string) *WorkItemUpdateOne {
+	if v != nil {
+		_u.SetBuildNumber(*v)
+	}
+	return _u
+}
+
+// ClearBuildNumber clears the value of the "build_number" field.
+func (_u *WorkItemUpdateOne) ClearBuildNumber() *WorkItemUpdateOne {
+	_u.mutation.ClearBuildNumber()
+	return _u
+}
+
+// SetReproSteps sets the "repro_steps" field.
+func (_u *WorkItemUpdateOne) SetReproSteps(v string) *WorkItemUpdateOne {
+	_u.mutation.SetReproSteps(v)
+	return _u
+}
+
+// SetNillableReproSteps sets the "repro_steps" field if the given value is not nil.
+func (_u *WorkItemUpdateOne) SetNillableReproSteps(v *string) *WorkItemUpdateOne {
+	if v != nil {
+		_u.SetReproSteps(*v)
+	}
+	return _u
+}
+
+// ClearReproSteps clears the value of the "repro_steps" field.
+func (_u *WorkItemUpdateOne) ClearReproSteps() *WorkItemUpdateOne {
+	_u.mutation.ClearReproSteps()
+	return _u
+}
+
+// SetExpectedBehavior sets the "expected_behavior" field.
+func (_u *WorkItemUpdateOne) SetExpectedBehavior(v string) *WorkItemUpdateOne {
+	_u.mutation.SetExpectedBehavior(v)
+	return _u
+}
+
+// SetNillableExpectedBehavior sets the "expected_behavior" field if the given value is not nil.
+func (_u *WorkItemUpdateOne) SetNillableExpectedBehavior(v *string) *WorkItemUpdateOne {
+	if v != nil {
+		_u.SetExpectedBehavior(*v)
+	}
+	return _u
+}
+
+// ClearExpectedBehavior clears the value of the "expected_behavior" field.
+func (_u *WorkItemUpdateOne) ClearExpectedBehavior() *WorkItemUpdateOne {
+	_u.mutation.ClearExpectedBehavior()
+	return _u
+}
+
+// SetActualBehavior sets the "actual_behavior" field.
+func (_u *WorkItemUpdateOne) SetActualBehavior(v string) *WorkItemUpdateOne {
+	_u.mutation.SetActualBehavior(v)
+	return _u
+}
+
+// SetNillableActualBehavior sets the "actual_behavior" field if the given value is not nil.
+func (_u *WorkItemUpdateOne) SetNillableActualBehavior(v *string) *WorkItemUpdateOne {
+	if v != nil {
+		_u.SetActualBehavior(*v)
+	}
+	return _u
+}
+
+// ClearActualBehavior clears the value of the "actual_behavior" field.
+func (_u *WorkItemUpdateOne) ClearActualBehavior() *WorkItemUpdateOne {
+	_u.mutation.ClearActualBehavior()
+	return _u
+}
+
+// SetVersionID sets the "version_id" field.
+func (_u *WorkItemUpdateOne) SetVersionID(v uuid.UUID) *WorkItemUpdateOne {
+	_u.mutation.SetVersionID(v)
+	return _u
+}
+
+// SetNillableVersionID sets the "version_id" field if the given value is not nil.
+func (_u *WorkItemUpdateOne) SetNillableVersionID(v *uuid.UUID) *WorkItemUpdateOne {
+	if v != nil {
+		_u.SetVersionID(*v)
+	}
+	return _u
+}
+
+// ClearVersionID clears the value of the "version_id" field.
+func (_u *WorkItemUpdateOne) ClearVersionID() *WorkItemUpdateOne {
+	_u.mutation.ClearVersionID()
+	return _u
+}
+
+// SetAffectsVersionID sets the "affects_version_id" field.
+func (_u *WorkItemUpdateOne) SetAffectsVersionID(v uuid.UUID) *WorkItemUpdateOne {
+	_u.mutation.SetAffectsVersionID(v)
+	return _u
+}
+
+// SetNillableAffectsVersionID sets the "affects_version_id" field if the given value is not nil.
+func (_u *WorkItemUpdateOne) SetNillableAffectsVersionID(v *uuid.UUID) *WorkItemUpdateOne {
+	if v != nil {
+		_u.SetAffectsVersionID(*v)
+	}
+	return _u
+}
+
+// ClearAffectsVersionID clears the value of the "affects_version_id" field.
+func (_u *WorkItemUpdateOne) ClearAffectsVersionID() *WorkItemUpdateOne {
+	_u.mutation.ClearAffectsVersionID()
+	return _u
+}
+
 // SetRank sets the "rank" field.
 func (_u *WorkItemUpdateOne) SetRank(v string) *WorkItemUpdateOne {
 	_u.mutation.SetRank(v)
@@ -1465,6 +1797,16 @@ func (_u *WorkItemUpdateOne) check() error {
 			return &ValidationError{Name: "assignee_id", err: fmt.Errorf(`ent: validator failed for field "WorkItem.assignee_id": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Platform(); ok {
+		if err := workitem.PlatformValidator(v); err != nil {
+			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "WorkItem.platform": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.BuildNumber(); ok {
+		if err := workitem.BuildNumberValidator(v); err != nil {
+			return &ValidationError{Name: "build_number", err: fmt.Errorf(`ent: validator failed for field "WorkItem.build_number": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Rank(); ok {
 		if err := workitem.RankValidator(v); err != nil {
 			return &ValidationError{Name: "rank", err: fmt.Errorf(`ent: validator failed for field "WorkItem.rank": %w`, err)}
@@ -1606,6 +1948,48 @@ func (_u *WorkItemUpdateOne) sqlSave(ctx context.Context) (_node *WorkItem, err 
 	}
 	if _u.mutation.EstimateMinutesCleared() {
 		_spec.ClearField(workitem.FieldEstimateMinutes, field.TypeInt)
+	}
+	if value, ok := _u.mutation.Platform(); ok {
+		_spec.SetField(workitem.FieldPlatform, field.TypeString, value)
+	}
+	if _u.mutation.PlatformCleared() {
+		_spec.ClearField(workitem.FieldPlatform, field.TypeString)
+	}
+	if value, ok := _u.mutation.BuildNumber(); ok {
+		_spec.SetField(workitem.FieldBuildNumber, field.TypeString, value)
+	}
+	if _u.mutation.BuildNumberCleared() {
+		_spec.ClearField(workitem.FieldBuildNumber, field.TypeString)
+	}
+	if value, ok := _u.mutation.ReproSteps(); ok {
+		_spec.SetField(workitem.FieldReproSteps, field.TypeString, value)
+	}
+	if _u.mutation.ReproStepsCleared() {
+		_spec.ClearField(workitem.FieldReproSteps, field.TypeString)
+	}
+	if value, ok := _u.mutation.ExpectedBehavior(); ok {
+		_spec.SetField(workitem.FieldExpectedBehavior, field.TypeString, value)
+	}
+	if _u.mutation.ExpectedBehaviorCleared() {
+		_spec.ClearField(workitem.FieldExpectedBehavior, field.TypeString)
+	}
+	if value, ok := _u.mutation.ActualBehavior(); ok {
+		_spec.SetField(workitem.FieldActualBehavior, field.TypeString, value)
+	}
+	if _u.mutation.ActualBehaviorCleared() {
+		_spec.ClearField(workitem.FieldActualBehavior, field.TypeString)
+	}
+	if value, ok := _u.mutation.VersionID(); ok {
+		_spec.SetField(workitem.FieldVersionID, field.TypeUUID, value)
+	}
+	if _u.mutation.VersionIDCleared() {
+		_spec.ClearField(workitem.FieldVersionID, field.TypeUUID)
+	}
+	if value, ok := _u.mutation.AffectsVersionID(); ok {
+		_spec.SetField(workitem.FieldAffectsVersionID, field.TypeUUID, value)
+	}
+	if _u.mutation.AffectsVersionIDCleared() {
+		_spec.ClearField(workitem.FieldAffectsVersionID, field.TypeUUID)
 	}
 	if value, ok := _u.mutation.Rank(); ok {
 		_spec.SetField(workitem.FieldRank, field.TypeString, value)

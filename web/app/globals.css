@@ -309,3 +309,24 @@ a:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.pill.version-released {
+  background: var(--ok-bg);
+  color: var(--ok-text);
+}
+
+.pill.version-planned,
+.pill.version-archived {
+  background: #f2f4f7;
+  color: #344054;
+}
+
+.pill.version-in_progress {
+  background: #eff8ff;
+  color: #175cd3;
+}
+
+.pill.version-cancelled {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}

@@ -14,5 +14,6 @@ dist/
 
 # 本地配置与凭据（模板用 *.example.*）
 *.local.yaml
+backend/configs/local.yaml
 *.env
 !*.env.example

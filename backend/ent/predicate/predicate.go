@@ -27,6 +27,9 @@ type Product func(*sql.Selector)
 // ProductCounter is the predicate function for productcounter builders.
 type ProductCounter func(*sql.Selector)
 
+// ReleaseRecord is the predicate function for releaserecord builders.
+type ReleaseRecord func(*sql.Selector)
+
 // Sprint is the predicate function for sprint builders.
 type Sprint func(*sql.Selector)
 
@@ -35,6 +38,9 @@ type SprintScopeEvent func(*sql.Selector)
 
 // SprintSnapshot is the predicate function for sprintsnapshot builders.
 type SprintSnapshot func(*sql.Selector)
+
+// Version is the predicate function for version builders.
+type Version func(*sql.Selector)
 
 // WorkItem is the predicate function for workitem builders.
 type WorkItem func(*sql.Selector)
