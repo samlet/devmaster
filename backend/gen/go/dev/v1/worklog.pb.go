@@ -701,10 +701,12 @@ func (x *SumWorkLogsResponse) GetMinutes() int32 {
 }
 
 type ReverseWorkLogRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Options       *WriteOptions          `protobuf:"bytes,1,opt,name=options,proto3" json:"options,omitempty"`
-	WorkLogId     string                 `protobuf:"bytes,2,opt,name=work_log_id,json=workLogId,proto3" json:"work_log_id,omitempty"`
-	Note          string                 `protobuf:"bytes,3,opt,name=note,proto3" json:"note,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Options   *WriteOptions          `protobuf:"bytes,1,opt,name=options,proto3" json:"options,omitempty"`
+	WorkLogId string                 `protobuf:"bytes,2,opt,name=work_log_id,json=workLogId,proto3" json:"work_log_id,omitempty"`
+	Note      string                 `protobuf:"bytes,3,opt,name=note,proto3" json:"note,omitempty"`
+	// 冲正分钟数；不传表示全额。多次部分冲正累计不得超过原工时。
+	Minutes       *int32 `protobuf:"varint,4,opt,name=minutes,proto3,oneof" json:"minutes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -758,6 +760,13 @@ func (x *ReverseWorkLogRequest) GetNote() string {
 		return x.Note
 	}
 	return ""
+}
+
+func (x *ReverseWorkLogRequest) GetMinutes() int32 {
+	if x != nil && x.Minutes != nil {
+		return *x.Minutes
+	}
+	return 0
 }
 
 type ReverseWorkLogResponse struct {
@@ -865,11 +874,14 @@ const file_dev_v1_worklog_proto_rawDesc = "" +
 	"\tfrom_date\x18\x02 \x01(\tR\bfromDate\x12\x17\n" +
 	"\ato_date\x18\x03 \x01(\tR\x06toDate\"/\n" +
 	"\x13SumWorkLogsResponse\x12\x18\n" +
-	"\aminutes\x18\x01 \x01(\x05R\aminutes\"{\n" +
+	"\aminutes\x18\x01 \x01(\x05R\aminutes\"\xa6\x01\n" +
 	"\x15ReverseWorkLogRequest\x12.\n" +
 	"\aoptions\x18\x01 \x01(\v2\x14.dev.v1.WriteOptionsR\aoptions\x12\x1e\n" +
 	"\vwork_log_id\x18\x02 \x01(\tR\tworkLogId\x12\x12\n" +
-	"\x04note\x18\x03 \x01(\tR\x04note\"D\n" +
+	"\x04note\x18\x03 \x01(\tR\x04note\x12\x1d\n" +
+	"\aminutes\x18\x04 \x01(\x05H\x00R\aminutes\x88\x01\x01B\n" +
+	"\n" +
+	"\b_minutes\"D\n" +
 	"\x16ReverseWorkLogResponse\x12*\n" +
 	"\bwork_log\x18\x01 \x01(\v2\x0f.dev.v1.WorkLogR\aworkLog*h\n" +
 	"\rWorkLogSource\x12\x1f\n" +
@@ -951,6 +963,7 @@ func file_dev_v1_worklog_proto_init() {
 		return
 	}
 	file_dev_v1_common_proto_init()
+	file_dev_v1_worklog_proto_msgTypes[9].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

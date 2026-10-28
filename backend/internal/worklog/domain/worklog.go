@@ -6,6 +6,7 @@
 package domain
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -90,10 +91,19 @@ func NewWorkLog(input NewWorkLogInput) (WorkLog, error) {
 	}, nil
 }
 
-// NewReversal 生成一条负向更正，原记录保持不变。
+// NewReversal 生成一条全额负向更正。
 func NewReversal(original WorkLog, authorID string, note *string) (WorkLog, error) {
+	return NewReversalOf(original, original.Minutes, authorID, note)
+}
+
+// NewReversalOf 生成指定冲正分钟数的负向记录；amount 是正数，落库为负。
+func NewReversalOf(original WorkLog, amount int, authorID string, note *string) (WorkLog, error) {
 	if original.ReversalOf != nil {
 		return WorkLog{}, apperr.FailedPrecondition("reversal_of", "a reversal cannot be reversed")
+	}
+	if amount <= 0 || amount > original.Minutes {
+		return WorkLog{}, apperr.Invalid("minutes",
+			fmt.Sprintf("reversal must be between 1 and %d", original.Minutes))
 	}
 	if strings.TrimSpace(authorID) == "" {
 		return WorkLog{}, apperr.Invalid("author_id", "must not be empty")
@@ -109,7 +119,7 @@ func NewReversal(original WorkLog, authorID string, note *string) (WorkLog, erro
 		OrganizationID: original.OrganizationID,
 		WorkItemID:     original.WorkItemID,
 		AuthorID:       strings.TrimSpace(authorID),
-		Minutes:        -original.Minutes,
+		Minutes:        -amount,
 		WorkDate:       original.WorkDate,
 		Note:           trimPtr(reversalNote),
 		ProjectCode:    original.ProjectCode,

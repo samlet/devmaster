@@ -83,6 +83,8 @@ message ReverseWorkLogRequest {
   WriteOptions options = 1;
   string work_log_id = 2;
   string note = 3;
+  // 冲正分钟数；不传表示全额。多次部分冲正累计不得超过原工时。
+  optional int32 minutes = 4;
 }
 
 message ReverseWorkLogResponse {

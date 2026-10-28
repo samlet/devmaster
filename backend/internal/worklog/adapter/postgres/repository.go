@@ -63,6 +63,31 @@ func (r *Repository) ResolveWorkItem(ctx context.Context, organizationID uuid.UU
 
 func (r *Repository) Insert(ctx context.Context, log domain.WorkLog, outboxEvents []outbox.Event) (domain.WorkLog, error) {
 	err := r.db.InOrgTx(ctx, log.OrganizationID, func(tx *sql.Tx) error {
+		if log.ReversalOf != nil {
+			// 锁原记录并累计已冲正额：并发两次部分冲正也不能超过原工时。
+			var originalMinutes int
+			err := tx.QueryRowContext(ctx, `
+				SELECT minutes FROM work_logs
+				 WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
+				log.OrganizationID, *log.ReversalOf).Scan(&originalMinutes)
+			if errors.Is(err, sql.ErrNoRows) {
+				return apperr.NotFound("original work log not found")
+			}
+			if err != nil {
+				return fmt.Errorf("lock original work log: %w", err)
+			}
+			var reversed int
+			if err := tx.QueryRowContext(ctx, `
+				SELECT coalesce(-sum(minutes), 0) FROM work_logs
+				 WHERE organization_id = $1 AND reversal_of = $2`,
+				log.OrganizationID, *log.ReversalOf).Scan(&reversed); err != nil {
+				return fmt.Errorf("sum reversals: %w", err)
+			}
+			if reversed+(-log.Minutes) > originalMinutes {
+				return apperr.Conflict("minutes", fmt.Sprintf(
+					"reversal exceeds original: already reversed %d of %d", reversed, originalMinutes))
+			}
+		}
 		_, err := tx.ExecContext(ctx, `
 			INSERT INTO work_logs (id, organization_id, work_item_id, author_id, minutes,
 				work_date, note, project_code, wbs_code, grade_code, source, reversal_of, created_at)

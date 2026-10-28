@@ -50,4 +50,13 @@ func TestNewReversal(t *testing.T) {
 	if _, err := NewReversal(reversal, "carol", nil); err == nil {
 		t.Fatal("更正记录不能再被更正")
 	}
+	// 部分冲正：30 分钟合法，0 与超过原值非法。
+	if partial, err := NewReversalOf(original, 30, "bob", nil); err != nil || partial.Minutes != -30 {
+		t.Fatalf("部分冲正不对：%+v err=%v", partial, err)
+	}
+	for _, amount := range []int{0, -1, 91} {
+		if _, err := NewReversalOf(original, amount, "bob", nil); err == nil {
+			t.Fatalf("冲正 %d 分钟应当被拒绝", amount)
+		}
+	}
 }

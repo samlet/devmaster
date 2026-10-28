@@ -191,10 +191,15 @@ func (s *WorkLogService) ReverseWorkLog(ctx context.Context, req *devv1.ReverseW
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "work_log_id must be a valid UUID")
 	}
+	var minutes *int
+	if req.Minutes != nil {
+		value := int(*req.Minutes)
+		minutes = &value
+	}
 	return idempotency.Do(ctx, s.db, actor.OrganizationID, "worklog.reverse", key, req,
 		func() *devv1.ReverseWorkLogResponse { return &devv1.ReverseWorkLogResponse{} },
 		func(ctx context.Context) (*devv1.ReverseWorkLogResponse, error) {
-			log, err := s.service.Reverse(ctx, actor, workLogID, stringPtr(req.GetNote()))
+			log, err := s.service.Reverse(ctx, actor, workLogID, minutes, stringPtr(req.GetNote()))
 			if err != nil {
 				return nil, appError(s.logger, err)
 			}

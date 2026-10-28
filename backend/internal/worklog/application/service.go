@@ -132,8 +132,8 @@ func (s *Service) Sum(ctx context.Context, actor Actor, filter ListFilter) (int,
 	return s.repo.Sum(ctx, actor.OrganizationID, filter)
 }
 
-// Reverse 对一条工时做全额更正：生成负向记录，原记录不动。
-func (s *Service) Reverse(ctx context.Context, actor Actor, workLogID uuid.UUID, note *string) (domain.WorkLog, error) {
+// Reverse 更正一条工时；minutes 为空表示全额。可多次部分冲正，累计不得超过原工时。
+func (s *Service) Reverse(ctx context.Context, actor Actor, workLogID uuid.UUID, minutes *int, note *string) (domain.WorkLog, error) {
 	original, err := s.repo.Get(ctx, actor.OrganizationID, workLogID)
 	if err != nil {
 		return domain.WorkLog{}, err
@@ -141,12 +141,11 @@ func (s *Service) Reverse(ctx context.Context, actor Actor, workLogID uuid.UUID,
 	if original.ReversalOf != nil {
 		return domain.WorkLog{}, apperr.FailedPrecondition("reversal_of", "a reversal cannot be reversed")
 	}
-	if _, found, err := s.repo.FindReversal(ctx, actor.OrganizationID, workLogID); err != nil {
-		return domain.WorkLog{}, err
-	} else if found {
-		return domain.WorkLog{}, apperr.Conflict("reversal_of", "work log was already reversed")
+	amount := original.Minutes
+	if minutes != nil {
+		amount = *minutes
 	}
-	reversal, err := domain.NewReversal(original, actor.Subject, note)
+	reversal, err := domain.NewReversalOf(original, amount, actor.Subject, note)
 	if err != nil {
 		return domain.WorkLog{}, err
 	}

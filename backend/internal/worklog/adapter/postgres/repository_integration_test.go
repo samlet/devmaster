@@ -95,22 +95,34 @@ func TestWorkLogAppendOnlyAndReversal(t *testing.T) {
 		t.Fatalf("E7 内容不对：%s", string(payload))
 	}
 
-	reversal, err := f.svc.Reverse(context.Background(), f.actor, log.ID, nil)
+	// 分次冲正：先冲 30，净额 60。
+	thirty := 30
+	reversal, err := f.svc.Reverse(context.Background(), f.actor, log.ID, &thirty, nil)
 	if err != nil {
-		t.Fatalf("更正失败：%v", err)
+		t.Fatalf("部分更正失败：%v", err)
 	}
-	if reversal.Minutes != -90 || reversal.ReversalOf == nil {
-		t.Fatalf("更正记录不对：%+v", reversal)
+	if reversal.Minutes != -30 || reversal.ReversalOf == nil {
+		t.Fatalf("部分更正记录不对：%+v", reversal)
 	}
 	total, err := f.svc.Sum(context.Background(), f.actor, worklogapp.ListFilter{WorkItemID: &f.item.ID})
-	if err != nil || total != 0 {
-		t.Fatalf("净额 = %d err=%v，want 0", total, err)
+	if err != nil || total != 60 {
+		t.Fatalf("部分更正后净额 = %d err=%v，want 60", total, err)
 	}
-	// 重复更正应当冲突。
-	if _, err := f.svc.Reverse(context.Background(), f.actor, log.ID, nil); err == nil {
-		t.Fatal("重复更正应当被拒绝")
+	// 再冲 60，净额 0。
+	sixty := 60
+	if _, err := f.svc.Reverse(context.Background(), f.actor, log.ID, &sixty, nil); err != nil {
+		t.Fatalf("第二次更正失败：%v", err)
+	}
+	total, err = f.svc.Sum(context.Background(), f.actor, worklogapp.ListFilter{WorkItemID: &f.item.ID})
+	if err != nil || total != 0 {
+		t.Fatalf("全额冲正后净额 = %d err=%v，want 0", total, err)
+	}
+	// 再冲 1 分钟应当冲突：累计已等于原工时。
+	one := 1
+	if _, err := f.svc.Reverse(context.Background(), f.actor, log.ID, &one, nil); err == nil {
+		t.Fatal("超额更正应当被拒绝")
 	} else if kind, ok := apperr.KindOf(err); !ok || kind != apperr.KindConflict {
-		t.Fatalf("重复更正应当是 Conflict，got %v", err)
+		t.Fatalf("超额更正应当是 Conflict，got %v", err)
 	}
 
 	// 追加纪律：UPDATE / DELETE 必须被触发器拒绝。
