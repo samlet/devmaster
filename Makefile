@@ -136,7 +136,12 @@ web-env:
 web-dev: web-env
 	pnpm --dir web dev
 
+# dev 与 build 写同一个 .next：同时跑会互相覆盖 chunk，报 "Cannot find module './xxx.js'"。
 web-build: web-env
+	@if lsof -nP -iTCP:3031 -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo "3031 上有 dev 服务器在跑，build 会覆盖同一个 .next；先 make down" >&2; \
+		exit 1; \
+	fi
 	pnpm --dir web build
 
 web-check:

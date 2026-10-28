@@ -91,6 +91,7 @@ make web-env                # 首次生成 web/.env.local（session secret 随�
 | Keycloak 内置 scope | realm import 时 `profile`/`email`/`roles` 尚未创建，引用被**静默忽略**，登录报 `Invalid scopes` | 在 realm JSON 的 `clientScopes` 里显式定义 |
 | `go run` / `pnpm` 派生子进程 | 杀父进程后端口仍被占 | 先 `pkill -P <pid>` 再杀父（`dev-stack.sh` 已处理） |
 | 造数据用错产品 | HOSP 已有 ACTIVE 冲刺，用它验证「开始新冲刺」必然撞唯一约束 | 验证脚本要选没有 active 冲刺的产品 |
+| dev 与 build 混跑 | `next dev` 在跑时执行 `next build`，两者写同一个 `.next`，互相覆盖 chunk，报 `Cannot find module './574.js'` | `make down` → `rm -rf web/.next` → `make up`；`make web-build` 已加端口检查会直接拒绝 |
 
 ## 6. 提交约定
 
