@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"strings"
 	"time"
 
@@ -101,6 +102,27 @@ func (c *Client) Events(ctx context.Context, instanceID string) ([]Event, error)
 		return nil, err
 	}
 	return events, nil
+}
+
+// PendingAssignees 查流程实例当前还没办的待办人。
+//
+// 审批完成前 devmaster 拿不到 approver id（实例接口只有状态），
+// 这个端点补上「该催谁」。返回空列表表示实例当前没有待办。
+func (c *Client) PendingAssignees(ctx context.Context, instanceID string) ([]string, error) {
+	url := strings.TrimRight(c.cfg.BaseURL, "/") + "/api/v1/tasks/pending-assignees?processInstanceId=" +
+		neturl.QueryEscape(instanceID)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	c.setHeaders(request, "PROCESS_READ")
+	var payload struct {
+		Assignees []string `json:"assignees"`
+	}
+	if err := c.do(request, &payload); err != nil {
+		return nil, err
+	}
+	return payload.Assignees, nil
 }
 
 // ApproverFromEvents 从事件流里找出实际审批人（TASK_ACTION_SUBMITTED 的 actor）。

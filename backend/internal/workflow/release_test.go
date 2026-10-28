@@ -64,7 +64,7 @@ func TestReleaseWorkflowRemindsApprovalOnlyOnce(t *testing.T) {
 	env.OnActivity("PollReleaseApproval", mock.Anything, "instance-1").
 		Return(ApprovalResult{Status: "RUNNING"}, nil).Times(7)
 	env.OnActivity("PollReleaseApproval", mock.Anything, "instance-1").Return(approved, nil).Once()
-	env.OnActivity("NotifyApprovalPending", mock.Anything, input, info, "1h0m0s", "1h0m0s").Return(nil).Once()
+	env.OnActivity("NotifyApprovalPending", mock.Anything, input, info, "instance-1", "1h0m0s", "1h0m0s").Return(nil).Once()
 	stubHappyPathTail(env, input, info, approved)
 
 	env.ExecuteWorkflow(ReleaseWorkflow, input)
@@ -90,7 +90,7 @@ func TestReleaseWorkflowClampsReminderBelowTimeout(t *testing.T) {
 		Return(ApprovalResult{Status: "RUNNING"}, nil).Times(7)
 	env.OnActivity("PollReleaseApproval", mock.Anything, "instance-1").Return(approved, nil).Once()
 	// 压到 poll_timeout/2 = 1h，所以在 t=60 分钟催办。
-	env.OnActivity("NotifyApprovalPending", mock.Anything, input, info, "1h0m0s", "1h0m0s").Return(nil).Once()
+	env.OnActivity("NotifyApprovalPending", mock.Anything, input, info, "instance-1", "1h0m0s", "1h0m0s").Return(nil).Once()
 	stubHappyPathTail(env, input, info, approved)
 
 	env.ExecuteWorkflow(ReleaseWorkflow, input)
@@ -113,7 +113,7 @@ func TestReleaseWorkflowTimesOutWithDuration(t *testing.T) {
 	env.OnActivity("StartReleaseApproval", mock.Anything, input, info).Return("instance-1", nil)
 	env.OnActivity("PollReleaseApproval", mock.Anything, "instance-1").
 		Return(ApprovalResult{Status: "RUNNING"}, nil)
-	env.OnActivity("NotifyApprovalPending", mock.Anything, input, info, mock.Anything, "1h0m0s").Return(nil)
+	env.OnActivity("NotifyApprovalPending", mock.Anything, input, info, "instance-1", mock.Anything, "1h0m0s").Return(nil)
 	env.OnActivity("FailRelease", mock.Anything, input, mock.MatchedBy(func(reason string) bool {
 		return strings.Contains(reason, "timed out after")
 	})).Return(nil)
@@ -139,7 +139,7 @@ func TestReleaseWorkflowSurvivesReminderFailure(t *testing.T) {
 	env.OnActivity("PollReleaseApproval", mock.Anything, "instance-1").
 		Return(ApprovalResult{Status: "RUNNING"}, nil).Times(7)
 	env.OnActivity("PollReleaseApproval", mock.Anything, "instance-1").Return(approved, nil).Once()
-	env.OnActivity("NotifyApprovalPending", mock.Anything, input, info, mock.Anything, mock.Anything).
+	env.OnActivity("NotifyApprovalPending", mock.Anything, input, info, "instance-1", mock.Anything, mock.Anything).
 		Return(errTestNotifyDown)
 	stubHappyPathTail(env, input, info, approved)
 

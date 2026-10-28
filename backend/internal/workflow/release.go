@@ -123,7 +123,7 @@ func ReleaseWorkflow(ctx workflow.Context, input ReleaseInput) error {
 			if !reminded && now.Sub(startedAt) >= reminderAfter {
 				reminded = true
 				if err := workflow.ExecuteActivity(ctx, "NotifyApprovalPending",
-					input, info, waited.String(), reminderAfter.String()).Get(ctx, nil); err != nil {
+					input, info, instanceID, waited.String(), reminderAfter.String()).Get(ctx, nil); err != nil {
 					// 催办失败不改变审批事实，记一笔继续轮询。
 					workflow.GetLogger(ctx).Warn("approval reminder failed", "error", err.Error())
 				}
@@ -230,20 +230,88 @@ func (a *Activities) PollReleaseApproval(ctx context.Context, instanceID string)
 
 // NotifyApprovalPending 发一次待审批催办。通知是旁路：未启用时直接返回。
 //
-// 催办发给角色而不是具体审批人：approver 的实例接口不暴露 assignee，
-// 审批完成前 devmaster 拿不到审批人 id。等 approver 提供 assignee 查询再定向。
-func (a *Activities) NotifyApprovalPending(ctx context.Context, input ReleaseInput, info ReleaseInfo, waited, threshold string) error {
+// 收件人按「能定向就定向、定向不了就发角色」决定：多个待办人各发一条，
+// 由 notify 的 dedupe_key（含收件人）保证重试不重复轰炸。
+func (a *Activities) NotifyApprovalPending(ctx context.Context, input ReleaseInput, info ReleaseInfo, instanceID, waited, threshold string) error {
 	if a.Notifier == nil {
 		return nil
 	}
-	return a.Notifier.ReleaseApprovalPending(ctx, notify.ApprovalReminder{
-		VersionID:   input.VersionID.String(),
-		Version:     info.VersionName,
-		Waited:      waited,
-		Threshold:   threshold,
-		SubmittedBy: input.SubmittedBy,
-		RecipientID: approvalRoleRecipient,
-	})
+	var firstErr error
+	for _, recipientID := range a.approvalRecipients(ctx, instanceID) {
+		reminder := notify.ApprovalReminder{
+			VersionID:   input.VersionID.String(),
+			Version:     info.VersionName,
+			Waited:      waited,
+			Threshold:   threshold,
+			SubmittedBy: input.SubmittedBy,
+			RecipientID: recipientID,
+		}
+		if err := a.Notifier.ReleaseApprovalPending(ctx, reminder); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+// approvalRecipients 决定催办发给谁。
+//
+// 顺序：向 approver 查该实例的待办人 → 逐个解析成主体锚点 →
+// 全部解析不出来（或没有待办人、或查询失败）时降级到审批角色。
+//
+// 为什么降级而不是猜：猜错收件人就是信息泄露；发给角色只是多几个人看到。
+func (a *Activities) approvalRecipients(ctx context.Context, instanceID string) []string {
+	fallback := []string{approvalRoleRecipient}
+	if a.Approver == nil || strings.TrimSpace(instanceID) == "" {
+		return fallback
+	}
+	assignees, err := a.Approver.PendingAssignees(ctx, instanceID)
+	if err != nil {
+		if a.Logger != nil {
+			a.Logger.Warn("query pending assignees failed; using approval role",
+				slog.String("instance_id", instanceID), slog.String("error", err.Error()))
+		}
+		return fallback
+	}
+	if len(assignees) == 0 {
+		return fallback
+	}
+	recipients := make([]string, 0, len(assignees))
+	for _, assignee := range assignees {
+		if recipient := a.recipientForApprover(ctx, assignee); recipient != "" {
+			recipients = append(recipients, recipient)
+		}
+	}
+	if len(recipients) == 0 {
+		return fallback
+	}
+	return recipients
+}
+
+// recipientForApprover 把一个待办人解析成收件人。
+//
+// 先按 approver 用户 id 查，再按 Keycloak sub 查——两种登记方式都支持：
+// 有的部署把 approver 的用户绑进目录，有的直接用 OIDC 主体。
+// 两条都未命中返回空，调用方据此降级，不猜。
+func (a *Activities) recipientForApprover(ctx context.Context, assignee string) string {
+	trimmed := strings.TrimSpace(assignee)
+	if a.Subjects == nil || trimmed == "" {
+		return ""
+	}
+	for _, sourceSystem := range []string{subjectSourceApprover, subjectSourceKeycloak} {
+		anchorID, found, err := a.Subjects.ResolveSubject(ctx, sourceSystem, trimmed)
+		if err != nil {
+			if a.Logger != nil {
+				a.Logger.Warn("resolve approver failed",
+					slog.String("assignee", trimmed), slog.String("source", sourceSystem),
+					slog.String("error", err.Error()))
+			}
+			return ""
+		}
+		if found {
+			return userRecipientPrefix + anchorID
+		}
+	}
+	return ""
 }
 
 // recipientFor 把 devmaster 的用户标识解析成 notify 收件人。

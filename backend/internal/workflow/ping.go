@@ -49,6 +49,16 @@ type Notifier interface {
 	ReleaseApprovalPending(ctx context.Context, reminder notify.ApprovalReminder) error
 }
 
+// ApprovalClient 是 approver 端口。用接口而不是具体类型：待办人查询与
+// 降级分支需要可替换，否则「查不到待办人时降级到角色」这条最关键的
+// 安全行为只能靠人工走查。
+type ApprovalClient interface {
+	StartProcess(ctx context.Context, businessKey, idempotencyKey string, variables map[string]any) (string, error)
+	GetInstance(ctx context.Context, instanceID string) (approver.Instance, error)
+	Events(ctx context.Context, instanceID string) ([]approver.Event, error)
+	PendingAssignees(ctx context.Context, instanceID string) ([]string, error)
+}
+
 // SubjectResolver 是主体目录端口；nil 表示未接入。
 //
 // 未接入时通知发给团队收件箱——这是显式降级，不是失败。主体目录只影响
@@ -60,7 +70,7 @@ type SubjectResolver interface {
 type Activities struct {
 	DB       *database.DB
 	Versions *versionapp.Service
-	Approver *approver.Client
+	Approver ApprovalClient
 	Gitea    *gitea.Client
 	// Artifact 为 nil 表示未接入证据存证：发布链显式降级，evidence_ref 退化为
 	// 发布说明引用。生产环境配置校验会拒绝这种降级。

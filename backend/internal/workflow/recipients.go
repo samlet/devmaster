@@ -17,6 +17,9 @@ const (
 	// 用 anchor_id 而不是 Keycloak sub：换身份提供方后 anchor 不变，
 	// notify 侧的频控计数、退订记录、收件箱历史不会集体失效。
 	userRecipientPrefix = "user:"
+	// subjectSourceApprover 是 approver 系统的用户 id 键。审批人可能先在
+	// registry 里以 approver 用户身份登记过，也可能直接用 OIDC 主体。
+	subjectSourceApprover = "approver"
 	// approvalRoleRecipient 是催办的收件人。
 	//
 	// 为什么不是具体审批人：approver 的实例接口不暴露 assignee，审批完成前
