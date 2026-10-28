@@ -48,6 +48,11 @@ type WorkItemReader interface {
 	List(ctx context.Context, actor workitemapplication.Actor, filter workitemapplication.ListFilter) ([]workitemdomain.WorkItem, int, error)
 }
 
+// WorkItemWriter 是工作项状态流转的写端口。
+type WorkItemWriter interface {
+	Transition(ctx context.Context, actor workitemapplication.Actor, cmd workitemapplication.TransitionCommand) (workitemdomain.WorkItem, error)
+}
+
 type SprintReader interface {
 	List(ctx context.Context, actor sprintapp.Actor, productID uuid.UUID) ([]sprintdomain.Sprint, error)
 }
@@ -74,6 +79,7 @@ type SubjectResolver interface {
 // 打包传参，以后加控制台能力不必再改构造器签名。
 type ConsoleDeps struct {
 	Releases  ReleaseSubmitter
+	WorkItems WorkItemWriter
 	Subjects  SubjectResolver
 	BFFSecret string
 }
@@ -98,6 +104,7 @@ type Server struct {
 	board       BoardReader
 	versions    VersionReader
 	releases    ReleaseSubmitter
+	workItemsW  WorkItemWriter
 	subjects    SubjectResolver
 	bffSecret   string
 	reports     ReportReader
@@ -120,6 +127,7 @@ func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintR
 		board:                 board,
 		versions:              versions,
 		releases:              console.Releases,
+		workItemsW:            console.WorkItems,
 		subjects:              console.Subjects,
 		bffSecret:             console.BFFSecret,
 		reports:               reports,
@@ -139,6 +147,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/metrics", s.metrics.Handler())
 	mux.HandleFunc("/api/products", s.handleProducts)
 	mux.HandleFunc("/api/work-items", s.handleWorkItems)
+	mux.HandleFunc("/api/work-items/{id}/transition", s.handleTransitionWorkItem)
 	mux.HandleFunc("/api/sprints", s.handleSprints)
 	mux.HandleFunc("/api/board", s.handleBoard)
 	mux.HandleFunc("/api/versions", s.handleVersions)
@@ -256,6 +265,9 @@ type workItemView struct {
 	ReporterID string `json:"reporter_id"`
 	Version    int32  `json:"version"`
 	UpdatedAt  string `json:"updated_at"`
+	// NextStatuses 是当前状态下允许流转到的目标，前端据此渲染按钮。
+	// 由领域状态机给出，不在前端硬编码——否则状态机一改前端就骗人。
+	NextStatuses []string `json:"next_statuses"`
 }
 
 func (s *Server) handleWorkItems(w http.ResponseWriter, r *http.Request) {
@@ -316,18 +328,19 @@ func (s *Server) handleWorkItems(w http.ResponseWriter, r *http.Request) {
 	out := make([]workItemView, 0, len(items))
 	for _, item := range items {
 		out = append(out, workItemView{
-			ID:         item.ID.String(),
-			Key:        item.Key,
-			ProductID:  item.ProductID.String(),
-			Type:       string(item.Type),
-			Status:     string(item.Status),
-			Resolution: resolutionOrEmpty(item.Resolution),
-			Title:      item.Title,
-			Priority:   priorityLabel(item.Priority),
-			AssigneeID: stringOrEmpty(item.AssigneeID),
-			ReporterID: item.ReporterID,
-			Version:    int32(item.Version),
-			UpdatedAt:  item.UpdatedAt.Format(time.RFC3339),
+			ID:           item.ID.String(),
+			Key:          item.Key,
+			ProductID:    item.ProductID.String(),
+			Type:         string(item.Type),
+			Status:       string(item.Status),
+			Resolution:   resolutionOrEmpty(item.Resolution),
+			Title:        item.Title,
+			Priority:     priorityLabel(item.Priority),
+			AssigneeID:   stringOrEmpty(item.AssigneeID),
+			ReporterID:   item.ReporterID,
+			Version:      int32(item.Version),
+			UpdatedAt:    item.UpdatedAt.Format(time.RFC3339),
+			NextStatuses: statusNames(workitemdomain.AllowedTransitions(item.Type, item.Status)),
 		})
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -856,6 +869,104 @@ func (s *Server) handleResolveSubject(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"found": found, "anchor_id": anchorID})
+}
+
+// handleTransitionWorkItem 是控制台的第二个写端点：工作项状态流转。
+//
+// 与提交发布同一条 BFF 签名通道。actor 与角色放在 body 里而不是 header：
+// 签名覆盖 body，改不动；header 不参与签名，放身份就等于留了一个可篡改的口子。
+func (s *Server) handleTransitionWorkItem(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 32<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	workItemID, err := uuid.Parse(strings.TrimSpace(r.PathValue("id")))
+	if err != nil {
+		http.Error(w, "work item id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	var payload struct {
+		To              string   `json:"to"`
+		Resolution      string   `json:"resolution"`
+		Comment         string   `json:"comment"`
+		Actor           string   `json:"actor"`
+		ActorRoles      []string `json:"actor_roles"`
+		ExpectedVersion int      `json:"expected_version"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	to, err := workitemdomain.ParseStatus(payload.To)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(payload.Actor)
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	if payload.ExpectedVersion <= 0 {
+		http.Error(w, "expected_version is required", http.StatusBadRequest)
+		return
+	}
+	cmd := workitemapplication.TransitionCommand{
+		WorkItemID:      workItemID,
+		To:              to,
+		Comment:         strings.TrimSpace(payload.Comment),
+		ExpectedVersion: payload.ExpectedVersion,
+	}
+	if raw := strings.TrimSpace(payload.Resolution); raw != "" {
+		resolution, parseErr := workitemdomain.ParseResolution(raw)
+		if parseErr != nil {
+			http.Error(w, parseErr.Error(), http.StatusBadRequest)
+			return
+		}
+		cmd.Resolution = &resolution
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	item, err := s.workItemsW.Transition(r.Context(), workitemapplication.Actor{
+		Subject:        actor,
+		OrganizationID: organizationID,
+		Roles:          payload.ActorRoles,
+	}, cmd)
+	if err != nil {
+		s.writeAppError(w, "transition work item failed", err)
+		return
+	}
+	s.logger.Info("work item transitioned via console",
+		slog.String("work_item_id", workItemID.String()),
+		slog.String("to", string(item.Status)),
+		slog.String("actor", actor))
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id":      item.ID.String(),
+		"status":  string(item.Status),
+		"version": int32(item.Version),
+	})
+}
+
+// statusNames 把领域状态列表转成 JSON 友好的字符串切片。
+func statusNames(statuses []workitemdomain.Status) []string {
+	out := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		out = append(out, string(status))
+	}
+	return out
 }
 
 func (s *Server) reportActor(r *http.Request) (reportapp.Actor, *uuid.UUID, error) {

@@ -77,6 +77,7 @@ export async function GET(request: Request) {
 
   const sub = claims.sub as string;
   const name = claims.name ?? claims.preferred_username ?? sub;
-  await writeSession(newSession(sub, name, claims.email ?? "", []));
+  const roles = claims.realm_access?.roles ?? [];
+  await writeSession(newSession(sub, name, claims.email ?? "", roles));
   redirect("/");
 }

@@ -167,6 +167,37 @@ td.muted {
   min-width: 180px;
 }
 
+/* 行内流转表单：表格里放得下，窄屏自动换行。 */
+.transition-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.transition-form select,
+.transition-form input,
+.transition-form button {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.transition-form input {
+  width: 72px;
+}
+
+.transition-form button {
+  cursor: pointer;
+  background: var(--text);
+  color: #fff;
+  border-color: var(--text);
+}
+
 .release-form button {
   height: 34px;
   padding: 0 16px;

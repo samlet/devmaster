@@ -15,6 +15,8 @@ type WorkItem = {
   reporter_id: string;
   version: number;
   updated_at: string;
+  /** 当前状态允许流转到的目标，由后端状态机给出。 */
+  next_statuses: string[];
 };
 
 type WorkItemList = {
@@ -37,6 +39,15 @@ const STATUS_LABELS: Record<string, string> = {
   REOPENED: "重新打开",
   WONTFIX: "不修复",
   CANCELLED: "已取消",
+};
+
+const RESOLUTION_LABELS: Record<string, string> = {
+  FIXED: "已修复",
+  WONTFIX: "不修复",
+  DUPLICATE: "重复",
+  CANNOT_REPRODUCE: "无法复现",
+  BY_DESIGN: "设计如此",
+  OBSOLETE: "已过时",
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -65,11 +76,13 @@ async function loadWorkItems(status: string, query: string): Promise<{ data?: Wo
 export default async function WorkItemsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; error?: string; transitioned?: string }>;
 }) {
   const params = await searchParams;
   const status = (params.status ?? "").toUpperCase();
   const query = params.q ?? "";
+  // 流转后回到同一筛选视图，别把用户弹回未筛选的列表。
+  const returnTo = `/work-items?${new URLSearchParams({ ...(status ? { status } : {}), ...(query ? { q: query } : {}) }).toString()}`;
   const { data, error } = await loadWorkItems(status, query);
   const items = data?.items ?? [];
 
@@ -114,6 +127,7 @@ export default async function WorkItemsPage({
                   <th>优先级</th>
                   <th>经办人</th>
                   <th>更新</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -130,6 +144,39 @@ export default async function WorkItemsPage({
                     <td className="muted">{item.priority}</td>
                     <td className="muted">{item.assignee_id || "—"}</td>
                     <td className="muted">{new Date(item.updated_at).toLocaleString("zh-CN")}</td>
+                    <td>
+                      {item.next_statuses.length === 0 ? (
+                        <span className="muted">—</span>
+                      ) : (
+                        <form
+                          className="transition-form"
+                          action={`/api/work-items/${item.id}/transition`}
+                          method="post"
+                        >
+                          <input type="hidden" name="return_to" value={returnTo} />
+                          <input type="hidden" name="expected_version" value={item.version} />
+                          <select name="to" defaultValue={item.next_statuses[0]}>
+                            {item.next_statuses.map((next) => (
+                              <option key={next} value={next}>
+                                {STATUS_LABELS[next] ?? next}
+                              </option>
+                            ))}
+                          </select>
+                          {item.type === "BUG" ? (
+                            <select name="resolution" defaultValue="">
+                              <option value="">resolution</option>
+                              {Object.entries(RESOLUTION_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : null}
+                          <input name="comment" placeholder="备注" size={8} />
+                          <button type="submit">流转</button>
+                        </form>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

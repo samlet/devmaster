@@ -45,6 +45,9 @@ export type IdTokenClaims = {
   exp?: number;
   iss?: string;
   aud?: string | string[];
+  // roles scope 带出来的 realm 角色。状态机守卫需要它（取消要 DEV_LEAD、
+  // 代验 bug 也要 DEV_LEAD），所以必须从 id_token 里取，不能默认空。
+  realm_access?: { roles?: string[] };
 };
 
 /**

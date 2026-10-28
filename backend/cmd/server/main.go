@@ -138,6 +138,7 @@ func run() error {
 		Addr: cfg.Server.HTTPAddress,
 		Handler: httptransport.NewServer(productService, workItemService, sprintService, boardService, versionService, reportService, giteaService, cfg.Gitea.WebhookSecret, giteaOrg, metrics, health, logger, defaultOrganizationID, httptransport.ConsoleDeps{
 			Releases:  versionService,
+			WorkItems: workItemService,
 			Subjects:  subjects,
 			BFFSecret: cfg.Integrations.BFFSharedSecret,
 		}).Handler(),
