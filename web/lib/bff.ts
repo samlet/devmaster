@@ -23,10 +23,15 @@ function sign(timestamp: string, body: string): string {
  * 调后端受签名保护的端点。
  * body 为空（GET）时签名覆盖空串——时间戳仍在签名里，所以 GET 也防重放。
  */
-export async function signedFetch(path: string, init?: { method?: string; body?: string }): Promise<Response> {
+export async function signedFetch(
+  path: string,
+  init?: { method?: string; body?: string; query?: Record<string, string> },
+): Promise<Response> {
   const body = init?.body ?? "";
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  return fetch(`${API_URL}${path}`, {
+  // query 不参与签名：签名覆盖的是 body 与时间戳，GET/DELETE 用空 body。
+  const query = init?.query ? `?${new URLSearchParams(init.query).toString()}` : "";
+  return fetch(`${API_URL}${path}${query}`, {
     method: init?.method ?? "GET",
     headers: {
       "Content-Type": "application/json",

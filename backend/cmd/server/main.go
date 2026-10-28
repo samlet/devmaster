@@ -140,6 +140,7 @@ func run() error {
 			Releases:  versionService,
 			WorkItems: workItemService,
 			WorkLogs:  workLogService,
+			Sprints:   sprintService,
 			Subjects:  subjects,
 			BFFSecret: cfg.Integrations.BFFSharedSecret,
 		}).Handler(),

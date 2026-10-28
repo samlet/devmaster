@@ -175,6 +175,23 @@ td.muted {
   min-width: 180px;
 }
 
+/* 燃尽图：手绘 SVG，不引图表库 */
+.burndown {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.pill.sprint-active {
+  background: #e6f1fb;
+  color: #185fa5;
+}
+
+.pill.sprint-closed {
+  background: var(--border);
+  color: var(--muted);
+}
+
 /* 工时汇总卡 */
 .summary-card {
   display: flex;

@@ -68,6 +68,18 @@ type WorkItemWriter interface {
 
 type SprintReader interface {
 	List(ctx context.Context, actor sprintapp.Actor, productID uuid.UUID) ([]sprintdomain.Sprint, error)
+	Get(ctx context.Context, actor sprintapp.Actor, sprintID uuid.UUID) (sprintdomain.Sprint, error)
+	Stats(ctx context.Context, actor sprintapp.Actor, sprintID uuid.UUID) (sprintdomain.SprintStats, error)
+	Burndown(ctx context.Context, actor sprintapp.Actor, sprintID uuid.UUID) ([]sprintdomain.Snapshot, error)
+}
+
+// SprintWriter 是冲刺的写端口：创建、开始、结束、范围增删。
+type SprintWriter interface {
+	Create(ctx context.Context, actor sprintapp.Actor, cmd sprintapp.CreateCommand) (sprintdomain.Sprint, error)
+	Start(ctx context.Context, actor sprintapp.Actor, sprintID uuid.UUID, expectedVersion int) (sprintdomain.Sprint, int16, error)
+	Close(ctx context.Context, actor sprintapp.Actor, cmd sprintapp.CloseCommand) (sprintdomain.Sprint, error)
+	AddItems(ctx context.Context, actor sprintapp.Actor, sprintID uuid.UUID, itemIDs []uuid.UUID) (int, error)
+	RemoveItems(ctx context.Context, actor sprintapp.Actor, sprintID uuid.UUID, itemIDs []uuid.UUID) (int, error)
 }
 
 type BoardReader interface {
@@ -102,6 +114,7 @@ type SubjectResolver interface {
 // 打包传参，以后加控制台能力不必再改构造器签名。
 type ConsoleDeps struct {
 	Releases  ReleaseSubmitter
+	Sprints   SprintWriter
 	WorkItems WorkItemWriter
 	WorkLogs  WorkLogStore
 	Subjects  SubjectResolver
@@ -130,6 +143,7 @@ type Server struct {
 	releases    ReleaseSubmitter
 	workItemsW  WorkItemWriter
 	workLogs    WorkLogStore
+	sprintsW    SprintWriter
 	subjects    SubjectResolver
 	bffSecret   string
 	reports     ReportReader
@@ -154,6 +168,7 @@ func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintR
 		releases:              console.Releases,
 		workItemsW:            console.WorkItems,
 		workLogs:              console.WorkLogs,
+		sprintsW:              console.Sprints,
 		subjects:              console.Subjects,
 		bffSecret:             console.BFFSecret,
 		reports:               reports,
@@ -181,6 +196,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/work-items/{key}/links", s.handleRemoveLink)
 	mux.HandleFunc("/api/work-items/{key}/transition", s.handleTransitionWorkItem)
 	mux.HandleFunc("/api/sprints", s.handleSprints)
+	mux.HandleFunc("POST /api/sprints", s.handleCreateSprint)
+	mux.HandleFunc("POST /api/sprints/{id}/start", s.handleStartSprint)
+	mux.HandleFunc("POST /api/sprints/{id}/close", s.handleCloseSprint)
+	mux.HandleFunc("POST /api/sprints/{id}/items", s.handleAddSprintItems)
+	mux.HandleFunc("DELETE /api/sprints/{id}/items", s.handleRemoveSprintItems)
+	mux.HandleFunc("GET /api/sprints/{id}/burndown", s.handleSprintBurndown)
 	mux.HandleFunc("/api/board", s.handleBoard)
 	mux.HandleFunc("/api/versions", s.handleVersions)
 	mux.HandleFunc("/api/releases", s.handleSubmitRelease)
@@ -408,6 +429,328 @@ type sprintView struct {
 	EndAt           string `json:"end_at"`
 	CommittedPoints int32  `json:"committed_points"`
 	Version         int32  `json:"version"`
+	// Stats 是范围统计（承诺/新增/移除/完成/蔓延率）。
+	// 列表页要显示蔓延率，逐个查一次 Stats——冲刺数量少，不做批量查询。
+	Stats *sprintStatsView `json:"stats,omitempty"`
+}
+
+type sprintStatsView struct {
+	CommittedPoints int32   `json:"committed_points"`
+	AddedPoints     int32   `json:"added_points"`
+	RemovedPoints   int32   `json:"removed_points"`
+	CompletedPoints int32   `json:"completed_points"`
+	ScopePoints     int32   `json:"scope_points"`
+	RemainingPoints int32   `json:"remaining_points"`
+	CreepRate       float64 `json:"creep_rate"`
+}
+
+// handleCreateSprint 建冲刺。board 由 repo.EnsureDefaultBoard 自动准备。
+func (s *Server) handleCreateSprint(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 32<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	var payload struct {
+		ProductID      string `json:"product_id"`
+		Name           string `json:"name"`
+		Goal           string `json:"goal"`
+		StartAt        string `json:"start_at"`
+		EndAt          string `json:"end_at"`
+		CapacityPoints *int   `json:"capacity_points"`
+		Actor          string `json:"actor"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(payload.Actor)
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	productID, err := uuid.Parse(strings.TrimSpace(payload.ProductID))
+	if err != nil {
+		http.Error(w, "product_id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	cmd := sprintapp.CreateCommand{
+		ProductID: productID,
+		Name:      strings.TrimSpace(payload.Name),
+		Goal:      strings.TrimSpace(payload.Goal),
+	}
+	if raw := strings.TrimSpace(payload.StartAt); raw != "" {
+		parsed, parseErr := time.Parse("2006-01-02", raw)
+		if parseErr != nil {
+			http.Error(w, "start_at must be YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+		cmd.StartAt = &parsed
+	}
+	if raw := strings.TrimSpace(payload.EndAt); raw != "" {
+		parsed, parseErr := time.Parse("2006-01-02", raw)
+		if parseErr != nil {
+			http.Error(w, "end_at must be YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+		cmd.EndAt = &parsed
+	}
+	if payload.CapacityPoints != nil {
+		capacity := int16(*payload.CapacityPoints)
+		cmd.CapacityPoints = &capacity
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	sprint, err := s.sprintsW.Create(r.Context(), sprintapp.Actor{
+		Subject: actor, OrganizationID: organizationID,
+	}, cmd)
+	if err != nil {
+		s.writeAppError(w, "create sprint failed", err)
+		return
+	}
+	s.logger.Info("sprint created via console",
+		slog.String("sprint_id", sprint.ID.String()), slog.String("actor", actor))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id":      sprint.ID.String(),
+		"name":    sprint.Name,
+		"state":   string(sprint.State),
+		"version": int32(sprint.Version),
+	})
+}
+
+// sprintLifecycle 处理 start/close：两者入参形状相同（版本 + actor）。
+func (s *Server) sprintLifecycle(w http.ResponseWriter, r *http.Request, close bool) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 32<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	sprintID, err := uuid.Parse(strings.TrimSpace(r.PathValue("id")))
+	if err != nil {
+		http.Error(w, "sprint id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	var payload struct {
+		ExpectedVersion *int   `json:"expected_version"`
+		MoveToSprintID  string `json:"move_to_sprint_id"`
+		Actor           string `json:"actor"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(payload.Actor)
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	if payload.ExpectedVersion == nil {
+		http.Error(w, "expected_version is required", http.StatusBadRequest)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	actorRef := sprintapp.Actor{Subject: actor, OrganizationID: organizationID}
+
+	var sprint sprintdomain.Sprint
+	if close {
+		cmd := sprintapp.CloseCommand{SprintID: sprintID, ExpectedVersion: *payload.ExpectedVersion}
+		if raw := strings.TrimSpace(payload.MoveToSprintID); raw != "" {
+			moveTo, parseErr := uuid.Parse(raw)
+			if parseErr != nil {
+				http.Error(w, "move_to_sprint_id must be a valid UUID", http.StatusBadRequest)
+				return
+			}
+			cmd.MoveToSprintID = &moveTo
+		}
+		sprint, err = s.sprintsW.Close(r.Context(), actorRef, cmd)
+	} else {
+		sprint, _, err = s.sprintsW.Start(r.Context(), actorRef, sprintID, *payload.ExpectedVersion)
+	}
+	if err != nil {
+		// 同一 board 只能有一个进行中的冲刺（sprints_one_active_idx）。
+		// 这是业务约束，不是故障——给一句人话，别让用户对着 internal error 猜。
+		if strings.Contains(err.Error(), "sprints_one_active_idx") {
+			http.Error(w, "该产品已有进行中的冲刺，请先结束它再开始新的", http.StatusConflict)
+			return
+		}
+		s.writeAppError(w, "sprint lifecycle failed", err)
+		return
+	}
+	s.logger.Info("sprint lifecycle via console",
+		slog.String("sprint_id", sprintID.String()),
+		slog.String("state", string(sprint.State)),
+		slog.String("actor", actor))
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id":      sprint.ID.String(),
+		"state":   string(sprint.State),
+		"version": int32(sprint.Version),
+	})
+}
+
+func (s *Server) handleStartSprint(w http.ResponseWriter, r *http.Request) {
+	s.sprintLifecycle(w, r, false)
+}
+
+func (s *Server) handleCloseSprint(w http.ResponseWriter, r *http.Request) {
+	s.sprintLifecycle(w, r, true)
+}
+
+// sprintItemKeys 把一组工作项 key 解析成 ID。用 key 而不是 ID：
+// 人在界面上填的是 HOSP-3，不是 UUID。
+func (s *Server) sprintItemKeys(r *http.Request, actor workitemapplication.Actor, keys []string) ([]uuid.UUID, string) {
+	ids := make([]uuid.UUID, 0, len(keys))
+	for _, raw := range keys {
+		key := strings.TrimSpace(raw)
+		if key == "" {
+			continue
+		}
+		item, err := s.workItems.GetByKey(r.Context(), actor, key)
+		if err != nil {
+			return nil, key
+		}
+		ids = append(ids, item.ID)
+	}
+	return ids, ""
+}
+
+// sprintItems 处理范围增删：POST 加入，DELETE 移出。
+func (s *Server) sprintItems(w http.ResponseWriter, r *http.Request, add bool) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 32<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !add {
+		// DELETE 用 query 传参（DELETE 带 body 不通用），签名覆盖空 body。
+		body = nil
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	sprintID, err := uuid.Parse(strings.TrimSpace(r.PathValue("id")))
+	if err != nil {
+		http.Error(w, "sprint id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(r.URL.Query().Get("actor"))
+	var keys []string
+	if add {
+		var payload struct {
+			ItemKeys []string `json:"item_keys"`
+			Actor    string   `json:"actor"`
+		}
+		if err := json.Unmarshal(body, &payload); err != nil {
+			http.Error(w, "invalid json body", http.StatusBadRequest)
+			return
+		}
+		keys = payload.ItemKeys
+		actor = strings.TrimSpace(payload.Actor)
+	} else {
+		keys = strings.Split(r.URL.Query().Get("item_keys"), ",")
+	}
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	workItemActor := workitemapplication.Actor{Subject: actor, OrganizationID: organizationID}
+	ids, missingKey := s.sprintItemKeys(r, workItemActor, keys)
+	if missingKey != "" {
+		http.Error(w, "work item not found: "+missingKey, http.StatusNotFound)
+		return
+	}
+	if len(ids) == 0 {
+		http.Error(w, "item_keys is required", http.StatusBadRequest)
+		return
+	}
+	actorRef := sprintapp.Actor{Subject: actor, OrganizationID: organizationID}
+	var affected int
+	if add {
+		affected, err = s.sprintsW.AddItems(r.Context(), actorRef, sprintID, ids)
+	} else {
+		affected, err = s.sprintsW.RemoveItems(r.Context(), actorRef, sprintID, ids)
+	}
+	if err != nil {
+		s.writeAppError(w, "sprint items failed", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"affected": affected})
+}
+
+func (s *Server) handleAddSprintItems(w http.ResponseWriter, r *http.Request) {
+	s.sprintItems(w, r, true)
+}
+
+func (s *Server) handleRemoveSprintItems(w http.ResponseWriter, r *http.Request) {
+	s.sprintItems(w, r, false)
+}
+
+// handleSprintBurndown 返回燃尽数据点。没有快照时返回空数组——页面提示去跑 snapshot。
+func (s *Server) handleSprintBurndown(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	sprintID, err := uuid.Parse(strings.TrimSpace(r.PathValue("id")))
+	if err != nil {
+		http.Error(w, "sprint id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	snapshots, err := s.sprints.Burndown(r.Context(), sprintapp.Actor{
+		Subject: "http-readonly", OrganizationID: organizationID,
+	}, sprintID)
+	if err != nil {
+		s.writeAppError(w, "sprint burndown failed", err)
+		return
+	}
+	points := make([]map[string]any, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		points = append(points, map[string]any{
+			"date":             snapshot.Date.Format("2006-01-02"),
+			"scope_points":     snapshot.ScopePoints,
+			"completed_points": snapshot.CompletedPoints,
+			"remaining_points": snapshot.RemainingPoints,
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"points": points})
 }
 
 func (s *Server) handleSprints(w http.ResponseWriter, r *http.Request) {
@@ -434,9 +777,10 @@ func (s *Server) handleSprints(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	actorRef := sprintapp.Actor{Subject: "http-readonly", OrganizationID: organizationID}
 	out := make([]sprintView, 0, len(sprints))
 	for _, sprint := range sprints {
-		out = append(out, sprintView{
+		view := sprintView{
 			ID:              sprint.ID.String(),
 			Name:            sprint.Name,
 			Goal:            sprint.Goal,
@@ -445,7 +789,20 @@ func (s *Server) handleSprints(w http.ResponseWriter, r *http.Request) {
 			EndAt:           formatTime(sprint.EndAt),
 			CommittedPoints: int32(sprint.CommittedPoints),
 			Version:         int32(sprint.Version),
-		})
+		}
+		// 统计失败不影响列表：蔓延率缺一个字段，比整个页面打不开好。
+		if stats, statsErr := s.sprints.Stats(r.Context(), actorRef, sprint.ID); statsErr == nil {
+			view.Stats = &sprintStatsView{
+				CommittedPoints: int32(stats.CommittedPoints),
+				AddedPoints:     int32(stats.AddedPoints),
+				RemovedPoints:   int32(stats.RemovedPoints),
+				CompletedPoints: int32(stats.CompletedPoints),
+				ScopePoints:     int32(stats.ScopePoints),
+				RemainingPoints: int32(stats.RemainingPoints),
+				CreepRate:       stats.CreepRate,
+			}
+		}
+		out = append(out, view)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"items": out})
