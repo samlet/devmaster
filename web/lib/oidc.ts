@@ -18,6 +18,39 @@ export const OIDC_REDIRECT_URI =
 export const AUTH_MODE = (process.env.DEVMASTER_AUTH_MODE ?? "oidc").toLowerCase();
 export const DEV_DEFAULT_SUBJECT = process.env.DEVMASTER_CONSOLE_SUBJECT ?? "local-dev";
 
+/**
+ * 快速登录的预设账号。
+ *
+ * sub 与 deploy/keycloak/realm-devmaster.json 里的用户 id 保持一致——
+ * 这样快速登录与真实 Keycloak 登录拿到的是同一个主体，subject-registry 里
+ * 已有的绑定（收件箱的 user: 键）不用重新绑。
+ */
+export const DEV_ACCOUNTS = [
+  {
+    sub: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
+    name: "Alice Chen",
+    label: "Alice · DEV_LEAD",
+    roles: ["DEV_MEMBER", "DEV_LEAD"],
+  },
+  {
+    sub: "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb",
+    name: "Bob Liu",
+    label: "Bob · RELEASE_APPROVER",
+    roles: ["DEV_MEMBER", "RELEASE_APPROVER"],
+  },
+] as const;
+
+/**
+ * 快速登录是否可用。
+ *
+ * 它跳过 Keycloak 直接写会话，等于「免认证」——生产环境必须永远关闭。
+ * 用 NODE_ENV 判断而不是自定义开关：`next build` 会把它编译成常量，
+ * 生产包里这条分支直接消失，比运行时判断更难被误开。
+ */
+export function quickLoginAvailable(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
+
 export const authorizationEndpoint = `${OIDC_ISSUER}/protocol/openid-connect/auth`;
 export const tokenEndpoint = `${OIDC_ISSUER}/protocol/openid-connect/token`;
 export const endSessionEndpoint = `${OIDC_ISSUER}/protocol/openid-connect/logout`;

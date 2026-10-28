@@ -12,7 +12,7 @@ MIGRATIONS_DIR := backend/migrations
 GRPC_PORT ?= 50091
 HTTP_PORT ?= 8291
 
-.PHONY: web-env help tools proto proto-check db-create migrate migrate-test migrate-status \
+.PHONY: web-env status up down restart help tools proto proto-check db-create migrate migrate-test migrate-status \
         run relay worker consumer dev web-install web-dev web-build web-check \
         seed-check seed-dataset reconcile snapshot report-snapshot gitea-reconcile approver-bootstrap version-gate test-version-gate perf-baseline test test-integration lint build check clean
 
@@ -29,6 +29,10 @@ help:
 	@echo "make consumer         消费 release.submitted 起发布工作流"
 	@echo "make dev              server + relay + worker 同起同停"
 	@echo "make web-install      安装前端依赖（pnpm）"
+	@echo "make status           全栈状态（基础设施 + 应用层）"
+	@echo "make up               起应用层：Keycloak / registry / server / web"
+	@echo "make down             停应用层（不动 PostgreSQL/NATS/Temporal）"
+	@echo "make restart          down + up"
 	@echo "make web-env          生成 web/.env.local（session secret 随机）"
 	@echo "make web-dev          控制台 :3031"
 	@echo "make web-build        控制台生产构建"
@@ -77,6 +81,18 @@ migrate-test: db-create
 
 migrate-status:
 	atlas migrate status --dir "file://$(MIGRATIONS_DIR)" --url "$(ATLAS_URL)"
+
+status:
+	./scripts/dev-stack.sh status
+
+up:
+	./scripts/dev-stack.sh up
+
+down:
+	./scripts/dev-stack.sh down
+
+restart:
+	./scripts/dev-stack.sh restart
 
 run:
 	cd backend && go run ./cmd/server -config configs/local.example.yaml

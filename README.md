@@ -61,10 +61,11 @@ github.com/xiaofeiwu/subject-registry => ../../../portals/subject-registry
 ```bash
 make db-create        # devmaster_owner / devmaster_app 与 devmaster_dev / devmaster_test
 make migrate          # Atlas 版本化迁移 + 收紧运行时角色
-make run              # gRPC :50091 / HTTP :8291
+make status           # 全栈状态：基础设施 + 应用层，各自是否在跑
+make up               # 一键起应用层：Keycloak / subject-registry / server / web
+make down             # 一键停（不动 PostgreSQL/NATS/Temporal）
 make web-install      # 首次
-./scripts/keycloak-dev.sh start   # 本地 IdP（:18281，导入 devmaster realm + 测试账号）
-make web-dev          # 控制台 http://127.0.0.1:3031
+make web-dev          # 只起控制台（http://127.0.0.1:3031），配合已在跑的 server
 make seed-dataset     # 导入 m1-smoke（幂等；重复跑不会产生第二份事实）
 make reconcile        # 事件折叠对账：当前态必须等于事件日志
 make snapshot         # 给进行中冲刺写当天燃尽快照（建议 cron 每日跑）
