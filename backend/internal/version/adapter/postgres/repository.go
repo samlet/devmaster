@@ -172,6 +172,41 @@ func (r *Repository) AssignItems(ctx context.Context, organizationID, versionID,
 	return assigned, nil
 }
 
+func (r *Repository) ProductIDByCode(ctx context.Context, organizationID uuid.UUID, code string) (uuid.UUID, bool, error) {
+	var id uuid.UUID
+	err := r.db.InOrgTx(ctx, organizationID, func(tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx,
+			`SELECT id FROM products WHERE organization_id = $1 AND key = $2`,
+			organizationID, code).Scan(&id)
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, false, nil
+	}
+	if err != nil {
+		return uuid.Nil, false, fmt.Errorf("load product by code: %w", err)
+	}
+	return id, true, nil
+}
+
+func (r *Repository) FindVersionByName(ctx context.Context, organizationID, productID uuid.UUID, name string) (domain.Version, bool, error) {
+	var version domain.Version
+	err := r.db.InOrgTx(ctx, organizationID, func(tx *sql.Tx) error {
+		var err error
+		version, err = scanVersion(tx.QueryRowContext(ctx, `
+			SELECT `+versionColumns+` FROM versions
+			 WHERE organization_id = $1 AND product_id = $2 AND name = $3`,
+			organizationID, productID, name))
+		return err
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Version{}, false, nil
+	}
+	if err != nil {
+		return domain.Version{}, false, fmt.Errorf("load version by name: %w", err)
+	}
+	return version, true, nil
+}
+
 func (r *Repository) ProductCode(ctx context.Context, organizationID, productID uuid.UUID) (string, error) {
 	var code string
 	err := r.db.InOrgTx(ctx, organizationID, func(tx *sql.Tx) error {

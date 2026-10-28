@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package dev.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/xiaofeiwu/devmaster/backend/gen/go/dev/v1;devv1";
+
+message CheckVersionRequest {
+  string product_code = 1;
+  string version = 2;
+}
+
+message CheckVersionResponse {
+  // 版本不存在时 exists=false，不返回错误：调用方据此决定拒绝/放行。
+  bool exists = 1;
+  bool released = 2;
+  string version_id = 3;
+  string status = 4;
+  google.protobuf.Timestamp released_at = 5;
+}
+
+// VersionRegistryService 是给 it-solution 部署前置校验用的只读面。
+service VersionRegistryService {
+  rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse);
+}

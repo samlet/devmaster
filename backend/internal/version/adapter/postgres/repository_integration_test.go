@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/xiaofeiwu/devmaster/backend/internal/platform/apperr"
 	"github.com/xiaofeiwu/devmaster/backend/internal/platform/dbtest"
 	productpostgres "github.com/xiaofeiwu/devmaster/backend/internal/product/adapter/postgres"
 	productdomain "github.com/xiaofeiwu/devmaster/backend/internal/product/domain"
@@ -146,3 +147,32 @@ func TestReleaseLifecycleAndScopeFreeze(t *testing.T) {
 }
 
 func ptr(value string) *string { return &value }
+
+func TestCheckVersionSemantics(t *testing.T) {
+	f := newFixture(t)
+	version, err := f.version.Create(context.Background(), f.actor, versionapp.CreateCommand{
+		ProductID: f.product, Name: "2.0.0",
+	})
+	if err != nil {
+		t.Fatalf("创建版本失败：%v", err)
+	}
+	// 未发布：exists=true, released=false。
+	result, err := f.version.CheckVersion(context.Background(), f.actor, "HOSP", "2.0.0")
+	if err != nil {
+		t.Fatalf("CheckVersion 报错：%v", err)
+	}
+	if !result.Exists || result.Released || result.VersionID != version.ID {
+		t.Fatalf("未发布结果不对：%+v", result)
+	}
+	// 不存在：exists=false，且不报错。
+	result, err = f.version.CheckVersion(context.Background(), f.actor, "HOSP", "9.9.9")
+	if err != nil || result.Exists {
+		t.Fatalf("不存在版本结果 = %+v err=%v", result, err)
+	}
+	// 产品不存在：NotFound。
+	if _, err := f.version.CheckVersion(context.Background(), f.actor, "NOPE", "1.0.0"); err == nil {
+		t.Fatal("产品不存在应当报错")
+	} else if kind, ok := apperr.KindOf(err); !ok || kind != apperr.KindNotFound {
+		t.Fatalf("应当是 NotFound，got %v", err)
+	}
+}

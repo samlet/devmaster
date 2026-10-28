@@ -99,6 +99,7 @@ func run() error {
 		grpctransport.NewBoardService(boardService, db, logger),
 		grpctransport.NewVersionService(versionService, db, logger),
 		grpctransport.NewWorkLogService(workLogService, db, logger),
+		grpctransport.NewVersionRegistryService(versionService, logger),
 		grpctransport.NewSystemService(),
 	)
 	grpcListener, err := net.Listen("tcp", cfg.Server.GRPCAddress)

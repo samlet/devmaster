@@ -14,7 +14,7 @@ HTTP_PORT ?= 8291
 
 .PHONY: help tools proto proto-check db-create migrate migrate-test migrate-status \
         run relay worker consumer dev web-install web-dev web-build web-check \
-        seed-check seed-dataset reconcile snapshot gitea-reconcile approver-bootstrap test test-integration lint build check clean
+        seed-check seed-dataset reconcile snapshot gitea-reconcile approver-bootstrap version-gate test-version-gate test test-integration lint build check clean
 
 help:
 	@echo "make tools            检查 go / buf / atlas"
@@ -38,6 +38,8 @@ help:
 	@echo "make snapshot         给进行中冲刺写当天燃尽快照"
 	@echo "make approver-bootstrap 发布发布审批流程定义到 approver"
 	@echo "make gitea-reconcile  Gitea 提交对账（补齐 webhook 漏关联）"
+	@echo "make version-gate     部署前置校验（PRODUCT/VERSION）"
+	@echo "make test-version-gate 版本门禁验收（需 server 在跑）"
 	@echo "make test             buf lint + go test"
 	@echo "make test-integration 真连 PG 的集成测试（-p 1）"
 	@echo "make lint             go vet + buf lint"
@@ -129,6 +131,15 @@ approver-bootstrap:
 
 gitea-reconcile:
 	cd backend && go run ./cmd/gitea-reconcile -organization-id $(ORGANIZATION_ID) -config configs/local.example.yaml
+
+PRODUCT ?= HOSP
+VERSION ?= 1.0.0
+
+version-gate:
+	cd backend && go run ./cmd/version-gate -product $(PRODUCT) -version $(VERSION)
+
+test-version-gate:
+	./scripts/test-version-gate.sh
 
 test: tools
 	buf lint

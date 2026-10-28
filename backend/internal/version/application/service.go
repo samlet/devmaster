@@ -3,6 +3,8 @@ package application
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,6 +28,8 @@ type Repository interface {
 	AssignItems(ctx context.Context, organizationID, versionID, productID uuid.UUID, itemIDs []uuid.UUID, actorID string) (int, error)
 	CountItems(ctx context.Context, organizationID, versionID uuid.UUID) (int, error)
 	ProductCode(ctx context.Context, organizationID, productID uuid.UUID) (string, error)
+	ProductIDByCode(ctx context.Context, organizationID uuid.UUID, code string) (uuid.UUID, bool, error)
+	FindVersionByName(ctx context.Context, organizationID, productID uuid.UUID, name string) (domain.Version, bool, error)
 	SubmitRelease(ctx context.Context, version domain.Version, expectedVersion int, release domain.ReleaseRecord, outboxEvents []outbox.Event) (domain.Version, domain.ReleaseRecord, error)
 	GetRelease(ctx context.Context, organizationID, id uuid.UUID) (domain.ReleaseRecord, error)
 	ListReleases(ctx context.Context, organizationID, versionID uuid.UUID) ([]domain.ReleaseRecord, error)
@@ -192,6 +196,40 @@ func (s *Service) EnsureMutable(ctx context.Context, actor Actor, versionID uuid
 		return err
 	}
 	return version.EnsureScopeMutable()
+}
+
+// CheckResult 是部署前置校验的结果。
+type CheckResult struct {
+	Exists     bool
+	Released   bool
+	VersionID  uuid.UUID
+	Status     domain.Status
+	ReleasedAt *time.Time
+}
+
+// CheckVersion 供 it-solution 部署前调用：产品不存在 → NotFound；版本不存在 → exists=false。
+func (s *Service) CheckVersion(ctx context.Context, actor Actor, productCode, versionName string) (CheckResult, error) {
+	productID, found, err := s.repo.ProductIDByCode(ctx, actor.OrganizationID, strings.ToUpper(strings.TrimSpace(productCode)))
+	if err != nil {
+		return CheckResult{}, err
+	}
+	if !found {
+		return CheckResult{}, apperr.NotFound(fmt.Sprintf("product %q not found", productCode))
+	}
+	version, found, err := s.repo.FindVersionByName(ctx, actor.OrganizationID, productID, strings.TrimSpace(versionName))
+	if err != nil {
+		return CheckResult{}, err
+	}
+	if !found {
+		return CheckResult{Exists: false}, nil
+	}
+	return CheckResult{
+		Exists:     true,
+		Released:   version.Status == domain.StatusReleased,
+		VersionID:  version.ID,
+		Status:     version.Status,
+		ReleasedAt: version.ReleasedAt,
+	}, nil
 }
 
 func (s *Service) ProductCode(ctx context.Context, actor Actor, productID uuid.UUID) (string, error) {

@@ -107,6 +107,9 @@ var MethodRules = map[string]Rule{
 	"/dev.v1.WorkLogService/SumWorkLogs":    {RequireOrganization: true},
 	"/dev.v1.WorkLogService/LogWork":        {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
 	"/dev.v1.WorkLogService/ReverseWorkLog": {RequireOrganization: true, Roles: []string{"DEV_MEMBER"}},
+
+	// 集成只读面：it-solution 的 devmaster-service 客户端带 org_ids 调用。
+	"/dev.v1.VersionRegistryService/CheckVersion": {RequireOrganization: true},
 }
 
 type Authenticator struct {

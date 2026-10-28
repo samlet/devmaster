@@ -3,8 +3,9 @@
 面向软件研发的执行事实源：**工作项、冲刺、版本、工时**。参考 Jira 的任务/缺陷/冲刺/版本迭代
 四件套，但只保留其中可被核算的部分，并把它们接进生态的项目与财务链路。
 
-**当前状态：M4 代码关联与工时已落地（2026-10-28）。** 已交付 Gitea webhook（HMAC + delivery 幂等）、
-提交关联、每日对账、工时记录与更正（E7/E8 已由 PPM 真实消费）。集成收口在 M5。
+**当前状态：M5 devmaster 侧收口完成（2026-10-28）。** 已交付版本注册表 `CheckVersion`
+与部署前置校验参考客户端；PPM LABOR 投影、Gitea 关联、工时链路均已实测。
+it-solution 的 `CreateDeployment` 钩子尚未接入（需要改其仓并跑它的门禁）。
 评估与裁决见 [docs/01](docs/01-方案评估与关键决策.md)，分期见 [docs/01 §8](docs/01-方案评估与关键决策.md)。
 
 ## 定位
@@ -55,6 +56,8 @@ make reconcile        # 事件折叠对账：当前态必须等于事件日志
 make snapshot         # 给进行中冲刺写当天燃尽快照（建议 cron 每日跑）
 make approver-bootstrap  # 把发布审批流程定义发布到 approver（首次/改定义后）
 make gitea-reconcile     # Gitea 提交对账（补齐 webhook 漏掉的关联）
+make version-gate PRODUCT=HOSP VERSION=1.0.0   # 部署前置校验
+make test-version-gate   # 门禁验收：已发布放行、不存在拒绝（需 server 在跑）
 ```
 
 发布需要 approver（API `:18090`）与 Gitea（`:3123`）在跑；Gitea 令牌通过
@@ -109,7 +112,8 @@ make web-check         # 前端 tsc --noEmit
 
 ```text
 backend/
-  cmd/            server / relay / worker / consumer / importer / reconcile / snapshot / gitea-reconcile
+  cmd/            server / relay / worker / consumer / importer / reconcile / snapshot /
+                  gitea-reconcile / version-gate
   internal/
     platform/     config / database / auth / outbox / jetstream / idempotency / observability
     product/      domain / application / adapter/postgres
