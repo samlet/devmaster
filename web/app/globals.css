@@ -175,6 +175,25 @@ td.muted {
   min-width: 180px;
 }
 
+/* 看板拖拽：悬停列高亮、拖动中的卡片半透明 */
+.board-card {
+  cursor: grab;
+}
+
+.card-title {
+  margin: 6px 0;
+  font-size: 13px;
+}
+
+.board-column-hover {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+.board-card-dragging {
+  opacity: 0.4;
+}
+
 /* 燃尽图：手绘 SVG，不引图表库 */
 .burndown {
   width: 100%;

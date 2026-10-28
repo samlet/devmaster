@@ -1,4 +1,5 @@
 import { Nav } from "../nav";
+import { DraggableBoard } from "./draggable-board";
 
 export const dynamic = "force-dynamic";
 
@@ -150,39 +151,11 @@ export default async function BoardPage({
       {boardResult.error ? (
         <p className="error">读取看板失败：{boardResult.error}</p>
       ) : (
-        <div className="board">
-          {columns.map((column) => (
-            <section key={column.column} className="board-column">
-              <header>
-                <span>{COLUMN_LABELS[column.column] ?? column.column}</span>
-                <span className="count">{column.work_items.length}</span>
-              </header>
-              <div className="board-cards">
-                {column.work_items.map((item) => (
-                  <article key={item.id} className="board-card">
-                    <div className="card-top">
-                      <span className="key">{item.key}</span>
-                      <span className="muted">{TYPE_LABELS[item.type] ?? item.type}</span>
-                    </div>
-                    <p>{item.title}</p>
-                    <div className="card-bottom">
-                      <span className={`pill status-${item.status.toLowerCase()}`}>{item.status}</span>
-                      <span className="muted">
-                        {item.story_points > 0 ? `${item.story_points} 点` : "未估点"}
-                        {item.assignee_id ? ` · ${item.assignee_id}` : ""}
-                      </span>
-                    </div>
-                  </article>
-                ))}
-                {column.work_items.length === 0 ? <div className="board-empty">空</div> : null}
-              </div>
-            </section>
-          ))}
-        </div>
+        <DraggableBoard columns={columns} />
       )}
 
       <footer className="page">
-        <span>只读看板 · M2 冲刺</span>
+        <span>看板 · 拖动卡片改状态</span>
         <span>{sprint ? `版本 v${sprint.version}` : ""}</span>
       </footer>
     </main>

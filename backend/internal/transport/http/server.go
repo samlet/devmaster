@@ -65,6 +65,7 @@ type WorkItemWriter interface {
 	Create(ctx context.Context, actor workitemapplication.Actor, cmd workitemapplication.CreateCommand) (workitemdomain.WorkItem, error)
 	Update(ctx context.Context, actor workitemapplication.Actor, cmd workitemapplication.UpdateCommand) (workitemdomain.WorkItem, error)
 	Assign(ctx context.Context, actor workitemapplication.Actor, cmd workitemapplication.AssignCommand) (workitemdomain.WorkItem, error)
+	Move(ctx context.Context, actor workitemapplication.Actor, cmd workitemapplication.MoveCommand) (workitemdomain.WorkItem, error)
 	Transition(ctx context.Context, actor workitemapplication.Actor, cmd workitemapplication.TransitionCommand) (workitemdomain.WorkItem, error)
 	AddComment(ctx context.Context, actor workitemapplication.Actor, workItemID uuid.UUID, body string) (workitemdomain.Comment, error)
 	AddLink(ctx context.Context, actor workitemapplication.Actor, fromID, toID uuid.UUID, linkType workitemdomain.LinkType) (workitemdomain.Link, error)
@@ -219,6 +220,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/sprints/{id}/items", s.handleAddSprintItems)
 	mux.HandleFunc("DELETE /api/sprints/{id}/items", s.handleRemoveSprintItems)
 	mux.HandleFunc("GET /api/sprints/{id}/burndown", s.handleSprintBurndown)
+	mux.HandleFunc("POST /api/board/move", s.handleBoardMove)
 	mux.HandleFunc("/api/board", s.handleBoard)
 	mux.HandleFunc("/api/versions", s.handleVersions)
 	mux.HandleFunc("POST /api/products", s.handleCreateProduct)
@@ -945,6 +947,86 @@ func (s *Server) handleRemoveSprintItems(w http.ResponseWriter, r *http.Request)
 }
 
 // handleSprintBurndown 返回燃尽数据点。没有快照时返回空数组——页面提示去跑 snapshot。
+// handleBoardMove 是看板拖拽的写端点：把卡片从一列拖到另一列。
+//
+// 只处理状态变更，不处理列内排序（PrevID/NextID 留空）：
+// 拖到另一列的语义是「改状态」，同列内重排是另一件事，等真有人抱怨顺序再补。
+func (s *Server) handleBoardMove(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 32<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	var payload struct {
+		WorkItemKey     string   `json:"work_item_key"`
+		To              string   `json:"to"`
+		ExpectedVersion *int     `json:"expected_version"`
+		Comment         string   `json:"comment"`
+		Actor           string   `json:"actor"`
+		ActorRoles      []string `json:"actor_roles"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(payload.Actor)
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	if payload.ExpectedVersion == nil {
+		http.Error(w, "expected_version is required", http.StatusBadRequest)
+		return
+	}
+	to, err := workitemdomain.ParseStatus(payload.To)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	actorRef := workitemapplication.Actor{
+		Subject: actor, OrganizationID: organizationID, Roles: payload.ActorRoles,
+	}
+	item, err := s.workItems.GetByKey(r.Context(), actorRef, strings.TrimSpace(payload.WorkItemKey))
+	if err != nil {
+		s.writeAppError(w, "resolve work item failed", err)
+		return
+	}
+	moved, err := s.workItemsW.Move(r.Context(), actorRef, workitemapplication.MoveCommand{
+		WorkItemID:      item.ID,
+		To:              to,
+		ExpectedVersion: *payload.ExpectedVersion,
+		Comment:         strings.TrimSpace(payload.Comment),
+	})
+	if err != nil {
+		s.writeAppError(w, "move work item failed", err)
+		return
+	}
+	s.logger.Info("work item moved via board",
+		slog.String("work_item_id", moved.ID.String()),
+		slog.String("to", string(moved.Status)),
+		slog.String("actor", actor))
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id":      moved.ID.String(),
+		"key":     moved.Key,
+		"status":  string(moved.Status),
+		"version": int32(moved.Version),
+	})
+}
+
 func (s *Server) handleSprintBurndown(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

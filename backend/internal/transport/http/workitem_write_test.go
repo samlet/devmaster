@@ -116,6 +116,14 @@ func (f *fakeWorkItems) Update(_ context.Context, actor workitemapp.Actor, cmd w
 	return workitemdomain.WorkItem{ID: cmd.WorkItemID, Status: workitemdomain.StatusTodo, Version: f.version}, nil
 }
 
+func (f *fakeWorkItems) Move(_ context.Context, _ workitemapp.Actor, cmd workitemapp.MoveCommand) (workitemdomain.WorkItem, error) {
+	f.calls2 = append(f.calls2, "move")
+	if f.err != nil {
+		return workitemdomain.WorkItem{}, f.err
+	}
+	return workitemdomain.WorkItem{ID: cmd.WorkItemID, Key: "DEMO-1", Status: cmd.To, Version: cmd.ExpectedVersion + 1}, nil
+}
+
 func (f *fakeWorkItems) Assign(_ context.Context, actor workitemapp.Actor, cmd workitemapp.AssignCommand) (workitemdomain.WorkItem, error) {
 	f.calls2 = append(f.calls2, "assign")
 	f.lastActor = actor
