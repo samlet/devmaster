@@ -11,7 +11,7 @@ export async function Nav() {
   return (
     <span className="hint">
       <Link href="/">产品</Link> · <Link href="/work-items">工作项</Link> · <Link href="/board">看板</Link> ·{" "}
-      <Link href="/versions">版本</Link> · <Link href="/inbox">收件箱</Link> · <Link href="/reports">报表</Link>
+      <Link href="/worklogs">工时</Link> · <Link href="/versions">版本</Link> · <Link href="/inbox">收件箱</Link> · <Link href="/reports">报表</Link>
       {" · "}
       {session ? (
         <>

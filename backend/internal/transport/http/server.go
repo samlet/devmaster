@@ -38,6 +38,8 @@ import (
 	versiondomain "github.com/xiaofeiwu/devmaster/backend/internal/version/domain"
 	workitemapplication "github.com/xiaofeiwu/devmaster/backend/internal/workitem/application"
 	workitemdomain "github.com/xiaofeiwu/devmaster/backend/internal/workitem/domain"
+	worklogapplication "github.com/xiaofeiwu/devmaster/backend/internal/worklog/application"
+	worklogdomain "github.com/xiaofeiwu/devmaster/backend/internal/worklog/domain"
 )
 
 type ProductReader interface {
@@ -81,6 +83,16 @@ type ReleaseSubmitter interface {
 	SubmitRelease(ctx context.Context, actor versionapp.Actor, cmd versionapp.SubmitReleaseCommand) (versiondomain.ReleaseRecord, error)
 }
 
+// WorkLogStore 是工时的读写端口。
+//
+// 工时是 append-only：没有「修改」，只有「记录」和「冲正」（追加一条反向记录）。
+type WorkLogStore interface {
+	List(ctx context.Context, actor worklogapplication.Actor, filter worklogapplication.ListFilter) ([]worklogdomain.WorkLog, int, error)
+	Sum(ctx context.Context, actor worklogapplication.Actor, filter worklogapplication.ListFilter) (int, error)
+	Log(ctx context.Context, actor worklogapplication.Actor, cmd worklogapplication.LogCommand) (worklogdomain.WorkLog, error)
+	Reverse(ctx context.Context, actor worklogapplication.Actor, workLogID uuid.UUID, minutes *int, note *string) (worklogdomain.WorkLog, error)
+}
+
 // SubjectResolver 是主体目录的只读端口（解析 keycloak/<sub> 到锚点）。
 type SubjectResolver interface {
 	ResolveSubject(ctx context.Context, sourceSystem, externalID string) (anchorID string, found bool, err error)
@@ -91,6 +103,7 @@ type SubjectResolver interface {
 type ConsoleDeps struct {
 	Releases  ReleaseSubmitter
 	WorkItems WorkItemWriter
+	WorkLogs  WorkLogStore
 	Subjects  SubjectResolver
 	BFFSecret string
 }
@@ -116,6 +129,7 @@ type Server struct {
 	versions    VersionReader
 	releases    ReleaseSubmitter
 	workItemsW  WorkItemWriter
+	workLogs    WorkLogStore
 	subjects    SubjectResolver
 	bffSecret   string
 	reports     ReportReader
@@ -139,6 +153,7 @@ func NewServer(products ProductReader, workItems WorkItemReader, sprints SprintR
 		versions:              versions,
 		releases:              console.Releases,
 		workItemsW:            console.WorkItems,
+		workLogs:              console.WorkLogs,
 		subjects:              console.Subjects,
 		bffSecret:             console.BFFSecret,
 		reports:               reports,
@@ -169,6 +184,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/board", s.handleBoard)
 	mux.HandleFunc("/api/versions", s.handleVersions)
 	mux.HandleFunc("/api/releases", s.handleSubmitRelease)
+	mux.HandleFunc("/api/worklogs", s.handleWorkLogs)
+	mux.HandleFunc("POST /api/worklogs/{id}/reverse", s.handleReverseWorkLog)
 	mux.HandleFunc("/api/subjects/resolve", s.handleResolveSubject)
 	mux.HandleFunc("/api/reports/cycle-time", s.handleCycleTime)
 	mux.HandleFunc("/api/reports/throughput", s.handleThroughput)
@@ -886,6 +903,217 @@ func (s *Server) handleResolveSubject(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"found": found, "anchor_id": anchorID})
+}
+
+// handleWorkLogs：GET 列表+汇总，POST 记录一条工时。
+func (s *Server) handleWorkLogs(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		s.listWorkLogs(w, r)
+	case http.MethodPost:
+		s.createWorkLog(w, r)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// listWorkLogs 一次返回列表与汇总：工时页必然两个都要，拆开就是两次往返。
+func (s *Server) listWorkLogs(w http.ResponseWriter, r *http.Request) {
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	filter := worklogapplication.ListFilter{}
+	if author := strings.TrimSpace(r.URL.Query().Get("author_id")); author != "" {
+		filter.AuthorID = &author
+	}
+	if from := strings.TrimSpace(r.URL.Query().Get("from")); from != "" {
+		parsed, parseErr := time.Parse("2006-01-02", from)
+		if parseErr != nil {
+			http.Error(w, "from must be YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+		filter.From = &parsed
+	}
+	if to := strings.TrimSpace(r.URL.Query().Get("to")); to != "" {
+		parsed, parseErr := time.Parse("2006-01-02", to)
+		if parseErr != nil {
+			http.Error(w, "to must be YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+		// 结束日含当天：前端传 to=2026-10-28 时期望包含 28 号整天。
+		end := parsed.Add(24 * time.Hour)
+		filter.To = &end
+	}
+	filter.Limit, _ = strconv.Atoi(r.URL.Query().Get("limit"))
+	filter.Offset, _ = strconv.Atoi(r.URL.Query().Get("offset"))
+
+	actor := worklogapplication.Actor{Subject: "http-readonly", OrganizationID: organizationID}
+	logs, total, err := s.workLogs.List(r.Context(), actor, filter)
+	if err != nil {
+		s.writeAppError(w, "list work logs failed", err)
+		return
+	}
+	sum, err := s.workLogs.Sum(r.Context(), actor, filter)
+	if err != nil {
+		s.writeAppError(w, "sum work logs failed", err)
+		return
+	}
+	views := make([]map[string]any, 0, len(logs))
+	for _, entry := range logs {
+		view := map[string]any{
+			"id":            entry.ID.String(),
+			"work_item_id":  entry.WorkItemID.String(),
+			"work_item_key": entry.WorkItemKey,
+			"author_id":     entry.AuthorID,
+			"minutes":       entry.Minutes,
+			"work_date":     entry.WorkDate.Format("2006-01-02"),
+			"created_at":    entry.CreatedAt.Format(time.RFC3339),
+			"source":        string(entry.Source),
+			"is_reversal":   entry.ReversalOf != nil,
+		}
+		if entry.Note != nil {
+			view["note"] = *entry.Note
+		}
+		views = append(views, view)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"items":         views,
+		"total":         total,
+		"total_minutes": sum,
+	})
+}
+
+// createWorkLog 记一条工时。作者取自签名覆盖的 actor。
+func (s *Server) createWorkLog(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 32<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	var payload struct {
+		WorkItemKey string `json:"work_item_key"`
+		Minutes     int    `json:"minutes"`
+		WorkDate    string `json:"work_date"`
+		Note        string `json:"note"`
+		Actor       string `json:"actor"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(payload.Actor)
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	workDate, err := time.Parse("2006-01-02", strings.TrimSpace(payload.WorkDate))
+	if err != nil {
+		http.Error(w, "work_date must be YYYY-MM-DD", http.StatusBadRequest)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	cmd := worklogapplication.LogCommand{
+		WorkItemKey: strings.TrimSpace(payload.WorkItemKey),
+		Minutes:     payload.Minutes,
+		WorkDate:    workDate,
+		Source:      worklogdomain.SourceManual,
+	}
+	if note := strings.TrimSpace(payload.Note); note != "" {
+		cmd.Note = &note
+	}
+	entry, err := s.workLogs.Log(r.Context(), worklogapplication.Actor{
+		Subject: actor, OrganizationID: organizationID,
+	}, cmd)
+	if err != nil {
+		s.writeAppError(w, "log work failed", err)
+		return
+	}
+	s.logger.Info("work logged via console",
+		slog.String("work_log_id", entry.ID.String()),
+		slog.String("work_item_key", entry.WorkItemKey),
+		slog.Int("minutes", entry.Minutes),
+		slog.String("actor", actor))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id":            entry.ID.String(),
+		"work_item_key": entry.WorkItemKey,
+		"minutes":       entry.Minutes,
+	})
+}
+
+// handleReverseWorkLog 冲正一条工时：追加一条反向记录，不修改原记录。
+func (s *Server) handleReverseWorkLog(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 32<<10))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	if !s.validBFFSignature(r, body) {
+		http.Error(w, "invalid bff signature", http.StatusUnauthorized)
+		return
+	}
+	workLogID, err := uuid.Parse(strings.TrimSpace(r.PathValue("id")))
+	if err != nil {
+		http.Error(w, "work log id must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	var payload struct {
+		Minutes *int   `json:"minutes"`
+		Note    string `json:"note"`
+		Actor   string `json:"actor"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	actor := strings.TrimSpace(payload.Actor)
+	if actor == "" {
+		http.Error(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	note := strings.TrimSpace(payload.Note)
+	if note == "" {
+		http.Error(w, "note is required: 冲正必须说明原因", http.StatusBadRequest)
+		return
+	}
+	organizationID, err := s.organizationFrom(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	entry, err := s.workLogs.Reverse(r.Context(), worklogapplication.Actor{
+		Subject: actor, OrganizationID: organizationID,
+	}, workLogID, payload.Minutes, &note)
+	if err != nil {
+		s.writeAppError(w, "reverse work log failed", err)
+		return
+	}
+	s.logger.Info("work log reversed via console",
+		slog.String("work_log_id", entry.ID.String()),
+		slog.Int("minutes", entry.Minutes),
+		slog.String("actor", actor))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id":      entry.ID.String(),
+		"minutes": entry.Minutes,
+	})
 }
 
 // handleCreateWorkItem 从控制台建工作项。

@@ -175,6 +175,31 @@ td.muted {
   min-width: 180px;
 }
 
+/* 工时汇总卡 */
+.summary-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  padding: 16px;
+}
+
+.summary-value {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* 冲正记录是负数：用灰+删除线，不抢正向工时的注意力。 */
+.minutes-negative {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
 /* 工作项详情 */
 .detail-card {
   padding: 16px;
